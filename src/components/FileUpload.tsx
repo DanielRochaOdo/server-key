@@ -50,64 +50,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
   const parseCSV = (text: string): ParsedData[] => {
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length < 2) throw new Error('Arquivo deve conter pelo menos um cabeçalho e uma linha de dados');
-  
-    const clean = (str: string) =>
-      str.trim()
-        .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, '') // Remove acentos
-        .replace(/[^a-z0-9]/g, ''); // Remove caracteres especiais e espaços
-  
-    const headers = lines[0].split(',').map(clean);
-    const data: ParsedData[] = [];
-  
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      const row: any = {};
-  
-      headers.forEach((header, index) => {
-        const value = values[index] || '';
-  
-        switch (header) {
-          case 'descricao':
-            row.descricao = value;
-            break;
-          case 'paraqueservecomofunciona':
-            row.para_que_serve = value;
-            break;
-          case 'ipurl':
-            row.ip_url = value;
-            break;
-          case 'usuariologin':
-            row.usuario_login = value;
-            break;
-          case 'senha':
-            row.senha = value;
-            break;
-          case 'observacao':
-            row.observacao = value;
-            break;
-          case 'suportecontato':
-            row.suporte_contato = value;
-            break;
-          case 'email':
-            row.email = value;
-            break;
-          case 'datadepagamento':
-          case 'datapagamento':
-            row.data_pagamento = value;
-            break;
-        }
-      });
-  
-      if (row.descricao) {
-        data.push(row);
-      }
-    }
-  
-    return data;
-  };
 
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ''));
+    const headers = lines[0]
+  .split(',')
+  .map(h => h.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ''));
+
     const data: ParsedData[] = [];
 
     for (let i = 1; i < lines.length; i++) {
