@@ -107,7 +107,6 @@ const parseCSV = (text: string): ParsedData[] => {
   return data;
 };
 
-
   const handlePreview = async () => {
     if (!file) return;
 
