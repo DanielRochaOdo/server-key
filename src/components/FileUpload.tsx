@@ -126,6 +126,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
     try {
       const dataToInsert = preview.map(item => ({
         ...item,
+        data_pagamento: item.data_pagamento?.trim() ? item.data_pagamento : null,
         user_id: user?.id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
