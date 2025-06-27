@@ -47,79 +47,66 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
     }
   };
 
-  const parseCSV = (text: string): ParsedData[] => {
-    const lines = text.split('\n').filter(line => line.trim());
-    if (lines.length < 2) throw new Error('Arquivo deve conter pelo menos um cabeçalho e uma linha de dados');
+const parseCSV = (text: string): ParsedData[] => {
+  const lines = text.split('\n').filter(line => line.trim());
+  if (lines.length < 2) throw new Error('Arquivo deve conter pelo menos um cabeçalho e uma linha de dados');
 
-    const headers = lines[0]
-  .split(',')
-  .map(h => h.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ''));
+  const clean = (str: string) =>
+    str.trim()
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, '') // Remove acentos
+      .replace(/[^a-z0-9]/g, ''); // Remove caracteres especiais e espaços
 
-    const data: ParsedData[] = [];
+  const headers = lines[0].split(',').map(clean);
+  const data: ParsedData[] = [];
 
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      const row: any = {};
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    const row: any = {};
 
-      headers.forEach((header, index) => {
-        const value = values[index] || '';
-        
-        // Map CSV headers to database fields
-        switch (header) {
-          case 'descrição':
-          case 'descricao':
-            row.descricao = value;
-            break;
-          case 'para que serve':
-          case 'para_que_serve':
-          case 'como funciona':
-            row.para_que_serve = value;
-            break;
-          case 'ip':
-          case 'url':
-          case 'ip/url':
-          case 'ip_url':
-            row.ip_url = value;
-            break;
-          case 'usuário':
-          case 'usuario':
-          case 'login':
-          case 'usuario_login':
-            row.usuario_login = value;
-            break;
-          case 'senha':
-          case 'password':
-            row.senha = value;
-            break;
-          case 'observação':
-          case 'observacao':
-          case 'obs':
-            row.observacao = value;
-            break;
-          case 'suporte':
-          case 'contato':
-          case 'suporte_contato':
-            row.suporte_contato = value;
-            break;
-          case 'email':
-          case 'e-mail':
-            row.email = value;
-            break;
-          case 'data pagamento':
-          case 'data_pagamento':
-          case 'pagamento':
-            row.data_pagamento = value;
-            break;
-        }
-      });
+    headers.forEach((header, index) => {
+      const value = values[index] || '';
 
-      if (row.descricao) {
-        data.push(row);
+      switch (header) {
+        case 'descricao':
+          row.descricao = value;
+          break;
+        case 'paraqueservecomofunciona':
+          row.para_que_serve = value;
+          break;
+        case 'ipurl':
+          row.ip_url = value;
+          break;
+        case 'usuariologin':
+          row.usuario_login = value;
+          break;
+        case 'senha':
+          row.senha = value;
+          break;
+        case 'observacao':
+          row.observacao = value;
+          break;
+        case 'suportecontato':
+          row.suporte_contato = value;
+          break;
+        case 'email':
+          row.email = value;
+          break;
+        case 'datadepagamento':
+        case 'datapagamento':
+          row.data_pagamento = value;
+          break;
       }
-    }
+    });
 
-    return data;
-  };
+    if (row.descricao) {
+      data.push(row);
+    }
+  }
+
+  return data;
+};
+
 
   const handlePreview = async () => {
     if (!file) return;
