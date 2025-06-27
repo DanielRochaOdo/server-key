@@ -80,7 +80,6 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
         user_id: user?.id,
         updated_at: new Date().toISOString(),
        };
-      };
 
       if (access?.id) {
         // Update existing
