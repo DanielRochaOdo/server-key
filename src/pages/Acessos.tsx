@@ -302,7 +302,7 @@ const Acessos: React.FC = () => {
             </tbody>
           </table>
           
-          {filteredAcessos.length === 0 && (
+          {filteredAcessosSorted.length === 0 && (
             <div className="text-center py-12">
               <Key className="mx-auto h-12 w-12 text-neutral-400" />
               <h3 className="mt-2 text-sm font-medium text-neutral-900">Nenhum acesso encontrado</h3>
