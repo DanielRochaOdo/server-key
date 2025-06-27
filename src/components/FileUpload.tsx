@@ -37,143 +37,76 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
         'application/vnd.ms-excel',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       ];
-      
-      if (validTypes.includes(selectedFile.type) || selectedFile.name.endsWith('.csv')) {
+
+      if (
+        validTypes.includes(selectedFile.type) ||
+        selectedFile.name.endsWith('.csv') ||
+        selectedFile.name.endsWith('.xlsx') ||
+        selectedFile.name.endsWith('.xls')
+      ) {
         setFile(selectedFile);
         setError('');
       } else {
-        setError('Apenas arquivos CSV e XLSX são aceitos');
+        setError('Apenas arquivos CSV, XLS ou XLSX são aceitos');
         setFile(null);
       }
     }
   };
 
   const parseFile = async (file: File): Promise<ParsedData[]> => {
-  const data: ParsedData[] = [];
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const json = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
 
-  const arrayBuffer = await file.arrayBuffer();
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  const json = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
-
-  json.forEach((row) => {
-    // Normaliza as chaves (remove acento, caixa baixa, sem símbolos)
-    const cleanKey = (key: string) => key
-      .toLowerCase()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]/g, '');
-
-    const normalizedRow: any = {};
-    Object.keys(row).forEach((key) => {
-      normalizedRow[cleanKey(key)] = row[key];
-    });
-
-    const item: ParsedData = {
-      descricao: normalizedRow['descricao'] || '',
-      para_que_serve: normalizedRow['paraqueservecomofunciona'] || '',
-      ip_url: normalizedRow['ipurl'] || '',
-      usuario_login: normalizedRow['usuariologin'] || '',
-      senha: normalizedRow['senha'] || '',
-      observacao: normalizedRow['observacao'] || '',
-      suporte_contato: normalizedRow['suportecontato'] || '',
-      email: normalizedRow['email'] || '',
-      data_pagamento: normalizedRow['datadepagamento'] || normalizedRow['datapagamento'] || '',
-    };
-
-    if (item.descricao) {
-      data.push(item);
-    }
-  });
-
-  return data;
-};
-
-  const parseCSV = (text: string): ParsedData[] => {
-    const lines = text.split('\n').filter(line => line.trim());
-    if (lines.length < 2) throw new Error('Arquivo deve conter pelo menos um cabeçalho e uma linha de dados');
-
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
     const data: ParsedData[] = [];
 
-    for (let i = 1; i < lines.length; i++) {
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ''));
+    json.forEach((row) => {
+      const cleanKey = (key: string) =>
+        key
+          .toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]/g, '');
 
-      const row: any = {};
-
-      headers.forEach((header, index) => {
-        const value = values[index] || '';
-        
-        // Map CSV headers to database fields
-        switch (header) {
-          case 'descrição':
-          case 'descricao':
-            row.descricao = value;
-            break;
-          case 'para que serve':
-          case 'para_que_serve':
-          case 'como funciona':
-            row.para_que_serve = value;
-            break;
-          case 'ip':
-          case 'url':
-          case 'ip/url':
-          case 'ip_url':
-            row.ip_url = value;
-            break;
-          case 'usuário':
-          case 'usuario':
-          case 'login':
-          case 'usuario_login':
-            row.usuario_login = value;
-            break;
-          case 'senha':
-          case 'password':
-            row.senha = value;
-            break;
-          case 'observação':
-          case 'observacao':
-          case 'obs':
-            row.observacao = value;
-            break;
-          case 'suporte':
-          case 'contato':
-          case 'suporte_contato':
-            row.suporte_contato = value;
-            break;
-          case 'email':
-          case 'e-mail':
-            row.email = value;
-            break;
-          case 'data pagamento':
-          case 'data_pagamento':
-          case 'pagamento':
-            row.data_pagamento = value;
-            break;
-        }
+      const normalizedRow: any = {};
+      Object.keys(row).forEach((key) => {
+        normalizedRow[cleanKey(key)] = row[key];
       });
 
-      if (row.descricao) {
-        data.push(row);
+      const item: ParsedData = {
+        descricao: normalizedRow['descricao'] || '',
+        para_que_serve: normalizedRow['paraqueservecomofunciona'] || '',
+        ip_url: normalizedRow['ipurl'] || '',
+        usuario_login: normalizedRow['usuariologin'] || '',
+        senha: normalizedRow['senha'] || '',
+        observacao: normalizedRow['observacao'] || '',
+        suporte_contato: normalizedRow['suportecontato'] || '',
+        email: normalizedRow['email'] || '',
+        data_pagamento: normalizedRow['datadepagamento'] || normalizedRow['datapagamento'] || ''
+      };
+
+      if (item.descricao) {
+        data.push(item);
       }
-    }
+    });
 
     return data;
   };
 
   const handlePreview = async () => {
     if (!file) return;
-  
+
     setLoading(true);
     setError('');
-  
+
     try {
       const parsedData = await parseFile(file);
-  
+
       if (parsedData.length === 0) {
         throw new Error('Nenhum dado válido encontrado no arquivo');
       }
-  
+
       setPreview(parsedData);
       setShowPreview(true);
     } catch (error: any) {
@@ -198,9 +131,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
         updated_at: new Date().toISOString(),
       }));
 
-      const { error } = await supabase
-        .from('acessos')
-        .insert(dataToInsert);
+      const { error } = await supabase.from('acessos').insert(dataToInsert);
 
       if (error) throw error;
 
@@ -241,21 +172,10 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
               <div className="mb-6">
                 <h3 className="text-lg font-medium text-neutral-900 mb-2">Formato do Arquivo</h3>
                 <p className="text-sm text-neutral-600 mb-4">
-                  O arquivo CSV deve conter as seguintes colunas (a ordem não importa):
+                  O arquivo deve conter colunas como: DESCRIÇÃO, PARA QUE SERVE / COMO FUNCIONA, IP / URL,
+                  USUÁRIO / LOGIN, SENHA, OBSERVAÇÃO, SUPORTE / CONTATO, EMAIL, DATA DE PAGAMENTO. 
+                  (A ordem das colunas não importa)
                 </p>
-                <div className="bg-neutral-50 rounded-lg p-4">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                    <span className="font-medium">descrição</span>
-                    <span>para_que_serve</span>
-                    <span>ip_url</span>
-                    <span>usuario_login</span>
-                    <span>senha</span>
-                    <span>observacao</span>
-                    <span>suporte_contato</span>
-                    <span>email</span>
-                    <span>data_pagamento</span>
-                  </div>
-                </div>
               </div>
 
               <div className="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center">
@@ -278,7 +198,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
                   />
                 </div>
                 <p className="text-xs text-neutral-500">
-                  Formatos aceitos: CSV, XLSX
+                  Formatos aceitos: CSV, XLS, XLSX
                 </p>
               </div>
 
@@ -336,7 +256,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
             >
               Cancelar
             </button>
-            
+
             {!showPreview ? (
               <button
                 onClick={handlePreview}
