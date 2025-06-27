@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Key, Plus, Upload, Search, Filter, Edit, Trash2, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Key, Plus, Upload, Search, Edit, Trash2, Eye, EyeOff } from 'lucide-react';
 import AccessForm from '../components/AccessForm';
 import FileUpload from '../components/FileUpload';
 import { supabase } from '../lib/supabase';
@@ -27,20 +27,12 @@ const Acessos: React.FC = () => {
   const [editingAccess, setEditingAccess] = useState<Access | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
-  const { user } = useAuth();
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchAcessos();
   }, []);
-
-  const toggleSortOrder = () => {
-    setSortOrder((prev) => {
-      if (prev === 'asc') return 'desc';
-      if (prev === 'desc') return null;
-      return 'asc';
-    });
-  };
 
   const fetchAcessos = async () => {
     try {
@@ -68,7 +60,7 @@ const Acessos: React.FC = () => {
         .eq('id', id);
 
       if (error) throw error;
-      
+
       setAcessos(acessos.filter(acesso => acesso.id !== id));
     } catch (error) {
       console.error('Error deleting access:', error);
@@ -86,13 +78,21 @@ const Acessos: React.FC = () => {
     setVisiblePasswords(newVisible);
   };
 
-  const filteredAcessosSorted = React.useMemo(() => {
+  const toggleSortOrder = () => {
+    setSortOrder(prev => {
+      if (prev === 'asc') return 'desc';
+      if (prev === 'desc') return null;
+      return 'asc';
+    });
+  };
+
+  const filteredAcessosSorted = useMemo(() => {
     let filtered = acessos.filter(acesso =>
       acesso.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
       acesso.ip_url?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       acesso.usuario_login?.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  
+
     if (sortOrder === 'asc') {
       filtered.sort((a, b) => a.descricao.localeCompare(b.descricao));
     } else if (sortOrder === 'desc') {
@@ -171,19 +171,17 @@ const Acessos: React.FC = () => {
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="p-6 border-b border-neutral-200">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-5 w-5 text-neutral-400" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Buscar acessos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-neutral-400" />
               </div>
+              <input
+                type="text"
+                placeholder="Buscar acessos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
             </div>
             <div className="flex items-center space-x-2">
               <Key className="h-5 w-5 text-neutral-400" />
@@ -196,15 +194,19 @@ const Acessos: React.FC = () => {
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">
               <tr>
-              <th
-                onClick={toggleSortOrder}
-                className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none flex items-center"
-                title="Ordenar por descrição">
-                Descrição
-                <span className="ml-2">
-                  {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
-                </span>
-              </th>
+                <th
+                  onClick={toggleSortOrder}
+                  className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none flex items-center"
+                  title="Ordenar por descrição"
+                >
+                  Descrição
+                  <span className="ml-2">
+                    {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
+                  </span>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  Para que serve
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                   IP/URL
                 </th>
@@ -226,15 +228,13 @@ const Acessos: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
-              {filteredAcessosSorted.map((acesso) => (
+              {filteredAcessosSorted.map(acesso => (
                 <tr key={acesso.id} className="hover:bg-neutral-50 transition-colors duration-150">
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-neutral-900">{acesso.descricao}</div>
-                    {acesso.para_que_serve && (
-                      <div className="text-sm text-neutral-500 truncate max-w-xs">
-                        {acesso.para_que_serve}
-                      </div>
-                    )}
+                  <td className="px-6 py-4 text-sm font-medium text-neutral-900">
+                    {acesso.descricao}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-neutral-600 max-w-xs truncate">
+                    {acesso.para_que_serve || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
                     {acesso.ip_url ? (
@@ -242,10 +242,9 @@ const Acessos: React.FC = () => {
                         href={acesso.ip_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Abrir link"
                         className="inline-flex items-center text-blue-600 hover:text-blue-800"
+                        title="Abrir link"
                       >
-                        {/* Ícone olho do lucide-react */}
                         <Eye className="h-5 w-5" />
                       </a>
                     ) : (
@@ -301,7 +300,7 @@ const Acessos: React.FC = () => {
               ))}
             </tbody>
           </table>
-          
+
           {filteredAcessosSorted.length === 0 && (
             <div className="text-center py-12">
               <Key className="mx-auto h-12 w-12 text-neutral-400" />
