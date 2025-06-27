@@ -60,8 +60,12 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
     setError('');
     setLoading(true);
 
-    if (!formData.descricao.trim()) {
-      setError('Descrição é obrigatória');
+    if (!formData.descricao.trim() ||
+        !formData.para_que_serve?.trim() ||
+        !formData.ip_url?.trim() ||
+        !formData.usuario_login?.trim() ||
+        !formData.senha) {
+      setError('Preencha todos os campos obrigatórios.');
       setLoading(false);
       return;
     }
