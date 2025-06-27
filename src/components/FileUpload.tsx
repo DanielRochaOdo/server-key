@@ -1,15 +1,12 @@
-import React, { useState } from 'react';
-import { X, Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Key, Plus, Upload, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import AccessForm from '../components/AccessForm';
+import FileUpload from '../components/FileUpload';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import * as XLSX from 'xlsx';
 
-interface FileUploadProps {
-  onSuccess: () => void;
-  onCancel: () => void;
-}
-
-interface ParsedData {
+interface Access {
+  id: string;
   descricao: string;
   para_que_serve?: string;
   ip_url?: string;
@@ -19,289 +16,230 @@ interface ParsedData {
   suporte_contato?: string;
   email?: string;
   data_pagamento?: string;
+  created_at: string;
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [preview, setPreview] = useState<ParsedData[]>([]);
-  const [showPreview, setShowPreview] = useState(false);
+const Acessos: React.FC = () => {
+  const [acessos, setAcessos] = useState<Access[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [editingAccess, setEditingAccess] = useState<Access | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const { user } = useAuth();
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      const validTypes = [
-        'text/csv',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      ];
+  // PAGINAÇÃO
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-      if (
-        validTypes.includes(selectedFile.type) ||
-        selectedFile.name.endsWith('.csv') ||
-        selectedFile.name.endsWith('.xlsx') ||
-        selectedFile.name.endsWith('.xls')
-      ) {
-        setFile(selectedFile);
-        setError('');
-      } else {
-        setError('Apenas arquivos CSV, XLS ou XLSX são aceitos');
-        setFile(null);
-      }
-    }
-  };
+  useEffect(() => {
+    fetchAcessos();
+  }, []);
 
-  const parseFile = async (file: File): Promise<ParsedData[]> => {
-    const arrayBuffer = await file.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const json = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
-
-    const data: ParsedData[] = [];
-
-    json.forEach((row) => {
-      const cleanKey = (key: string) =>
-        key
-          .toLowerCase()
-          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-z0-9]/g, '');
-
-      const normalizedRow: any = {};
-      Object.keys(row).forEach((key) => {
-        normalizedRow[cleanKey(key)] = row[key];
-      });
-
-      const item: ParsedData = {
-        descricao: normalizedRow['descricao'] || '',
-        para_que_serve: 
-          normalizedRow['paraqueserve'] || 
-          normalizedRow['paraqueservecomofunciona'] ||
-          normalizedRow['para_que_serve'] ||
-          normalizedRow['comofunciona'] || '',
-        ip_url: normalizedRow['ipurl'] || '',
-        usuario_login: normalizedRow['usuariologin'] || '',
-        senha: normalizedRow['senha'] || '',
-        observacao: normalizedRow['observacao'] || '',
-        suporte_contato: normalizedRow['suportecontato'] || '',
-        email: normalizedRow['email'] || '',
-        data_pagamento: normalizedRow['datadepagamento'] || normalizedRow['datapagamento'] || ''
-      };
-
-      if (item.descricao) {
-        data.push(item);
-      }
-    });
-
-    return data;
-  };
-
-  const handlePreview = async () => {
-    if (!file) return;
-
-    setLoading(true);
-    setError('');
-
+  const fetchAcessos = async () => {
     try {
-      const parsedData = await parseFile(file);
+      const { data, error } = await supabase
+        .from('acessos')
+        .select('id, descricao, para_que_serve, ip_url, usuario_login, senha, observacao, suporte_contato, email, data_pagamento, created_at')
+        .order('created_at', { ascending: false });
 
-      if (parsedData.length === 0) {
-        throw new Error('Nenhum dado válido encontrado no arquivo');
-      }
-
-      setPreview(parsedData);
-      setShowPreview(true);
-    } catch (error: any) {
-      console.error(error);
-      setError(error.message || 'Erro ao processar arquivo');
+      if (error) throw error;
+      setAcessos(data || []);
+    } catch (error) {
+      console.error('Error fetching acessos:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleImport = async () => {
-    if (preview.length === 0) return;
+  const toggleSortOrder = () => {
+    setSortOrder((prev) => {
+      if (prev === 'asc') return 'desc';
+      if (prev === 'desc') return null;
+      return 'asc';
+    });
+  };
 
-    setLoading(true);
-    setError('');
+  const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este acesso?')) return;
 
     try {
-      const dataToInsert = preview.map(item => ({
-        ...item,
-        data_pagamento: item.data_pagamento?.trim() ? item.data_pagamento : null,
-        user_id: user?.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
-
-      const { error } = await supabase.from('acessos').insert(dataToInsert);
+      const { error } = await supabase
+        .from('acessos')
+        .delete()
+        .eq('id', id);
 
       if (error) throw error;
 
-      onSuccess();
-    } catch (error: any) {
-      console.error('Error importing data:', error);
-      setError(error.message || 'Erro ao importar dados');
-    } finally {
-      setLoading(false);
+      setAcessos(acessos.filter(acesso => acesso.id !== id));
+    } catch (error) {
+      console.error('Error deleting access:', error);
+      alert('Erro ao excluir acesso');
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-neutral-200">
-          <h2 className="text-xl font-semibold text-neutral-900">
-            Importar Acessos
-          </h2>
-          <button
-            onClick={onCancel}
-            className="text-neutral-400 hover:text-neutral-600"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
+  const togglePasswordVisibility = (id: string) => {
+    const newVisible = new Set(visiblePasswords);
+    if (newVisible.has(id)) {
+      newVisible.delete(id);
+    } else {
+      newVisible.add(id);
+    }
+    setVisiblePasswords(newVisible);
+  };
 
-        <div className="p-6">
-          {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4 flex items-center space-x-2">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              <span className="text-sm text-red-700">{error}</span>
-            </div>
-          )}
+  const filteredAcessosSorted = React.useMemo(() => {
+    let filtered = acessos.filter(acesso =>
+      acesso.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      acesso.ip_url?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      acesso.usuario_login?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
-          {!showPreview ? (
-            <div>
-              <div className="mb-6">
-                <h3 className="text-lg font-medium text-neutral-900 mb-2">Formato do Arquivo</h3>
-                <p className="text-sm text-neutral-600 mb-4">
-                  O arquivo deve conter colunas como: DESCRIÇÃO, PARA QUE SERVE / COMO FUNCIONA, IP / URL,
-                  USUÁRIO / LOGIN, SENHA, OBSERVAÇÃO, SUPORTE / CONTATO, EMAIL, DATA DE PAGAMENTO. 
-                  (A ordem das colunas não importa)
-                </p>
-              </div>
+    if (sortOrder === 'asc') {
+      filtered.sort((a, b) => a.descricao.localeCompare(b.descricao));
+    } else if (sortOrder === 'desc') {
+      filtered.sort((a, b) => b.descricao.localeCompare(a.descricao));
+    }
 
-              <div className="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center">
-                <Upload className="mx-auto h-12 w-12 text-neutral-400 mb-4" />
-                <div className="mb-4">
-                  <label htmlFor="file-upload" className="cursor-pointer">
-                    <span className="text-lg font-medium text-neutral-900">
-                      Clique para selecionar um arquivo
-                    </span>
-                    <span className="block text-sm text-neutral-500 mt-1">
-                      ou arraste e solte aqui
-                    </span>
-                  </label>
-                  <input
-                    id="file-upload"
-                    type="file"
-                    accept=".csv,.xlsx,.xls"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </div>
-                <p className="text-xs text-neutral-500">
-                  Formatos aceitos: CSV, XLS, XLSX
-                </p>
-              </div>
+    return filtered;
+  }, [acessos, searchTerm, sortOrder]);
 
-              {file && (
-                <div className="mt-6 p-4 bg-primary-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <FileText className="h-8 w-8 text-primary-600" />
-                    <div>
-                      <p className="font-medium text-primary-900">{file.name}</p>
-                      <p className="text-sm text-primary-600">
-                        {(file.size / 1024).toFixed(1)} KB
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div>
-              <div className="mb-6">
-                <div className="flex items-center space-x-2 mb-4">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <h3 className="text-lg font-medium text-neutral-900">
-                    Preview dos Dados ({preview.length} registros)
-                  </h3>
-                </div>
-                <div className="bg-neutral-50 rounded-lg p-4 max-h-64 overflow-y-auto">
-                  <div className="space-y-2">
-                    {preview.slice(0, 5).map((item, index) => (
-                      <div key={index} className="bg-white p-3 rounded border">
-                        <div className="font-medium text-neutral-900">{item.descricao}</div>
-                        <div className="text-sm text-neutral-600 grid grid-cols-2 gap-2 mt-1">
-                          {item.ip_url && <span>IP/URL: {item.ip_url}</span>}
-                          {item.usuario_login && <span>Login: {item.usuario_login}</span>}
-                          {item.email && <span>Email: {item.email}</span>}
-                        </div>
-                      </div>
-                    ))}
-                    {preview.length > 5 && (
-                      <div className="text-center text-sm text-neutral-500 py-2">
-                        ... e mais {preview.length - 5} registros
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+  // PAGINAÇÃO: calcula os itens da página atual
+  const totalPages = Math.ceil(filteredAcessosSorted.length / itemsPerPage);
+  const currentItems = filteredAcessosSorted.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
-          <div className="flex justify-end space-x-3 mt-8 pt-6 border-t border-neutral-200">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              Cancelar
-            </button>
+  const handleFormSuccess = () => {
+    fetchAcessos();
+    setShowForm(false);
+    setEditingAccess(null);
+  };
 
-            {!showPreview ? (
-              <button
-                onClick={handlePreview}
-                disabled={!file || loading}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                ) : (
-                  <FileText className="h-4 w-4 mr-2" />
-                )}
-                Visualizar
-              </button>
-            ) : (
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                >
-                  Voltar
-                </button>
-                <button
-                  onClick={handleImport}
-                  disabled={loading}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-button-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  ) : (
-                    <Upload className="h-4 w-4 mr-2" />
-                  )}
-                  Importar {preview.length} registros
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+  const handleUploadSuccess = () => {
+    fetchAcessos();
+    setShowUpload(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
+    );
+  }
+
+  return (
+    <div className="px-4 sm:px-0">
+      {/* Cabeçalho, botões e filtros já existentes */}
+      {/* ... (seu código permanece igual até a tabela) */}
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-neutral-200">
+          <thead className="bg-neutral-50">
+            <tr>
+              <th
+                onClick={toggleSortOrder}
+                className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none flex items-center"
+                title="Ordenar por descrição"
+              >
+                Descrição
+                <span className="ml-2">
+                  {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
+                </span>
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">IP/URL</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Usuário</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Senha</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Email</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Data Pagamento</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-neutral-200">
+            {currentItems.map(acesso => (
+              <tr key={acesso.id} className="hover:bg-neutral-50 transition-colors duration-150">
+                <td className="px-6 py-4">
+                  <div className="text-sm font-medium text-neutral-900">{acesso.descricao}</div>
+                  {acesso.para_que_serve && (
+                    <div className="text-sm text-neutral-500 truncate max-w-xs">{acesso.para_que_serve}</div>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
+                  {acesso.ip_url ? (
+                    <a href={acesso.ip_url} target="_blank" rel="noopener noreferrer" title="Abrir link" className="inline-flex items-center text-blue-600 hover:text-blue-800">
+                      <Eye className="h-5 w-5" />
+                    </a>
+                  ) : '-'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">{acesso.usuario_login}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
+                  {acesso.senha && (
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono">
+                        {visiblePasswords.has(acesso.id) ? acesso.senha : '••••••••'}
+                      </span>
+                      <button onClick={() => togglePasswordVisibility(acesso.id)} className="text-neutral-400 hover:text-neutral-600">
+                        {visiblePasswords.has(acesso.id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">{acesso.email}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
+                  {acesso.data_pagamento && new Date(acesso.data_pagamento).toLocaleDateString('pt-BR')}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <button onClick={() => { setEditingAccess(acesso); setShowForm(true); }} className="text-primary-600 hover:text-primary-900 mr-4">
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => handleDelete(acesso.id)} className="text-red-600 hover:text-red-900">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {filteredAcessosSorted.length === 0 && (
+          <div className="text-center py-12">
+            <Key className="mx-auto h-12 w-12 text-neutral-400" />
+            <h3 className="mt-2 text-sm font-medium text-neutral-900">Nenhum acesso encontrado</h3>
+            <p className="mt-1 text-sm text-neutral-500">
+              {searchTerm ? 'Tente ajustar sua busca' : 'Comece adicionando um novo acesso'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* CONTROLES DE PAGINAÇÃO */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center space-x-4 mt-4">
+          {currentPage > 1 && (
+            <button
+              onClick={() => setCurrentPage(prev => prev - 1)}
+              className="inline-flex items-center px-3 py-1 border border-neutral-300 rounded hover:bg-neutral-100"
+            >
+              <ChevronLeft className="h-4 w-4" /> Anterior
+            </button>
+          )}
+          <span className="text-sm text-neutral-600">Página {currentPage} de {totalPages}</span>
+          {currentPage < totalPages && (
+            <button
+              onClick={() => setCurrentPage(prev => prev + 1)}
+              className="inline-flex items-center px-3 py-1 border border-neutral-300 rounded hover:bg-neutral-100"
+            >
+              Próxima <ChevronRight className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
-export default FileUpload;
+export default Acessos;
