@@ -212,7 +212,20 @@ const Acessos: React.FC = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
-                    {acesso.ip_url}
+                    {acesso.ip_url ? (
+                      <a
+                        href={acesso.ip_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Abrir link"
+                        className="inline-flex items-center text-blue-600 hover:text-blue-800"
+                      >
+                        {/* Ícone olho do lucide-react */}
+                        <Eye className="h-5 w-5" />
+                      </a>
+                    ) : (
+                      '-'
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
                     {acesso.usuario_login}
