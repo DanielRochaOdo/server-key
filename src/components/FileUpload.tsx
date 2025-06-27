@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import * as XLSX from 'xlsx';
 
 interface FileUploadProps {
   onSuccess: () => void;
@@ -46,6 +47,47 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
       }
     }
   };
+
+  const parseFile = async (file: File): Promise<ParsedData[]> => {
+  const data: ParsedData[] = [];
+
+  const arrayBuffer = await file.arrayBuffer();
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const json = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+
+  json.forEach((row) => {
+    // Normaliza as chaves (remove acento, caixa baixa, sem símbolos)
+    const cleanKey = (key: string) => key
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+
+    const normalizedRow: any = {};
+    Object.keys(row).forEach((key) => {
+      normalizedRow[cleanKey(key)] = row[key];
+    });
+
+    const item: ParsedData = {
+      descricao: normalizedRow['descricao'] || '',
+      para_que_serve: normalizedRow['paraqueservecomofunciona'] || '',
+      ip_url: normalizedRow['ipurl'] || '',
+      usuario_login: normalizedRow['usuariologin'] || '',
+      senha: normalizedRow['senha'] || '',
+      observacao: normalizedRow['observacao'] || '',
+      suporte_contato: normalizedRow['suportecontato'] || '',
+      email: normalizedRow['email'] || '',
+      data_pagamento: normalizedRow['datadepagamento'] || normalizedRow['datapagamento'] || '',
+    };
+
+    if (item.descricao) {
+      data.push(item);
+    }
+  });
+
+  return data;
+};
 
   const parseCSV = (text: string): ParsedData[] => {
     const lines = text.split('\n').filter(line => line.trim());
