@@ -161,28 +161,29 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
     return data;
   };
 
-const handlePreview = async () => {
-  if (!file) return;
-
-  setLoading(true);
-  setError('');
-
-  try {
-    const parsedData = await parseFile(file);
-
-    if (parsedData.length === 0) {
-      throw new Error('Nenhum dado válido encontrado no arquivo');
+  const handlePreview = async () => {
+    if (!file) return;
+  
+    setLoading(true);
+    setError('');
+  
+    try {
+      const parsedData = await parseFile(file);
+  
+      if (parsedData.length === 0) {
+        throw new Error('Nenhum dado válido encontrado no arquivo');
+      }
+  
+      setPreview(parsedData);
+      setShowPreview(true);
+    } catch (error: any) {
+      console.error(error);
+      setError(error.message || 'Erro ao processar arquivo');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    setPreview(parsedData);
-    setShowPreview(true);
-  } catch (error: any) {
-    console.error(error);
-    setError(error.message || 'Erro ao processar arquivo');
-  } finally {
-    setLoading(false);
-  }
-};
   const handleImport = async () => {
     if (preview.length === 0) return;
 
