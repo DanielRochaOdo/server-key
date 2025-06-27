@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Usuarios from './pages/Usuarios';
+import Acessos from './pages/Acessos';
 
 function App() {
   return (
@@ -25,6 +26,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Usuarios />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/acessos"
+            element={
+              <ProtectedRoute>
+                <Acessos />
               </ProtectedRoute>
             }
           />
