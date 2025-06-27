@@ -76,7 +76,10 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
 
       const item: ParsedData = {
         descricao: normalizedRow['descricao'] || '',
-        para_que_serve: normalizedRow['paraqueservecomofunciona'] || '',
+        para_que_serve: 
+          normalizedRow['paraqueserve'] || 
+          normalizedRow['paraqueservecomofunciona'] || 
+          normalizedRow['comofunciona'] || '',
         ip_url: normalizedRow['ipurl'] || '',
         usuario_login: normalizedRow['usuariologin'] || '',
         senha: normalizedRow['senha'] || '',
