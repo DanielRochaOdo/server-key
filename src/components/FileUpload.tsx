@@ -78,7 +78,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
         descricao: normalizedRow['descricao'] || '',
         para_que_serve: 
           normalizedRow['paraqueserve'] || 
-          normalizedRow['paraqueservecomofunciona'] || 
+          normalizedRow['paraqueservecomofunciona'] ||
+          normalizedRow['para_que_serve'] ||
           normalizedRow['comofunciona'] || '',
         ip_url: normalizedRow['ipurl'] || '',
         usuario_login: normalizedRow['usuariologin'] || '',
