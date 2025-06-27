@@ -51,7 +51,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length < 2) throw new Error('Arquivo deve conter pelo menos um cabeçalho e uma linha de dados');
 
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ''));
     const data: ParsedData[] = [];
 
     for (let i = 1; i < lines.length; i++) {
