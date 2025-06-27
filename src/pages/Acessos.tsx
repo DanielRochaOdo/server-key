@@ -34,6 +34,15 @@ const Acessos: React.FC = () => {
     fetchAcessos();
   }, []);
 
+  const toggleSortOrder = () => {
+    setSortOrder((prev) => {
+      if (prev === 'asc') return 'desc';
+      if (prev === 'desc') return null;
+      return 'asc';
+    });
+  };
+
+
   const fetchAcessos = async () => {
     try {
       const { data, error } = await supabase
