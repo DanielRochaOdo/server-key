@@ -227,7 +227,7 @@ const Acessos: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
-              {filteredAcessos.map((acesso) => (
+              {filteredAcessosSorted.map((acesso) => (
                 <tr key={acesso.id} className="hover:bg-neutral-50 transition-colors duration-150">
                   <td className="px-6 py-4">
                     <div className="text-sm font-medium text-neutral-900">{acesso.descricao}</div>
