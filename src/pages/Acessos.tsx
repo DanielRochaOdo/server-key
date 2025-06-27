@@ -187,7 +187,7 @@ const Acessos: React.FC = () => {
             </div>
             <div className="flex items-center space-x-2">
               <Key className="h-5 w-5 text-neutral-400" />
-              <span className="text-sm text-neutral-600">{filteredAcessos.length} acessos</span>
+              <span className="text-sm text-neutral-600">{filteredAcessosSorted.length} acessos</span>
             </div>
           </div>
         </div>
