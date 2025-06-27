@@ -196,9 +196,16 @@ const Acessos: React.FC = () => {
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  Descrição
-                </th>
+              <th
+                onClick={toggleSortOrder}
+                className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none flex items-center"
+                title="Ordenar por descrição"
+              >
+                Descrição
+                <span className="ml-2">
+                  {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
+                </span>
+              </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                   IP/URL
                 </th>
