@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Key, Plus, Upload, Search, Edit, Trash2, Eye, EyeOff } from 'lucide-react';
 import AccessForm from '../components/AccessForm';
 import FileUpload from '../components/FileUpload';
@@ -27,12 +27,26 @@ const Acessos: React.FC = () => {
   const [editingAccess, setEditingAccess] = useState<Access | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const { user } = useAuth();
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchAcessos();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const toggleSortOrder = () => {
+    setSortOrder((prev) => {
+      if (prev === 'asc') return 'desc';
+      if (prev === 'desc') return null;
+      return 'asc';
+    });
+  };
 
   const fetchAcessos = async () => {
     try {
@@ -54,14 +68,9 @@ const Acessos: React.FC = () => {
     if (!confirm('Tem certeza que deseja excluir este acesso?')) return;
 
     try {
-      const { error } = await supabase
-        .from('acessos')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await supabase.from('acessos').delete().eq('id', id);
       if (error) throw error;
-
-      setAcessos(acessos.filter(acesso => acesso.id !== id));
+      setAcessos(acessos.filter((acesso) => acesso.id !== id));
     } catch (error) {
       console.error('Error deleting access:', error);
       alert('Erro ao excluir acesso');
@@ -78,16 +87,8 @@ const Acessos: React.FC = () => {
     setVisiblePasswords(newVisible);
   };
 
-  const toggleSortOrder = () => {
-    setSortOrder(prev => {
-      if (prev === 'asc') return 'desc';
-      if (prev === 'desc') return null;
-      return 'asc';
-    });
-  };
-
-  const filteredAcessosSorted = useMemo(() => {
-    let filtered = acessos.filter(acesso =>
+  const filteredAcessosSorted = React.useMemo(() => {
+    let filtered = acessos.filter((acesso) =>
       acesso.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
       acesso.ip_url?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       acesso.usuario_login?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -101,6 +102,13 @@ const Acessos: React.FC = () => {
 
     return filtered;
   }, [acessos, searchTerm, sortOrder]);
+
+  const currentItems = React.useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredAcessosSorted.slice(start, start + itemsPerPage);
+  }, [filteredAcessosSorted, currentPage]);
+
+  const totalPages = Math.ceil(filteredAcessosSorted.length / itemsPerPage);
 
   const handleFormSuccess = () => {
     fetchAcessos();
@@ -127,21 +135,19 @@ const Acessos: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-primary-900">Acessos</h1>
-            <p className="mt-2 text-primary-600">
-              Gerenciamento de acessos aos sistemas da empresa
-            </p>
+            <p className="mt-2 text-primary-600">Gerenciamento de acessos aos sistemas da empresa</p>
           </div>
           <div className="flex space-x-3">
             <button
               onClick={() => setShowUpload(true)}
-              className="inline-flex items-center px-4 py-2 border border-button text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-button-500 transition-colors duration-200"
+              className="inline-flex items-center px-4 py-2 border border-button text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
             >
               <Upload className="h-4 w-4 mr-2" />
               Importar
             </button>
             <button
               onClick={() => setShowForm(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-button-500 transition-colors duration-200"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
             >
               <Plus className="h-4 w-4 mr-2" />
               Novo Acesso
@@ -180,7 +186,7 @@ const Acessos: React.FC = () => {
                 placeholder="Buscar acessos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
             <div className="flex items-center space-x-2">
@@ -196,103 +202,54 @@ const Acessos: React.FC = () => {
               <tr>
                 <th
                   onClick={toggleSortOrder}
-                  className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none flex items-center"
-                  title="Ordenar por descrição"
+                  className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer"
                 >
-                  Descrição
-                  <span className="ml-2">
-                    {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
-                  </span>
+                  Descrição {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  Para que serve
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  IP/URL
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  Usuário
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  Senha
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  Data Pagamento
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  Ações
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">IP/URL</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Usuário</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Senha</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Data Pagamento</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
-              {filteredAcessosSorted.map(acesso => (
-                <tr key={acesso.id} className="hover:bg-neutral-50 transition-colors duration-150">
-                  <td className="px-6 py-4 text-sm font-medium text-neutral-900">
-                    {acesso.descricao}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-neutral-600 max-w-xs truncate">
-                    {acesso.para_que_serve || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
-                    {acesso.ip_url ? (
-                      <a
-                        href={acesso.ip_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center text-blue-600 hover:text-blue-800"
-                        title="Abrir link"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </a>
-                    ) : (
-                      '-'
+              {currentItems.map((acesso) => (
+                <tr key={acesso.id} className="hover:bg-neutral-50">
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-neutral-900">{acesso.descricao}</div>
+                    {acesso.para_que_serve && (
+                      <div className="text-sm text-neutral-500 truncate max-w-xs">
+                        {acesso.para_que_serve}
+                      </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
-                    {acesso.usuario_login}
+                  <td className="px-6 py-4 text-sm text-neutral-600">
+                    {acesso.ip_url ? (
+                      <a href={acesso.ip_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                        <Eye className="h-5 w-5 inline" />
+                      </a>
+                    ) : '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
+                  <td className="px-6 py-4 text-sm text-neutral-600">{acesso.usuario_login}</td>
+                  <td className="px-6 py-4 text-sm text-neutral-600">
                     {acesso.senha && (
                       <div className="flex items-center space-x-2">
-                        <span className="font-mono">
-                          {visiblePasswords.has(acesso.id) ? acesso.senha : '••••••••'}
-                        </span>
-                        <button
-                          onClick={() => togglePasswordVisibility(acesso.id)}
-                          className="text-neutral-400 hover:text-neutral-600"
-                        >
-                          {visiblePasswords.has(acesso.id) ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
+                        <span className="font-mono">{visiblePasswords.has(acesso.id) ? acesso.senha : '••••••••'}</span>
+                        <button onClick={() => togglePasswordVisibility(acesso.id)} className="text-neutral-400 hover:text-neutral-600">
+                          {visiblePasswords.has(acesso.id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
-                    {acesso.email}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
-                    {acesso.data_pagamento && new Date(acesso.data_pagamento).toLocaleDateString('pt-BR')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => {
-                        setEditingAccess(acesso);
-                        setShowForm(true);
-                      }}
-                      className="text-primary-600 hover:text-primary-900 mr-4"
-                    >
+                  <td className="px-6 py-4 text-sm text-neutral-600">{acesso.email}</td>
+                  <td className="px-6 py-4 text-sm text-neutral-600">{acesso.data_pagamento && new Date(acesso.data_pagamento).toLocaleDateString('pt-BR')}</td>
+                  <td className="px-6 py-4 text-sm font-medium">
+                    <button onClick={() => { setEditingAccess(acesso); setShowForm(true); }} className="text-primary-600 hover:text-primary-900 mr-4">
                       <Edit className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(acesso.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
+                    <button onClick={() => handleDelete(acesso.id)} className="text-red-600 hover:text-red-900">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
@@ -301,15 +258,25 @@ const Acessos: React.FC = () => {
             </tbody>
           </table>
 
-          {filteredAcessosSorted.length === 0 && (
-            <div className="text-center py-12">
-              <Key className="mx-auto h-12 w-12 text-neutral-400" />
-              <h3 className="mt-2 text-sm font-medium text-neutral-900">Nenhum acesso encontrado</h3>
-              <p className="mt-1 text-sm text-neutral-500">
-                {searchTerm ? 'Tente ajustar sua busca' : 'Comece adicionando um novo acesso'}
-              </p>
-            </div>
-          )}
+          <div className="flex justify-between items-center p-4">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className={`px-3 py-1 rounded ${currentPage === 1 ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'}`}
+            >
+              ← Anterior
+            </button>
+            <span className="text-sm text-neutral-600">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className={`px-3 py-1 rounded ${currentPage === totalPages ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'}`}
+            >
+              Próxima →
+            </button>
+          </div>
         </div>
       </div>
     </div>
