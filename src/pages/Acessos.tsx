@@ -98,7 +98,7 @@ const Acessos: React.FC = () => {
     } else if (sortOrder === 'desc') {
       filtered.sort((a, b) => b.descricao.localeCompare(a.descricao));
     }
-  
+
     return filtered;
   }, [acessos, searchTerm, sortOrder]);
 
