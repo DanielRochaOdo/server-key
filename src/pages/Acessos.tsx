@@ -46,7 +46,7 @@ const Acessos: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('acessos')
-        .select('*')
+        .select('id, descricao, para_que_serve, ip_url, usuario_login, senha, observacao, suporte_contato, email, data_pagamento, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
