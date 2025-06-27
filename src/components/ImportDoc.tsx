@@ -1,0 +1,339 @@
+import React, { useState } from 'react';
+import { X, Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+
+interface FileUploadProps {
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+interface ParsedData {
+  descricao: string;
+  para_que_serve?: string;
+  ip_url?: string;
+  usuario_login?: string;
+  senha?: string;
+  observacao?: string;
+  suporte_contato?: string;
+  email?: string;
+  data_pagamento?: string;
+}
+
+const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [preview, setPreview] = useState<ParsedData[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
+  const { user } = useAuth();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      const validTypes = [
+        'text/csv',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      ];
+      
+      if (validTypes.includes(selectedFile.type) || selectedFile.name.endsWith('.csv')) {
+        setFile(selectedFile);
+        setError('');
+      } else {
+        setError('Apenas arquivos CSV e XLSX são aceitos');
+        setFile(null);
+      }
+    }
+  };
+
+  const parseCSV = (text: string): ParsedData[] => {
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length < 2) throw new Error('Arquivo deve conter pelo menos um cabeçalho e uma linha de dados');
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const data: ParsedData[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      const row: any = {};
+
+      headers.forEach((header, index) => {
+        const value = values[index] || '';
+        
+        // Map CSV headers to database fields
+        switch (header) {
+          case 'descrição':
+          case 'descricao':
+            row.descricao = value;
+            break;
+          case 'para que serve':
+          case 'para_que_serve':
+          case 'como funciona':
+            row.para_que_serve = value;
+            break;
+          case 'ip':
+          case 'url':
+          case 'ip/url':
+          case 'ip_url':
+            row.ip_url = value;
+            break;
+          case 'usuário':
+          case 'usuario':
+          case 'login':
+          case 'usuario_login':
+            row.usuario_login = value;
+            break;
+          case 'senha':
+          case 'password':
+            row.senha = value;
+            break;
+          case 'observação':
+          case 'observacao':
+          case 'obs':
+            row.observacao = value;
+            break;
+          case 'suporte':
+          case 'contato':
+          case 'suporte_contato':
+            row.suporte_contato = value;
+            break;
+          case 'email':
+          case 'e-mail':
+            row.email = value;
+            break;
+          case 'data pagamento':
+          case 'data_pagamento':
+          case 'pagamento':
+            row.data_pagamento = value;
+            break;
+        }
+      });
+
+      if (row.descricao) {
+        data.push(row);
+      }
+    }
+
+    return data;
+  };
+
+  const handlePreview = async () => {
+    if (!file) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const text = await file.text();
+      const parsedData = parseCSV(text);
+      
+      if (parsedData.length === 0) {
+        throw new Error('Nenhum dado válido encontrado no arquivo');
+      }
+
+      setPreview(parsedData);
+      setShowPreview(true);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao processar arquivo');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (preview.length === 0) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const dataToInsert = preview.map(item => ({
+        ...item,
+        user_id: user?.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error } = await supabase
+        .from('acessos')
+        .insert(dataToInsert);
+
+      if (error) throw error;
+
+      onSuccess();
+    } catch (error: any) {
+      console.error('Error importing data:', error);
+      setError(error.message || 'Erro ao importar dados');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-neutral-200">
+          <h2 className="text-xl font-semibold text-neutral-900">
+            Importar Acessos
+          </h2>
+          <button
+            onClick={onCancel}
+            className="text-neutral-400 hover:text-neutral-600"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {error && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4 flex items-center space-x-2">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              <span className="text-sm text-red-700">{error}</span>
+            </div>
+          )}
+
+          {!showPreview ? (
+            <div>
+              <div className="mb-6">
+                <h3 className="text-lg font-medium text-neutral-900 mb-2">Formato do Arquivo</h3>
+                <p className="text-sm text-neutral-600 mb-4">
+                  O arquivo CSV deve conter as seguintes colunas (a ordem não importa):
+                </p>
+                <div className="bg-neutral-50 rounded-lg p-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                    <span className="font-medium">descrição</span>
+                    <span>para_que_serve</span>
+                    <span>ip_url</span>
+                    <span>usuario_login</span>
+                    <span>senha</span>
+                    <span>observacao</span>
+                    <span>suporte_contato</span>
+                    <span>email</span>
+                    <span>data_pagamento</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center">
+                <Upload className="mx-auto h-12 w-12 text-neutral-400 mb-4" />
+                <div className="mb-4">
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <span className="text-lg font-medium text-neutral-900">
+                      Clique para selecionar um arquivo
+                    </span>
+                    <span className="block text-sm text-neutral-500 mt-1">
+                      ou arraste e solte aqui
+                    </span>
+                  </label>
+                  <input
+                    id="file-upload"
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </div>
+                <p className="text-xs text-neutral-500">
+                  Formatos aceitos: CSV, XLSX
+                </p>
+              </div>
+
+              {file && (
+                <div className="mt-6 p-4 bg-primary-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <FileText className="h-8 w-8 text-primary-600" />
+                    <div>
+                      <p className="font-medium text-primary-900">{file.name}</p>
+                      <p className="text-sm text-primary-600">
+                        {(file.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <div className="mb-6">
+                <div className="flex items-center space-x-2 mb-4">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <h3 className="text-lg font-medium text-neutral-900">
+                    Preview dos Dados ({preview.length} registros)
+                  </h3>
+                </div>
+                <div className="bg-neutral-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+                  <div className="space-y-2">
+                    {preview.slice(0, 5).map((item, index) => (
+                      <div key={index} className="bg-white p-3 rounded border">
+                        <div className="font-medium text-neutral-900">{item.descricao}</div>
+                        <div className="text-sm text-neutral-600 grid grid-cols-2 gap-2 mt-1">
+                          {item.ip_url && <span>IP/URL: {item.ip_url}</span>}
+                          {item.usuario_login && <span>Login: {item.usuario_login}</span>}
+                          {item.email && <span>Email: {item.email}</span>}
+                        </div>
+                      </div>
+                    ))}
+                    {preview.length > 5 && (
+                      <div className="text-center text-sm text-neutral-500 py-2">
+                        ... e mais {preview.length - 5} registros
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-3 mt-8 pt-6 border-t border-neutral-200">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+              Cancelar
+            </button>
+            
+            {!showPreview ? (
+              <button
+                onClick={handlePreview}
+                disabled={!file || loading}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                Visualizar
+              </button>
+            ) : (
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="px-4 py-2 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                >
+                  Voltar
+                </button>
+                <button
+                  onClick={handleImport}
+                  disabled={loading}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-button-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  ) : (
+                    <Upload className="h-4 w-4 mr-2" />
+                  )}
+                  Importar {preview.length} registros
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default FileUpload;
