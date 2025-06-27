@@ -30,6 +30,7 @@ const Acessos: React.FC = () => {
   const { user } = useAuth();
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [viewingAccess, setViewingAccess] = useState<Access | null>(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -200,10 +201,7 @@ const Acessos: React.FC = () => {
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">
               <tr>
-                <th
-                  onClick={toggleSortOrder}
-                  className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer"
-                >
+                <th onClick={toggleSortOrder} className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer">
                   Descrição {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">IP/URL</th>
@@ -220,9 +218,7 @@ const Acessos: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="text-sm font-medium text-neutral-900">{acesso.descricao}</div>
                     {acesso.para_que_serve && (
-                      <div className="text-sm text-neutral-500 truncate max-w-xs">
-                        {acesso.para_que_serve}
-                      </div>
+                      <div className="text-sm text-neutral-500 truncate max-w-xs">{acesso.para_que_serve}</div>
                     )}
                   </td>
                   <td className="px-6 py-4 text-sm text-neutral-600">
@@ -246,10 +242,22 @@ const Acessos: React.FC = () => {
                   <td className="px-6 py-4 text-sm text-neutral-600">{acesso.email}</td>
                   <td className="px-6 py-4 text-sm text-neutral-600">{acesso.data_pagamento && new Date(acesso.data_pagamento).toLocaleDateString('pt-BR')}</td>
                   <td className="px-6 py-4 text-sm font-medium">
-                    <button onClick={() => { setEditingAccess(acesso); setShowForm(true); }} className="text-primary-600 hover:text-primary-900 mr-4">
+                    <button
+                      onClick={() => setViewingAccess(acesso)}
+                      className="text-neutral-600 hover:text-neutral-900 mr-2"
+                    >
+                      <Search className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => { setEditingAccess(acesso); setShowForm(true); }}
+                      className="text-primary-600 hover:text-primary-900 mr-2"
+                    >
                       <Edit className="h-4 w-4" />
                     </button>
-                    <button onClick={() => handleDelete(acesso.id)} className="text-red-600 hover:text-red-900">
+                    <button
+                      onClick={() => handleDelete(acesso.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
@@ -266,9 +274,7 @@ const Acessos: React.FC = () => {
             >
               ← Anterior
             </button>
-            <span className="text-sm text-neutral-600">
-              Página {currentPage} de {totalPages}
-            </span>
+            <span className="text-sm text-neutral-600">Página {currentPage} de {totalPages}</span>
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
@@ -279,6 +285,33 @@ const Acessos: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {viewingAccess && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-lg">
+            <h2 className="text-xl font-bold mb-4">Detalhes do Acesso</h2>
+            <div className="space-y-2 text-sm text-neutral-700">
+              <div><strong>Descrição:</strong> {viewingAccess.descricao}</div>
+              <div><strong>Para que serve:</strong> {viewingAccess.para_que_serve || '-'}</div>
+              <div><strong>IP/URL:</strong> {viewingAccess.ip_url || '-'}</div>
+              <div><strong>Usuário:</strong> {viewingAccess.usuario_login || '-'}</div>
+              <div><strong>Senha:</strong> {viewingAccess.senha || '-'}</div>
+              <div><strong>Email:</strong> {viewingAccess.email || '-'}</div>
+              <div><strong>Data pagamento:</strong> {viewingAccess.data_pagamento ? new Date(viewingAccess.data_pagamento).toLocaleDateString('pt-BR') : '-'}</div>
+              <div><strong>Observação:</strong> {viewingAccess.observacao || '-'}</div>
+              <div><strong>Suporte contato:</strong> {viewingAccess.suporte_contato || '-'}</div>
+            </div>
+            <div className="mt-4 text-right">
+              <button
+                onClick={() => setViewingAccess(null)}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
