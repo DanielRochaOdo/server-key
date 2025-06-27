@@ -86,11 +86,21 @@ const Acessos: React.FC = () => {
     setVisiblePasswords(newVisible);
   };
 
-  const filteredAcessos = acessos.filter(acesso =>
-    acesso.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    acesso.ip_url?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    acesso.usuario_login?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredAcessosSorted = React.useMemo(() => {
+    let filtered = acessos.filter(acesso =>
+      acesso.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      acesso.ip_url?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      acesso.usuario_login?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  
+    if (sortOrder === 'asc') {
+      filtered.sort((a, b) => a.descricao.localeCompare(b.descricao));
+    } else if (sortOrder === 'desc') {
+      filtered.sort((a, b) => b.descricao.localeCompare(a.descricao));
+    }
+  
+    return filtered;
+  }, [acessos, searchTerm, sortOrder]);
 
   const handleFormSuccess = () => {
     fetchAcessos();
