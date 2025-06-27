@@ -42,7 +42,6 @@ const Acessos: React.FC = () => {
     });
   };
 
-
   const fetchAcessos = async () => {
     try {
       const { data, error } = await supabase
