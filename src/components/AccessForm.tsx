@@ -68,9 +68,18 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
 
     try {
       const dataToSave = {
-        ...formData,
+        descricao: formData.descricao.trim(),
+        para_que_serve: formData.para_que_serve?.trim() || null,
+        ip_url: formData.ip_url?.trim() || null,
+        usuario_login: formData.usuario_login?.trim() || null,
+        senha: formData.senha || null,
+        observacao: formData.observacao?.trim() || null,
+        suporte_contato: formData.suporte_contato?.trim() || null,
+        email: formData.email?.trim() || null,
+        data_pagamento: formData.data_pagamento || null,
         user_id: user?.id,
         updated_at: new Date().toISOString(),
+       };
       };
 
       if (access?.id) {
