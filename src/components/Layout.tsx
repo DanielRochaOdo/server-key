@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Shield, Users, BarChart3, Key } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
@@ -51,6 +51,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 >
                   <Key className="h-4 w-4 mr-2" />
                   Acessos
+                </Link>
+                <Link
+                  to="/teams"
+                  className={`inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2 transition-colors duration-200 ${
+                    isActive('/teams')
+                      ? 'border-primary-500 text-primary-600'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
+                  }`}
+                >
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Teams
                 </Link>
                 <Link
                   to="/usuarios"
