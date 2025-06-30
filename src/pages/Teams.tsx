@@ -182,26 +182,50 @@ const Teams: React.FC = () => {
       )}
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="p-6 border-b border-neutral-200">
-          <div className="flex items-center justify-between">
-            <div className="relative w-full">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-neutral-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Buscar teams..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-            <div className="flex items-center space-x-2 ml-4">
-              <UserCheck className="h-5 w-5 text-neutral-400" />
-              <span className="text-sm text-neutral-600">{filteredTeams.length} teams</span>
-            </div>
-          </div>
-        </div>
+<div className="p-6 border-b border-neutral-200">
+  <div className="flex items-center justify-between space-x-4">
+    {/* Campo de busca */}
+    <div className="relative flex-1 max-w-md">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <Search className="h-5 w-5 text-neutral-400" />
+      </div>
+      <input
+        type="text"
+        placeholder="Buscar teams..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+      />
+    </div>
+
+    {/* Filtro por departamento */}
+    <div className="flex items-center space-x-2">
+      <label htmlFor="filter-department" className="text-sm font-medium text-neutral-700 whitespace-nowrap">
+        Departamento:
+      </label>
+      <select
+        id="filter-department"
+        className="border border-neutral-300 rounded-lg px-3 py-1 text-sm"
+        value={selectedDepartment}
+        onChange={(e) => setSelectedDepartment(e.target.value)}
+      >
+        <option value="">Todos</option>
+        {departments.map((dep) => (
+          <option key={dep} value={dep}>
+            {dep}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    {/* Contagem de items */}
+    <div className="flex items-center space-x-2 ml-4">
+      <UserCheck className="h-5 w-5 text-neutral-400" />
+      <span className="text-sm text-neutral-600">{filteredTeams.length} teams</span>
+    </div>
+  </div>
+</div>
+
 
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-neutral-200">
