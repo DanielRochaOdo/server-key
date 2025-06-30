@@ -14,6 +14,7 @@ interface PreviewTeam {
   senha: string;
   usuario: string;
   observacao?: string;
+  departamento?: string;
 }
 
 const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) => {
@@ -28,14 +29,13 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    // Validate file type
     const validTypes = [
       'text/csv',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     ];
 
-    if (!validTypes.includes(selectedFile.type) && 
+    if (!validTypes.includes(selectedFile.type) &&
         !selectedFile.name.toLowerCase().endsWith('.csv') &&
         !selectedFile.name.toLowerCase().endsWith('.xlsx') &&
         !selectedFile.name.toLowerCase().endsWith('.xls')) {
@@ -65,11 +65,10 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
       const headers = jsonData[0].map(h => h?.toString().toLowerCase().trim());
       const rows = jsonData.slice(1);
 
-      // Map column headers to our fields
       const columnMap: Record<string, number> = {};
-      
-      // Find login column
-      const loginIndex = headers.findIndex(h => 
+
+      // login
+      const loginIndex = headers.findIndex(h =>
         h.includes('login') || h.includes('user') || h.includes('usuario')
       );
       if (loginIndex === -1) {
@@ -78,8 +77,8 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
       }
       columnMap.login = loginIndex;
 
-      // Find senha column
-      const senhaIndex = headers.findIndex(h => 
+      // senha
+      const senhaIndex = headers.findIndex(h =>
         h.includes('senha') || h.includes('password') || h.includes('pass')
       );
       if (senhaIndex === -1) {
@@ -88,8 +87,8 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
       }
       columnMap.senha = senhaIndex;
 
-      // Find usuario column
-      const usuarioIndex = headers.findIndex(h => 
+      // usuario
+      const usuarioIndex = headers.findIndex(h =>
         h.includes('usuario') || h.includes('nome') || h.includes('name') || h.includes('member')
       );
       if (usuarioIndex === -1) {
@@ -98,15 +97,22 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
       }
       columnMap.usuario = usuarioIndex;
 
-      // Find observacao column (optional)
-      const observacaoIndex = headers.findIndex(h => 
+      // observacao (opcional)
+      const observacaoIndex = headers.findIndex(h =>
         h.includes('observacao') || h.includes('obs') || h.includes('note') || h.includes('comment')
       );
       if (observacaoIndex !== -1) {
         columnMap.observacao = observacaoIndex;
       }
 
-      // Process rows
+      // departamento (opcional)
+      const departamentoIndex = headers.findIndex(h =>
+        h.includes('departamento') || h.includes('department')
+      );
+      if (departamentoIndex !== -1) {
+        columnMap.departamento = departamentoIndex;
+      }
+
       const processedData: PreviewTeam[] = [];
       const errors: string[] = [];
 
@@ -114,8 +120,10 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
         const login = row[columnMap.login]?.toString().trim();
         const senha = row[columnMap.senha]?.toString().trim();
         const usuario = row[columnMap.usuario]?.toString().trim();
-        const observacao = columnMap.observacao !== undefined ? 
+        const observacao = columnMap.observacao !== undefined ?
           row[columnMap.observacao]?.toString().trim() : '';
+        const departamento = columnMap.departamento !== undefined ?
+          row[columnMap.departamento]?.toString().trim() : '';
 
         if (!login || !senha || !usuario) {
           errors.push(`Linha ${index + 2}: Login, senha e usuário são obrigatórios`);
@@ -126,7 +134,8 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
           login,
           senha,
           usuario,
-          observacao: observacao || undefined
+          observacao: observacao || undefined,
+          departamento: departamento || undefined
         });
       });
 
@@ -140,7 +149,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
         return;
       }
 
-      setPreview(processedData.slice(0, 5)); // Show first 5 records
+      setPreview(processedData.slice(0, 5));
       setError('');
     } catch (err) {
       console.error('Error processing file:', err);
@@ -155,7 +164,6 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
 
     setLoading(true);
     try {
-      // Process the entire file again for import
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];
@@ -165,22 +173,24 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
       const headers = jsonData[0].map(h => h?.toString().toLowerCase().trim());
       const rows = jsonData.slice(1);
 
-      // Map columns again
       const columnMap: Record<string, number> = {};
       columnMap.login = headers.findIndex(h => h.includes('login') || h.includes('user') || h.includes('usuario'));
       columnMap.senha = headers.findIndex(h => h.includes('senha') || h.includes('password') || h.includes('pass'));
       columnMap.usuario = headers.findIndex(h => h.includes('usuario') || h.includes('nome') || h.includes('name') || h.includes('member'));
       const observacaoIndex = headers.findIndex(h => h.includes('observacao') || h.includes('obs') || h.includes('note') || h.includes('comment'));
       if (observacaoIndex !== -1) columnMap.observacao = observacaoIndex;
+      const departamentoIndex = headers.findIndex(h => h.includes('departamento') || h.includes('department'));
+      if (departamentoIndex !== -1) columnMap.departamento = departamentoIndex;
 
-      // Prepare data for insertion
       const teamsData = rows
         .map(row => {
           const login = row[columnMap.login]?.toString().trim();
           const senha = row[columnMap.senha]?.toString().trim();
           const usuario = row[columnMap.usuario]?.toString().trim();
-          const observacao = columnMap.observacao !== undefined ? 
-            row[columnMap.observacao]?.toString().trim() : '';
+          const observacao = columnMap.observacao !== undefined ?
+            row[columnMap.observacao]?.toString().trim() : null;
+          const departamento = columnMap.departamento !== undefined ?
+            row[columnMap.departamento]?.toString().trim() : null;
 
           if (!login || !senha || !usuario) return null;
 
@@ -189,6 +199,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
             senha,
             usuario,
             observacao: observacao || null,
+            departamento,
             user_id: user?.id
           };
         })
@@ -199,17 +210,11 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
         return;
       }
 
-      const { error } = await supabase
-        .from('teams')
-        .insert(teamsData);
-
+      const { error } = await supabase.from('teams').insert(teamsData);
       if (error) throw error;
 
       setSuccess(`${teamsData.length} teams importados com sucesso!`);
-      setTimeout(() => {
-        onSuccess();
-      }, 2000);
-
+      setTimeout(() => onSuccess(), 2000);
     } catch (error) {
       console.error('Error importing teams:', error);
       setError('Erro ao importar teams. Tente novamente.');
@@ -223,10 +228,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
       <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-bold text-neutral-900">Importar Teams</h2>
-          <button
-            onClick={onCancel}
-            className="text-neutral-400 hover:text-neutral-600"
-          >
+          <button onClick={onCancel} className="text-neutral-400 hover:text-neutral-600">
             <X className="h-6 w-6" />
           </button>
         </div>
@@ -269,9 +271,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
                 <AlertCircle className="h-5 w-5 text-red-400" />
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-red-800">Erro</h3>
-                  <div className="mt-2 text-sm text-red-700 whitespace-pre-line">
-                    {error}
-                  </div>
+                  <div className="mt-2 text-sm text-red-700 whitespace-pre-line">{error}</div>
                 </div>
               </div>
             </div>
@@ -283,9 +283,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
                 <CheckCircle className="h-5 w-5 text-green-400" />
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-green-800">Sucesso</h3>
-                  <div className="mt-2 text-sm text-green-700">
-                    {success}
-                  </div>
+                  <div className="mt-2 text-sm text-green-700">{success}</div>
                 </div>
               </div>
             </div>
@@ -308,6 +306,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Senha</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Usuário</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Observação</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Departamento</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-neutral-200">
@@ -317,6 +316,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
                         <td className="px-4 py-2 text-sm text-neutral-900 font-mono">••••••••</td>
                         <td className="px-4 py-2 text-sm text-neutral-900">{team.usuario}</td>
                         <td className="px-4 py-2 text-sm text-neutral-600">{team.observacao || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{team.departamento || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
