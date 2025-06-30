@@ -224,6 +224,7 @@ const Teams: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
+
             </div>
             <div className="flex items-center space-x-2">
               <UserCheck className="h-5 w-5 text-neutral-400" />
