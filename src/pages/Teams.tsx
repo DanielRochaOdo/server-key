@@ -25,6 +25,7 @@ const Teams: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
   const itemsPerPage = 10;
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 
   useEffect(() => {
     fetchTeams();
