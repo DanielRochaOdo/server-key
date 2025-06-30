@@ -21,11 +21,11 @@ const Teams: React.FC = () => {
   const [showUpload, setShowUpload] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState(''); // filtro departamento
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
   const itemsPerPage = 10;
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 
   useEffect(() => {
     fetchTeams();
@@ -33,7 +33,7 @@ const Teams: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, selectedDepartment]);
 
   const fetchTeams = async () => {
     try {
@@ -51,23 +51,13 @@ const Teams: React.FC = () => {
     }
   };
 
-  const departments = React.useMemo(() => {
-    const deps = teams
-      .map(team => team.departamento?.trim() || '')
-      .filter(dep => dep !== '');
-    // retorna só os únicos
-    return Array.from(new Set(deps)).sort();
-  }, [teams]);
-
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este team?')) return;
-  
+
     try {
       const { error } = await supabase.from('teams').delete().eq('id', id);
       if (error) throw error;
-  
-      // Recarrega lista do banco para garantir sincronização
-      await fetchTeams();
+      setTeams((prev) => prev.filter((team) => team.id !== id));
     } catch (error) {
       console.error('Error deleting team:', error);
       alert('Erro ao excluir team');
@@ -84,6 +74,15 @@ const Teams: React.FC = () => {
     setVisiblePasswords(newVisible);
   };
 
+  // Extrair departamentos únicos para filtro
+  const departments = React.useMemo(() => {
+    const deps = teams
+      .map(team => team.departamento?.trim() || '')
+      .filter(dep => dep !== '');
+    return Array.from(new Set(deps)).sort();
+  }, [teams]);
+
+  // Filtrar teams por busca e departamento
   const filteredTeams = React.useMemo(() => {
     return teams.filter(team => {
       const matchesSearch =
@@ -114,11 +113,30 @@ const Teams: React.FC = () => {
   return (
     <div className="px-4 sm:px-0">
       <div className="mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between space-x-4">
           <div>
             <h1 className="text-3xl font-bold text-primary-900">Teams</h1>
             <p className="mt-2 text-primary-600">Gerenciamento de equipes</p>
           </div>
+
+          {/* Filtro por departamento */}
+          <div className="flex items-center space-x-2">
+            <label htmlFor="filter-department" className="text-sm font-medium text-neutral-700">
+              Filtrar por Departamento:
+            </label>
+            <select
+              id="filter-department"
+              className="border border-neutral-300 rounded-lg px-3 py-1 text-sm"
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {departments.map(dep => (
+                <option key={dep} value={dep}>{dep}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex space-x-3">
             <button
               onClick={() => setShowUpload(true)}
