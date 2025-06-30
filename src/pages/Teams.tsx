@@ -116,7 +116,6 @@ const Teams: React.FC = () => {
     return filtered;
   }, [teams, searchTerm, sortOrder, selectedDepartment]);
 
-
   const currentItems = React.useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredTeamsSorted.slice(start, start + itemsPerPage);
