@@ -1,152 +1,142 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Upload, Search, Edit, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import TeamForm from '../components/TeamForm';
-import FileUpload from '../components/FileUpload';
+import * as XLSX from 'xlsx';
 
-const Teams: React.FC = () => {
-  const [teams, setTeams] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingTeam, setEditingTeam] = useState<any | null>(null);
-  const [showUpload, setShowUpload] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  const [viewingTeam, setViewingTeam] = useState<any | null>(null);
+interface FileUploadProps {
+  onSuccess: () => void;
+  onCancel: () => void;
+  table: string;
+  columnsMap: Record<string, string>;
+}
 
-  useEffect(() => { fetchTeams(); }, []);
+interface ParsedRow {
+  [key: string]: string;
+}
 
-  const fetchTeams = async () => {
+const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel, table, columnsMap }) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [preview, setPreview] = useState<ParsedRow[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
+
+  const normalize = (text: string) =>
+    text.toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const mapHeader = (header: string): string | null => {
+    const norm = normalize(header);
+    if (norm.includes('login')) return columnsMap.login;
+    if (norm.includes('senha')) return columnsMap.senha;
+    if (['usuario', 'nome', 'name', 'member'].some(k => norm.includes(k))) return columnsMap.usuario;
+    return null;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0] || null;
+    setFile(selected);
+    setError('');
+    setShowPreview(false);
+    setPreview([]);
+  };
+
+  const parseFile = async () => {
+    if (!file) return;
     setLoading(true);
-    const { data, error } = await supabase.from('teams').select('*').order('created_at', { ascending: false });
-    if (!error) setTeams(data || []);
-    setLoading(false);
+    setError('');
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json<any>(sheet, { header: 1 });
+
+      if (json.length < 2) throw new Error('Arquivo vazio ou sem dados.');
+
+      const headers = (json[0] as string[]).map(h => (h || '').toString());
+      const rows: ParsedRow[] = [];
+
+      for (let i = 1; i < json.length; i++) {
+        const row: ParsedRow = {};
+        (json[i] as string[]).forEach((val, idx) => {
+          const key = mapHeader(headers[idx]);
+          if (key) row[key] = val?.toString().trim() || '';
+        });
+        if (row[columnsMap.login]) rows.push(row);
+      }
+
+      if (!rows.length) throw new Error('Nenhum dado válido encontrado no arquivo');
+      setPreview(rows);
+      setShowPreview(true);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao processar arquivo');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Excluir este team?')) return;
-    const { error } = await supabase.from('teams').delete().eq('id', id);
-    if (!error) setTeams(teams.filter(t => t.id !== id));
+  const handleImport = async () => {
+    if (!preview.length) return;
+    setLoading(true);
+    setError('');
+
+    try {
+      const { error } = await supabase.from(table).insert(preview);
+      if (error) throw error;
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || 'Erro ao importar dados');
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const filteredTeams = teams.filter(t =>
-    t.login.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.usuario?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filteredTeams.length / itemsPerPage);
-  const currentItems = filteredTeams.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between mb-4">
-        <div>
-          <h1 className="text-2xl font-bold">Teams</h1>
-          <p className="text-neutral-600">Gerenciamento de equipes</p>
-        </div>
-        <div className="space-x-2">
-          <button onClick={() => setShowUpload(true)} className="bg-white border px-3 py-1 rounded flex items-center">
-            <Upload className="h-4 w-4 mr-1" /> Importar
-          </button>
-          <button onClick={() => setShowForm(true)} className="bg-primary-600 text-white px-3 py-1 rounded flex items-center">
-            <Plus className="h-4 w-4 mr-1" /> Novo Team
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-neutral-200">
+          <h2 className="text-xl font-semibold text-neutral-900">Importar {table}</h2>
+          <button onClick={onCancel} className="text-neutral-400 hover:text-neutral-600">
+            <X className="h-6 w-6" />
           </button>
         </div>
-      </div>
+        <div className="p-6">
+          {error && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4 flex items-center space-x-2">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              <span className="text-sm text-red-700">{error}</span>
+            </div>
+          )}
 
-      <input
-        value={searchTerm}
-        onChange={e => setSearchTerm(e.target.value)}
-        placeholder="Buscar login ou usuário..."
-        className="border rounded px-3 py-1 mb-3 w-full"
-      />
-
-      <table className="w-full border">
-        <thead>
-          <tr className="bg-neutral-100">
-            <th className="border px-2 py-1 text-left">Login</th>
-            <th className="border px-2 py-1 text-left">Senha</th>
-            <th className="border px-2 py-1 text-left">Usuário</th>
-            <th className="border px-2 py-1 text-left">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {currentItems.map(t => (
-            <tr key={t.id}>
-              <td className="border px-2 py-1">{t.login}</td>
-              <td className="border px-2 py-1">{t.senha ? '••••••' : '-'}</td>
-              <td className="border px-2 py-1">{t.usuario || '-'}</td>
-              <td className="border px-2 py-1">
-                <button onClick={() => setViewingTeam(t)} className="mr-2 text-neutral-600">
-                  <Search className="h-4 w-4" />
+          {!showPreview ? (
+            <div>
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
+              {file && (
+                <button onClick={parseFile} disabled={loading} className="ml-2 bg-primary-600 text-white px-3 py-1 rounded">
+                  {loading ? 'Processando...' : 'Visualizar'}
                 </button>
-                <button onClick={() => { setEditingTeam(t); setShowForm(true); }} className="mr-2 text-primary-600">
-                  <Edit className="h-4 w-4" />
-                </button>
-                <button onClick={() => handleDelete(t.id)} className="text-red-600">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div className="flex justify-between items-center mt-3">
-        <button
-          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-          disabled={currentPage === 1}
-          className={`px-3 py-1 rounded ${currentPage === 1 ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'}`}
-        >
-          ← Anterior
-        </button>
-        <span className="text-sm">Página {currentPage} de {totalPages}</span>
-        <button
-          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-          disabled={currentPage === totalPages}
-          className={`px-3 py-1 rounded ${currentPage === totalPages ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'}`}
-        >
-          Próxima →
-        </button>
-      </div>
-
-      {showForm && (
-        <TeamForm
-          team={editingTeam}
-          onSuccess={() => { fetchTeams(); setShowForm(false); setEditingTeam(null); }}
-          onCancel={() => { setShowForm(false); setEditingTeam(null); }}
-        />
-      )}
-
-      {showUpload && (
-        <FileUpload
-          table="teams"
-          columnsMap={{ login: 'login', senha: 'senha', usuario: 'usuario' }}
-          onSuccess={() => { fetchTeams(); setShowUpload(false); }}
-          onCancel={() => setShowUpload(false)}
-        />
-      )}
-
-      {viewingTeam && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white rounded p-4">
-            <h2 className="text-lg font-bold mb-2">Detalhes do Team</h2>
-            <p><strong>Login:</strong> {viewingTeam.login}</p>
-            <p><strong>Senha:</strong> {viewingTeam.senha || '-'}</p>
-            <p><strong>Usuário:</strong> {viewingTeam.usuario || '-'}</p>
-            <button onClick={() => setViewingTeam(null)} className="mt-3 bg-primary-600 text-white px-3 py-1 rounded">Fechar</button>
-          </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <div className="mb-4 flex items-center space-x-2">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+                <span className="text-sm">{preview.length} registros prontos para importação</span>
+              </div>
+              <button onClick={handleImport} disabled={loading} className="bg-button text-white px-3 py-1 rounded">
+                {loading ? 'Importando...' : `Importar ${preview.length} registros`}
+              </button>
+              <button onClick={() => setShowPreview(false)} className="ml-2 bg-neutral-200 px-3 py-1 rounded">Voltar</button>
+            </div>
+          )}
         </div>
-      )}
-
-      {loading && (
-        <div className="fixed inset-0 bg-white bg-opacity-50 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
 
-export default Teams;
+export default FileUpload;
