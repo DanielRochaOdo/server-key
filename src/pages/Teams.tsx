@@ -16,6 +16,20 @@ interface Team {
   updated_at: string;
 }
 
+const [departments, setDepartments] = useState<string[]>([]);
+const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+
+useEffect(() => {
+  fetchDepartments();
+}, [teams]);
+
+const fetchDepartments = () => {
+  const uniqueDepartments = Array.from(
+    new Set(teams.map(team => team.departamento).filter(Boolean))
+  );
+  setDepartments(uniqueDepartments);
+};
+
 const Teams: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
