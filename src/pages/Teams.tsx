@@ -42,7 +42,7 @@ const Teams: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('teams')
-        .select('id, login, senha, usuario, observacao, created_at, updated_at')
+        .select('id, login, senha, usuario, departamento, observacao, created_at, updated_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
