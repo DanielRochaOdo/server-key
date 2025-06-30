@@ -32,7 +32,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel, table, col
     const norm = normalize(header);
     if (norm.includes('login')) return columnsMap.login;
     if (norm.includes('senha')) return columnsMap.senha;
-    if (['usuario', 'nome', 'name', 'member'].some(k => norm.includes(k))) return columnsMap.usuario;
+    if (['usuario', 'nome', 'name', 'member', 'usuário'].some(k => norm.includes(k))) return columnsMap.usuario;
     return null;
   };
 
