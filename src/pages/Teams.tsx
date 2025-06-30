@@ -21,7 +21,7 @@ const Teams: React.FC = () => {
   const [showUpload, setShowUpload] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState(''); // filtro departamento
+  const [selectedDepartment, setSelectedDepartment] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
@@ -74,17 +74,15 @@ const Teams: React.FC = () => {
     setVisiblePasswords(newVisible);
   };
 
-  // Extrair departamentos únicos para filtro
   const departments = React.useMemo(() => {
     const deps = teams
-      .map(team => team.departamento?.trim() || '')
-      .filter(dep => dep !== '');
+      .map((team) => team.departamento?.trim() || '')
+      .filter((dep) => dep !== '');
     return Array.from(new Set(deps)).sort();
   }, [teams]);
 
-  // Filtrar teams por busca e departamento
   const filteredTeams = React.useMemo(() => {
-    return teams.filter(team => {
+    return teams.filter((team) => {
       const matchesSearch =
         team.login.toLowerCase().includes(searchTerm.toLowerCase()) ||
         team.usuario.toLowerCase().includes(searchTerm.toLowerCase());
@@ -113,30 +111,11 @@ const Teams: React.FC = () => {
   return (
     <div className="px-4 sm:px-0">
       <div className="mb-8">
-        <div className="flex items-center justify-between space-x-4">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-primary-900">Teams</h1>
             <p className="mt-2 text-primary-600">Gerenciamento de equipes</p>
           </div>
-
-          {/* Filtro por departamento */}
-          <div className="flex items-center space-x-2">
-            <label htmlFor="filter-department" className="text-sm font-medium text-neutral-700">
-              Filtrar por Departamento:
-            </label>
-            <select
-              id="filter-department"
-              className="border border-neutral-300 rounded-lg px-3 py-1 text-sm"
-              value={selectedDepartment}
-              onChange={(e) => setSelectedDepartment(e.target.value)}
-            >
-              <option value="">Todos</option>
-              {departments.map(dep => (
-                <option key={dep} value={dep}>{dep}</option>
-              ))}
-            </select>
-          </div>
-
           <div className="flex space-x-3">
             <button
               onClick={() => setShowUpload(true)}
@@ -197,7 +176,7 @@ const Teams: React.FC = () => {
                 className="w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
-        
+
             {/* Filtro por departamento */}
             <div className="flex items-center space-x-2">
               <label htmlFor="filter-department" className="text-sm font-medium text-neutral-700 whitespace-nowrap">
@@ -217,7 +196,7 @@ const Teams: React.FC = () => {
                 ))}
               </select>
             </div>
-        
+
             {/* Contagem de items */}
             <div className="flex items-center space-x-2 ml-4">
               <UserCheck className="h-5 w-5 text-neutral-400" />
@@ -259,7 +238,10 @@ const Teams: React.FC = () => {
                       <Search className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => { setEditingTeam(team); setShowForm(true); }}
+                      onClick={() => {
+                        setEditingTeam(team);
+                        setShowForm(true);
+                      }}
                       className="text-primary-600 hover:text-primary-900 mr-2"
                     >
                       <Edit className="h-4 w-4" />
@@ -280,15 +262,21 @@ const Teams: React.FC = () => {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1 rounded ${currentPage === 1 ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'}`}
+              className={`px-3 py-1 rounded ${
+                currentPage === 1 ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'
+              }`}
             >
               ← Anterior
             </button>
-            <span className="text-sm text-neutral-600">Página {currentPage} de {totalPages}</span>
+            <span className="text-sm text-neutral-600">
+              Página {currentPage} de {totalPages}
+            </span>
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className={`px-3 py-1 rounded ${currentPage === totalPages ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'}`}
+              className={`px-3 py-1 rounded ${
+                currentPage === totalPages ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'
+              }`}
             >
               Próxima →
             </button>
@@ -301,11 +289,21 @@ const Teams: React.FC = () => {
           <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-lg">
             <h2 className="text-xl font-bold mb-4">Detalhes do Team</h2>
             <div className="space-y-2 text-sm text-neutral-700">
-              <div><strong>Login:</strong> {viewingTeam.login}</div>
-              <div><strong>Senha:</strong> {viewingTeam.senha}</div>
-              <div><strong>Usuário:</strong> {viewingTeam.usuario}</div>
-              <div><strong>Departamento:</strong> {viewingTeam.departamento || '-'}</div>
-              <div><strong>Observação:</strong> {viewingTeam.observacao || '-'}</div>
+              <div>
+                <strong>Login:</strong> {viewingTeam.login}
+              </div>
+              <div>
+                <strong>Senha:</strong> {viewingTeam.senha}
+              </div>
+              <div>
+                <strong>Usuário:</strong> {viewingTeam.usuario}
+              </div>
+              <div>
+                <strong>Departamento:</strong> {viewingTeam.departamento || '-'}
+              </div>
+              <div>
+                <strong>Observação:</strong> {viewingTeam.observacao || '-'}
+              </div>
             </div>
             <div className="mt-4 text-right">
               <button
