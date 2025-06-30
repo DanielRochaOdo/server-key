@@ -47,6 +47,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/win-users"
+            element={
+              <ProtectedRoute>
+                <WinUsers />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Router>
