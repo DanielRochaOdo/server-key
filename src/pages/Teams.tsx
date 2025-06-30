@@ -52,11 +52,13 @@ const Teams: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este team?')) return;
-
+  
     try {
       const { error } = await supabase.from('teams').delete().eq('id', id);
       if (error) throw error;
-      setTeams(teams.filter((team) => team.id !== id));
+  
+      // Atualiza estado usando callback para garantir estado atualizado
+      setTeams(prevTeams => prevTeams.filter(team => team.id !== id));
     } catch (error) {
       console.error('Error deleting team:', error);
       alert('Erro ao excluir team');
