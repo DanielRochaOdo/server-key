@@ -51,6 +51,13 @@ const Teams: React.FC = () => {
     }
   };
 
+    const departments = React.useMemo(() => {
+    const deps = teams
+      .map(team => team.departamento?.trim() || '')
+      .filter(dep => dep !== '');
+    // retorna só os únicos
+    return Array.from(new Set(deps)).sort();
+
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este team?')) return;
   
