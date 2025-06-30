@@ -57,8 +57,8 @@ const Teams: React.FC = () => {
       const { error } = await supabase.from('teams').delete().eq('id', id);
       if (error) throw error;
   
-      // Atualiza estado usando callback para garantir estado atualizado
-      setTeams(prevTeams => prevTeams.filter(team => team.id !== id));
+      // Recarrega lista do banco para garantir sincronização
+      await fetchTeams();
     } catch (error) {
       console.error('Error deleting team:', error);
       alert('Erro ao excluir team');
