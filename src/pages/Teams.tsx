@@ -100,20 +100,22 @@ const Teams: React.FC = () => {
   };
 
   const filteredTeamsSorted = React.useMemo(() => {
-    let filtered = teams.filter((team) =>
-      team.login.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      team.usuario.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      team.observacao?.toLowerCase().includes(searchTerm.toLowerCase())
+    let filtered = teams.filter(team =>
+      (team.login.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       team.usuario.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       team.observacao?.toLowerCase().includes(searchTerm.toLowerCase()))
+      && (selectedDepartment ? team.departamento === selectedDepartment : true)
     );
-
+  
     if (sortOrder === 'asc') {
       filtered.sort((a, b) => a.login.localeCompare(b.login));
     } else if (sortOrder === 'desc') {
       filtered.sort((a, b) => b.login.localeCompare(a.login));
     }
-
+  
     return filtered;
-  }, [teams, searchTerm, sortOrder]);
+  }, [teams, searchTerm, sortOrder, selectedDepartment]);
+
 
   const currentItems = React.useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
