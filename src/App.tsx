@@ -7,7 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Usuarios from './pages/Usuarios';
 import Acessos from './pages/Acessos';
 import Teams from './pages/Teams';
-import WinUsers from './pages/Winusers';
+import WinUsers from './pages/WinUsers';
 
 function App() {
   return (
