@@ -245,6 +245,7 @@ const Teams: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-neutral-600">{team.usuario}</td>
+                  <td className="px-6 py-4 text-sm text-neutral-600">{team.departamento || '-'}</td>
                   <td className="px-6 py-4 text-sm text-neutral-600">
                     {team.observacao ? (
                       <span className="truncate max-w-xs block" title={team.observacao}>
@@ -252,28 +253,8 @@ const Teams: React.FC = () => {
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="px-6 py-4 text-sm text-neutral-600">
-                    {new Date(team.created_at).toLocaleDateString('pt-BR')}
-                  </td>
                   <td className="px-6 py-4 text-sm font-medium">
-                    <button
-                      onClick={() => setViewingTeam(team)}
-                      className="text-neutral-600 hover:text-neutral-900 mr-2"
-                    >
-                      <Search className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => { setEditingTeam(team); setShowForm(true); }}
-                      className="text-primary-600 hover:text-primary-900 mr-2"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(team.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {/* Botões */}
                   </td>
                 </tr>
               ))}
