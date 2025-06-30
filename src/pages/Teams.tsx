@@ -217,7 +217,6 @@ const Teams: React.FC = () => {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Senha</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Usuário</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Observação</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Departamento</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
               </tr>
@@ -235,7 +234,6 @@ const Teams: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-neutral-600">{team.usuario}</td>
-                  <td className="px-6 py-4 text-sm text-neutral-600">{team.observacao || '-'}</td>
                   <td className="px-6 py-4 text-sm text-neutral-600">{team.departamento || '-'}</td>
                   <td className="px-6 py-4 text-sm font-medium">
                     <button onClick={() => setViewingTeam(team)} className="text-neutral-600 hover:text-neutral-900 mr-2">
