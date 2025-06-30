@@ -8,7 +8,10 @@ interface Team {
   login: string;
   senha: string;
   usuario: string;
+  departamento?: string;  // Adiciona o campo departamento
   observacao?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface TeamFormProps {
