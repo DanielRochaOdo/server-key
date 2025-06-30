@@ -85,12 +85,16 @@ const Teams: React.FC = () => {
   };
 
   const filteredTeams = React.useMemo(() => {
-    return teams.filter(
-      (team) =>
+    return teams.filter(team => {
+      const matchesSearch =
         team.login.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        team.usuario.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [teams, searchTerm]);
+        team.usuario.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesDepartment = selectedDepartment === '' || team.departamento === selectedDepartment;
+
+      return matchesSearch && matchesDepartment;
+    });
+  }, [teams, searchTerm, selectedDepartment]);
 
   const currentItems = React.useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
