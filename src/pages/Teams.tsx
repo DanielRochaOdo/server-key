@@ -254,7 +254,24 @@ const Teams: React.FC = () => {
                     ) : '-'}
                   </td>
                   <td className="px-6 py-4 text-sm font-medium">
-                    {/* Botões */}
+                    <button
+                      onClick={() => setViewingTeam(team)}
+                      className="text-neutral-600 hover:text-neutral-900 mr-2"
+                    >
+                      <Search className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => { setEditingTeam(team); setShowForm(true); }}
+                      className="text-primary-600 hover:text-primary-900 mr-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(team.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </td>
                 </tr>
               ))}
