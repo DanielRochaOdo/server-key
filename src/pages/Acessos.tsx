@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Key, Plus, Upload, Search, Edit, Trash2, Eye, EyeOff } from 'lucide-react';
 import AccessForm from '../components/AccessForm';
 import FileUpload from '../components/FileUpload';
@@ -27,30 +27,16 @@ const Acessos: React.FC = () => {
   const [editingAccess, setEditingAccess] = useState<Access | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
-  const { user } = useAuth();
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingAccess, setViewingAccess] = useState<Access | null>(null);
+  const { user } = useAuth();
+  
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    fetchAcessos();
-  }, []);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
-
-  const toggleSortOrder = () => {
-    setSortOrder((prev) => {
-      if (prev === 'asc') return 'desc';
-      if (prev === 'desc') return null;
-      return 'asc';
-    });
-  };
-
-  const fetchAcessos = async () => {
+  const fetchAcessos = useCallback(async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('acessos')
         .select('id, descricao, para_que_serve, ip_url, usuario_login, senha, observacao, suporte_contato, email, data_pagamento, created_at')
@@ -63,32 +49,50 @@ const Acessos: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleDelete = async (id: string) => {
+  useEffect(() => {
+    fetchAcessos();
+  }, [fetchAcessos]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const toggleSortOrder = useCallback(() => {
+    setSortOrder((prev) => {
+      if (prev === 'asc') return 'desc';
+      if (prev === 'desc') return null;
+      return 'asc';
+    });
+  }, []);
+
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este acesso?')) return;
 
     try {
       const { error } = await supabase.from('acessos').delete().eq('id', id);
       if (error) throw error;
-      setAcessos(acessos.filter((acesso) => acesso.id !== id));
+      setAcessos(prev => prev.filter((acesso) => acesso.id !== id));
     } catch (error) {
       console.error('Error deleting access:', error);
       alert('Erro ao excluir acesso');
     }
-  };
+  }, []);
 
-  const togglePasswordVisibility = (id: string) => {
-    const newVisible = new Set(visiblePasswords);
-    if (newVisible.has(id)) {
-      newVisible.delete(id);
-    } else {
-      newVisible.add(id);
-    }
-    setVisiblePasswords(newVisible);
-  };
+  const togglePasswordVisibility = useCallback((id: string) => {
+    setVisiblePasswords(prev => {
+      const newVisible = new Set(prev);
+      if (newVisible.has(id)) {
+        newVisible.delete(id);
+      } else {
+        newVisible.add(id);
+      }
+      return newVisible;
+    });
+  }, []);
 
-  const filteredAcessosSorted = React.useMemo(() => {
+  const filteredAcessosSorted = useMemo(() => {
     let filtered = acessos.filter((acesso) =>
       acesso.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
       acesso.ip_url?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -104,23 +108,45 @@ const Acessos: React.FC = () => {
     return filtered;
   }, [acessos, searchTerm, sortOrder]);
 
-  const currentItems = React.useMemo(() => {
+  const currentItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredAcessosSorted.slice(start, start + itemsPerPage);
-  }, [filteredAcessosSorted, currentPage]);
+  }, [filteredAcessosSorted, currentPage, itemsPerPage]);
 
   const totalPages = Math.ceil(filteredAcessosSorted.length / itemsPerPage);
 
-  const handleFormSuccess = () => {
+  const handleFormSuccess = useCallback(() => {
     fetchAcessos();
     setShowForm(false);
     setEditingAccess(null);
-  };
+  }, [fetchAcessos]);
 
-  const handleUploadSuccess = () => {
+  const handleUploadSuccess = useCallback(() => {
     fetchAcessos();
     setShowUpload(false);
-  };
+  }, [fetchAcessos]);
+
+  const handleEdit = useCallback((acesso: Access) => {
+    setEditingAccess(acesso);
+    setShowForm(true);
+  }, []);
+
+  const handleCancelForm = useCallback(() => {
+    setShowForm(false);
+    setEditingAccess(null);
+  }, []);
+
+  const handleCancelUpload = useCallback(() => {
+    setShowUpload(false);
+  }, []);
+
+  const handleView = useCallback((acesso: Access) => {
+    setViewingAccess(acesso);
+  }, []);
+
+  const handleCloseView = useCallback(() => {
+    setViewingAccess(null);
+  }, []);
 
   if (loading) {
     return (
@@ -157,24 +183,6 @@ const Acessos: React.FC = () => {
         </div>
       </div>
 
-      {showForm && (
-        <AccessForm
-          access={editingAccess}
-          onSuccess={handleFormSuccess}
-          onCancel={() => {
-            setShowForm(false);
-            setEditingAccess(null);
-          }}
-        />
-      )}
-
-      {showUpload && (
-        <FileUpload
-          onSuccess={handleUploadSuccess}
-          onCancel={() => setShowUpload(false)}
-        />
-      )}
-
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="p-6 border-b border-neutral-200">
           <div className="flex items-center justify-between">
@@ -201,8 +209,16 @@ const Acessos: React.FC = () => {
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">
               <tr>
-                <th onClick={toggleSortOrder} className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer">
-                  Descrição {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
+                <th 
+                  onClick={toggleSortOrder} 
+                  className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
+                >
+                  <div className="flex items-center">
+                    Descrição
+                    <span className="ml-2">
+                      {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
+                    </span>
+                  </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">IP/URL</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Usuário</th>
@@ -214,49 +230,65 @@ const Acessos: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
               {currentItems.map((acesso) => (
-                <tr key={acesso.id} className="hover:bg-neutral-50">
+                <tr key={acesso.id} className="hover:bg-neutral-50 transition-colors duration-150">
                   <td className="px-6 py-4">
                     <div className="text-sm font-medium text-neutral-900">{acesso.descricao}</div>
                     {acesso.para_que_serve && (
                       <div className="text-sm text-neutral-500 truncate max-w-xs">{acesso.para_que_serve}</div>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm text-neutral-600">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
                     {acesso.ip_url ? (
-                      <a href={acesso.ip_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-                        <Eye className="h-5 w-5 inline" />
+                      <a 
+                        href={acesso.ip_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        title="Abrir link" 
+                        className="inline-flex items-center text-blue-600 hover:text-blue-800"
+                      >
+                        <Eye className="h-5 w-5" />
                       </a>
                     ) : '-'}
                   </td>
-                  <td className="px-6 py-4 text-sm text-neutral-600">{acesso.usuario_login}</td>
-                  <td className="px-6 py-4 text-sm text-neutral-600">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">{acesso.usuario_login || '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
                     {acesso.senha && (
                       <div className="flex items-center space-x-2">
-                        <span className="font-mono">{visiblePasswords.has(acesso.id) ? acesso.senha : '••••••••'}</span>
-                        <button onClick={() => togglePasswordVisibility(acesso.id)} className="text-neutral-400 hover:text-neutral-600">
+                        <span className="font-mono">
+                          {visiblePasswords.has(acesso.id) ? acesso.senha : '••••••••'}
+                        </span>
+                        <button 
+                          onClick={() => togglePasswordVisibility(acesso.id)} 
+                          className="text-neutral-400 hover:text-neutral-600"
+                        >
                           {visiblePasswords.has(acesso.id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm text-neutral-600">{acesso.email}</td>
-                  <td className="px-6 py-4 text-sm text-neutral-600">{acesso.data_pagamento && new Date(acesso.data_pagamento).toLocaleDateString('pt-BR')}</td>
-                  <td className="px-6 py-4 text-sm font-medium">
-                    <button
-                      onClick={() => setViewingAccess(acesso)}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">{acesso.email || '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
+                    {acesso.data_pagamento && new Date(acesso.data_pagamento).toLocaleDateString('pt-BR')}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button 
+                      onClick={() => handleView(acesso)}
                       className="text-neutral-600 hover:text-neutral-900 mr-2"
+                      title="Visualizar"
                     >
                       <Search className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={() => { setEditingAccess(acesso); setShowForm(true); }}
+                    <button 
+                      onClick={() => handleEdit(acesso)} 
                       className="text-primary-600 hover:text-primary-900 mr-2"
+                      title="Editar"
                     >
                       <Edit className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(acesso.id)}
+                    <button 
+                      onClick={() => handleDelete(acesso.id)} 
                       className="text-red-600 hover:text-red-900"
+                      title="Excluir"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -266,31 +298,69 @@ const Acessos: React.FC = () => {
             </tbody>
           </table>
 
-          <div className="flex justify-between items-center p-4">
+          {filteredAcessosSorted.length === 0 && (
+            <div className="text-center py-12">
+              <Key className="mx-auto h-12 w-12 text-neutral-400" />
+              <h3 className="mt-2 text-sm font-medium text-neutral-900">Nenhum acesso encontrado</h3>
+              <p className="mt-1 text-sm text-neutral-500">
+                {searchTerm ? 'Tente ajustar sua busca' : 'Comece adicionando um novo acesso'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center p-4 border-t border-neutral-200">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1 rounded ${currentPage === 1 ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'}`}
+              className={`px-3 py-1 rounded transition-colors ${
+                currentPage === 1 
+                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
+                  : 'bg-primary-600 text-white hover:bg-primary-700'
+              }`}
             >
               ← Anterior
             </button>
-            <span className="text-sm text-neutral-600">Página {currentPage} de {totalPages}</span>
+            <span className="text-sm text-neutral-600">
+              Página {currentPage} de {totalPages}
+            </span>
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className={`px-3 py-1 rounded ${currentPage === totalPages ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'}`}
+              className={`px-3 py-1 rounded transition-colors ${
+                currentPage === totalPages 
+                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
+                  : 'bg-primary-600 text-white hover:bg-primary-700'
+              }`}
             >
               Próxima →
             </button>
           </div>
-        </div>
+        )}
       </div>
+
+      {/* Modals */}
+      {showForm && (
+        <AccessForm
+          access={editingAccess}
+          onSuccess={handleFormSuccess}
+          onCancel={handleCancelForm}
+        />
+      )}
+
+      {showUpload && (
+        <FileUpload
+          onSuccess={handleUploadSuccess}
+          onCancel={handleCancelUpload}
+        />
+      )}
 
       {viewingAccess && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-lg">
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-lg mx-4">
             <h2 className="text-xl font-bold mb-4">Detalhes do Acesso</h2>
-            <div className="space-y-2 text-sm text-neutral-700">
+            <div className="space-y-3 text-sm text-neutral-700">
               <div><strong>Descrição:</strong> {viewingAccess.descricao}</div>
               <div><strong>Para que serve:</strong> {viewingAccess.para_que_serve || '-'}</div>
               <div><strong>IP/URL:</strong> {viewingAccess.ip_url || '-'}</div>
@@ -301,10 +371,10 @@ const Acessos: React.FC = () => {
               <div><strong>Observação:</strong> {viewingAccess.observacao || '-'}</div>
               <div><strong>Suporte contato:</strong> {viewingAccess.suporte_contato || '-'}</div>
             </div>
-            <div className="mt-4 text-right">
+            <div className="mt-6 text-right">
               <button
-                onClick={() => setViewingAccess(null)}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                onClick={handleCloseView}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 Fechar
               </button>
