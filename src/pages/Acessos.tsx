@@ -31,6 +31,7 @@ const Acessos: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingAccess, setViewingAccess] = useState<Access | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const { user } = useAuth();
 
   const itemsPerPage = 10;
@@ -94,8 +95,8 @@ const Acessos: React.FC = () => {
   }, []);
 
   const exportData = useCallback((format: 'csv' | 'xlsx') => {
-    const exportData = acessos.map(({ id, created_at, ...rest }) => rest);
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    const dataToExport = acessos.map(({ id, created_at, ...rest }) => rest);
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Acessos');
     const filename = `acessos_${new Date().toISOString().slice(0,10)}.${format}`;
@@ -105,6 +106,7 @@ const Acessos: React.FC = () => {
     } else {
       XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
     }
+    setShowExportMenu(false);
   }, [acessos]);
 
   const filteredAcessosSorted = useMemo(() => {
@@ -187,20 +189,33 @@ const Acessos: React.FC = () => {
               <Upload className="h-4 w-4 mr-2" />
               Importar
             </button>
-            <button
-              onClick={() => {
-                const format = prompt('Digite "csv" ou "xlsx" para exportar os dados:');
-                if (format === 'csv' || format === 'xlsx') {
-                  exportData(format);
-                } else if (format) {
-                  alert('Formato inválido. Use csv ou xlsx.');
-                }
-              }}
-              className="inline-flex items-center px-4 py-2 border border-button text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Exportar
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="inline-flex items-center px-4 py-2 border border-button text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
+                  <div className="py-1">
+                    <button
+                      onClick={() => exportData('csv')}
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                    >
+                      Exportar como CSV
+                    </button>
+                    <button
+                      onClick={() => exportData('xlsx')}
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                    >
+                      Exportar como XLSX
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setShowForm(true)}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
@@ -212,7 +227,7 @@ const Acessos: React.FC = () => {
         </div>
       </div>
 
-<div className="bg-white rounded-xl shadow-md overflow-hidden">
+      <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="p-6 border-b border-neutral-200">
           <div className="flex items-center justify-between">
             <div className="relative">
@@ -410,6 +425,14 @@ const Acessos: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Overlay para fechar menu de exportação */}
+      {showExportMenu && (
+        <div 
+          className="fixed inset-0 z-5" 
+          onClick={() => setShowExportMenu(false)}
+        />
       )}
     </div>
   );

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Upload, Search, Edit, Trash2, Eye, EyeOff, UserCheck } from 'lucide-react';
+import { Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, UserCheck } from 'lucide-react';
 import TeamForm from '../components/TeamForm';
 import TeamFileUpload from '../components/TeamFileUpload';
 import { supabase } from '../lib/supabase';
+import * as XLSX from 'xlsx';
 
 interface Team {
   id: string;
@@ -25,6 +26,7 @@ const Teams: React.FC = () => {
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -72,6 +74,21 @@ const Teams: React.FC = () => {
       newVisible.add(id);
     }
     setVisiblePasswords(newVisible);
+  };
+
+  const exportData = (format: 'csv' | 'xlsx') => {
+    const dataToExport = teams.map(({ id, created_at, ...rest }) => rest);
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Teams');
+    const filename = `teams_${new Date().toISOString().slice(0,10)}.${format}`;
+    
+    if (format === 'csv') {
+      XLSX.writeFile(wb, filename, { bookType: 'csv' });
+    } else {
+      XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+    }
+    setShowExportMenu(false);
   };
 
   const departments = React.useMemo(() => {
@@ -124,6 +141,33 @@ const Teams: React.FC = () => {
               <Upload className="h-4 w-4 mr-2" />
               Importar
             </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="inline-flex items-center px-4 py-2 border border-button text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
+                  <div className="py-1">
+                    <button
+                      onClick={() => exportData('csv')}
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                    >
+                      Exportar como CSV
+                    </button>
+                    <button
+                      onClick={() => exportData('xlsx')}
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                    >
+                      Exportar como XLSX
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setShowForm(true)}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
@@ -315,6 +359,14 @@ const Teams: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Overlay para fechar menu de exportação */}
+      {showExportMenu && (
+        <div 
+          className="fixed inset-0 z-5" 
+          onClick={() => setShowExportMenu(false)}
+        />
       )}
     </div>
   );
