@@ -78,7 +78,7 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
               name="senha"
               value={formData.senha}
               onChange={handleChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               required
             />
           </div>
@@ -88,7 +88,7 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
               name="usuario"
               value={formData.usuario}
               onChange={handleChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               required
             />
           </div>
@@ -98,7 +98,7 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
               name="observacao"
               value={formData.observacao}
               onChange={handleChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div>
@@ -107,7 +107,7 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
               name="departamento"
               value={formData.departamento}
               onChange={handleChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div className="flex justify-end space-x-2">
