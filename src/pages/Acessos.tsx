@@ -342,11 +342,11 @@ const Acessos: React.FC = () => {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={px-3 py-1 rounded transition-colors ${
+              className={`px-3 py-1 rounded transition-colors ${
                 currentPage === 1 
                   ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
                   : 'bg-primary-600 text-white hover:bg-primary-700'
-              }}
+              }`}
             >
               ← Anterior
             </button>
@@ -356,11 +356,11 @@ const Acessos: React.FC = () => {
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className={px-3 py-1 rounded transition-colors ${
+              className={`px-3 py-1 rounded transition-colors ${
                 currentPage === totalPages 
                   ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
                   : 'bg-primary-600 text-white hover:bg-primary-700'
-              }}
+              }`}
             >
               Próxima →
             </button>
