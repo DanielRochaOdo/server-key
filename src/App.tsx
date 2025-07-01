@@ -23,14 +23,14 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
+          {/* <Route
             path="/usuarios"
             element={
               <ProtectedRoute>
                 <Usuarios />
               </ProtectedRoute>
             }
-          />
+          /> */}
           <Route
             path="/acessos"
             element={
