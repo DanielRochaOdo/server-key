@@ -99,6 +99,21 @@ const Acessos: React.FC = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Acessos');
     const filename = `acessos_${new Date().toISOString().slice(0,10)}.${format}`;
+    
+    if (format === 'csv') {
+      XLSX.writeFile(wb, filename, { bookType: 'csv' });
+    } else {
+      XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+    }
+  }, [acessos]);
+
+
+  const exportData = useCallback((format: 'csv' | 'xlsx') => {
+    const exportData = acessos.map(({ id, created_at, ...rest }) => rest);
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Acessos');
+    const filename = `acessos_${new Date().toISOString().slice(0,10)}.${format}`;
     if (format === 'csv') {
       XLSX.writeFile(wb, filename, { bookType: 'csv' });
     } else {
