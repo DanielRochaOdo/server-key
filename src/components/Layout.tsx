@@ -63,7 +63,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <UserCheck className="h-4 w-4 mr-2" />
                   Teams
                 </Link>
-                <Link
+                {/* <Link
                   to="/usuarios"
                   className={`inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2 transition-colors duration-200 ${
                     isActive('/usuarios')
@@ -73,7 +73,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 >
                   <Users className="h-4 w-4 mr-2" />
                   Usuários
-                </Link>
+                </Link> */}
                 <Link
                   to="/win-users"
                   className={`inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2 transition-colors duration-200 ${
