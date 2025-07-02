@@ -119,31 +119,31 @@ const Dashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="px-4 sm:px-0">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-primary-900">Dashboard</h1>
-        <p className="mt-2 text-primary-600">
+    <div className="space-y-6 sm:space-y-8">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Dashboard</h1>
+        <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">
           Visão geral do sistema de gerenciamento
         </p>
       </div>
 
       {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {dashboardCards.map((card) => (
-          <div key={card.name} className="bg-white rounded-xl shadow-md p-6 transition-transform duration-200 hover:scale-105">
+          <div key={card.name} className="bg-white rounded-xl shadow-md p-4 sm:p-6 transition-transform duration-200 hover:scale-105">
             <div className="flex items-center">
-              <div className={`flex-shrink-0 p-3 rounded-lg ${card.bgColor}`}>
-                <card.icon className={`h-6 w-6 ${card.color}`} />
+              <div className={`flex-shrink-0 p-2 sm:p-3 rounded-lg ${card.bgColor}`}>
+                <card.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${card.color}`} />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-neutral-600">{card.name}</p>
-                <p className="text-2xl font-bold text-neutral-900">{card.value}</p>
+              <div className="ml-3 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-neutral-600">{card.name}</p>
+                <p className="text-xl sm:text-2xl font-bold text-neutral-900">{card.value}</p>
                 <p className="text-xs text-neutral-500">{card.description}</p>
               </div>
             </div>
@@ -151,30 +151,30 @@ const Dashboard: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         {/* Acessos Recentes */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-neutral-900">Acessos Recentes</h3>
-            <Key className="h-5 w-5 text-primary-600" />
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Acessos Recentes</h3>
+            <Key className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600" />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {stats.recentAcessos.length > 0 ? (
               stats.recentAcessos.map((acesso) => (
                 <div key={acesso.id} className="flex items-center justify-between py-2 border-b border-neutral-100 last:border-b-0">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-900 truncate max-w-[200px]">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-neutral-900 truncate">
                       {acesso.descricao}
                     </p>
                     <p className="text-xs text-neutral-500">
                       {formatDate(acesso.created_at)}
                     </p>
                   </div>
-                  <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
+                  <div className="w-2 h-2 bg-primary-500 rounded-full ml-2"></div>
                 </div>
               ))
             ) : (
-              <p className="text-sm text-neutral-500 text-center py-4">
+              <p className="text-xs sm:text-sm text-neutral-500 text-center py-4">
                 Nenhum acesso cadastrado
               </p>
             )}
@@ -182,31 +182,31 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Teams Recentes */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-neutral-900">Teams Recentes</h3>
-            <UserCheck className="h-5 w-5 text-button-600" />
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Teams Recentes</h3>
+            <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-button-600" />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {stats.recentTeams.length > 0 ? (
               stats.recentTeams.map((team) => (
                 <div key={team.id} className="flex items-center justify-between py-2 border-b border-neutral-100 last:border-b-0">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-900">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-neutral-900 truncate">
                       {team.usuario}
                     </p>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-neutral-500 truncate">
                       Login: {team.login}
                     </p>
                     <p className="text-xs text-neutral-500">
                       {formatDate(team.created_at)}
                     </p>
                   </div>
-                  <div className="w-2 h-2 bg-button-500 rounded-full"></div>
+                  <div className="w-2 h-2 bg-button-500 rounded-full ml-2"></div>
                 </div>
               ))
             ) : (
-              <p className="text-sm text-neutral-500 text-center py-4">
+              <p className="text-xs sm:text-sm text-neutral-500 text-center py-4">
                 Nenhum team cadastrado
               </p>
             )}
@@ -214,31 +214,31 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Win Users Recentes */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-neutral-900">Win Users Recentes</h3>
-            <Users className="h-5 w-5 text-blue-600" />
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 lg:col-span-2 xl:col-span-1">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Win Users Recentes</h3>
+            <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {stats.recentWinUsers.length > 0 ? (
               stats.recentWinUsers.map((winUser) => (
                 <div key={winUser.id} className="flex items-center justify-between py-2 border-b border-neutral-100 last:border-b-0">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-900">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-neutral-900 truncate">
                       {winUser.usuario}
                     </p>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-neutral-500 truncate">
                       Login: {winUser.login}
                     </p>
                     <p className="text-xs text-neutral-500">
                       {formatDate(winUser.created_at)}
                     </p>
                   </div>
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <div className="w-2 h-2 bg-blue-500 rounded-full ml-2"></div>
                 </div>
               ))
             ) : (
-              <p className="text-sm text-neutral-500 text-center py-4">
+              <p className="text-xs sm:text-sm text-neutral-500 text-center py-4">
                 Nenhum usuário Windows cadastrado
               </p>
             )}
@@ -247,32 +247,32 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Resumo do Sistema */}
-      <div className="mt-6 bg-white rounded-xl shadow-md p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-neutral-900">Status do Sistema</h3>
-          <TrendingUp className="h-5 w-5 text-green-600" />
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Status do Sistema</h3>
+          <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center justify-between p-4 bg-primary-50 rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-primary-900">Módulo Acessos</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="flex items-center justify-between p-3 sm:p-4 bg-primary-50 rounded-lg">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-primary-900">Módulo Acessos</p>
               <p className="text-xs text-primary-600">Sistema de credenciais</p>
             </div>
-            <span className="px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full">Ativo</span>
+            <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
           </div>
-          <div className="flex items-center justify-between p-4 bg-button-50 rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-button-900">Módulo Teams</p>
+          <div className="flex items-center justify-between p-3 sm:p-4 bg-button-50 rounded-lg">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-button-900">Módulo Teams</p>
               <p className="text-xs text-button-600">Gerenciamento de equipes</p>
             </div>
-            <span className="px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full">Ativo</span>
+            <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
           </div>
-          <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-blue-900">Módulo Win Users</p>
+          <div className="flex items-center justify-between p-3 sm:p-4 bg-blue-50 rounded-lg sm:col-span-2 lg:col-span-1">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-blue-900">Módulo Win Users</p>
               <p className="text-xs text-blue-600">Usuários Windows</p>
             </div>
-            <span className="px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full">Ativo</span>
+            <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
           </div>
         </div>
       </div>

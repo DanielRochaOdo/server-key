@@ -63,10 +63,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       `}>
         <div className="flex flex-col h-full">
           {/* Logo and brand */}
-          <div className="flex items-center justify-between h-16 px-6 border-b border-neutral-200">
+          <div className="flex items-center justify-between h-16 px-4 sm:px-6 border-b border-neutral-200">
             <div className="flex items-center">
-              <Shield className="h-8 w-8 text-primary-600" />
-              <span className="ml-2 text-xl font-bold text-primary-800">ServerKey</span>
+              <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-primary-600" />
+              <span className="ml-2 text-lg sm:text-xl font-bold text-primary-800">ServerKey</span>
             </div>
             <button
               onClick={closeSidebar}
@@ -77,36 +77,36 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
+          <nav className="flex-1 px-2 sm:px-4 py-4 sm:py-6 space-y-1 sm:space-y-2">
             {navigationItems.map((item) => (
               <Link
                 key={item.name}
                 to={item.href}
                 onClick={closeSidebar}
                 className={`
-                  flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200
+                  flex items-center px-3 sm:px-4 py-2 sm:py-3 text-sm font-medium rounded-lg transition-colors duration-200
                   ${isActive(item.href)
                     ? 'bg-primary-100 text-primary-700 border-r-2 border-primary-500'
                     : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
                   }
                 `}
               >
-                <item.icon className="h-5 w-5 mr-3" />
-                {item.name}
+                <item.icon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3" />
+                <span className="text-sm sm:text-base">{item.name}</span>
               </Link>
             ))}
           </nav>
 
           {/* User info and logout */}
-          <div className="border-t border-neutral-200 p-4">
-            <div className="flex items-center mb-4">
-              <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
-                <span className="text-sm font-medium text-primary-600">
+          <div className="border-t border-neutral-200 p-3 sm:p-4">
+            <div className="flex items-center mb-3 sm:mb-4">
+              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                <span className="text-xs sm:text-sm font-medium text-primary-600">
                   {user?.email?.charAt(0).toUpperCase()}
                 </span>
               </div>
-              <div className="ml-3 flex-1 min-w-0">
-                <p className="text-sm font-medium text-neutral-900 truncate">
+              <div className="ml-2 sm:ml-3 flex-1 min-w-0">
+                <p className="text-xs sm:text-sm font-medium text-neutral-900 truncate">
                   {user?.email}
                 </p>
                 <p className="text-xs text-neutral-500">Usuário ativo</p>
@@ -114,9 +114,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
             <button
               onClick={handleSignOut}
-              className="w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-button-500 transition-colors duration-200"
+              className="w-full flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-button-500 transition-colors duration-200"
             >
-              <LogOut className="h-4 w-4 mr-2" />
+              <LogOut className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               Sair
             </button>
           </div>
@@ -127,24 +127,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <div className="flex-1 flex flex-col lg:ml-0">
         {/* Mobile header */}
         <header className="lg:hidden bg-white shadow-sm border-b border-neutral-200">
-          <div className="flex items-center justify-between h-16 px-4">
+          <div className="flex items-center justify-between h-14 sm:h-16 px-4">
             <button
               onClick={() => setSidebarOpen(true)}
               className="text-neutral-500 hover:text-neutral-700"
             >
-              <Menu className="h-6 w-6" />
+              <Menu className="h-5 w-5 sm:h-6 sm:w-6" />
             </button>
             <div className="flex items-center">
-              <Shield className="h-6 w-6 text-primary-600" />
-              <span className="ml-2 text-lg font-bold text-primary-800">ServerKey</span>
+              <Shield className="h-5 w-5 sm:h-6 sm:w-6 text-primary-600" />
+              <span className="ml-2 text-base sm:text-lg font-bold text-primary-800">ServerKey</span>
             </div>
-            <div className="w-6" /> {/* Spacer for centering */}
+            <div className="w-5 sm:w-6" /> {/* Spacer for centering */}
           </div>
         </header>
 
         {/* Page content */}
         <main className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto py-4 sm:py-6 px-4 sm:px-6 lg:px-8">
             {children}
           </div>
         </main>

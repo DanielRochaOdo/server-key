@@ -106,33 +106,33 @@ const WinUsers: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="px-4 sm:px-0">
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
+    <div className="space-y-6 sm:space-y-8">
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
-            <h1 className="text-3xl font-bold text-primary-900">Win Users</h1>
-            <p className="mt-2 text-primary-600">Gerenciamento de usuários Windows</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Win Users</h1>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de usuários Windows</p>
           </div>
-          <div className="flex space-x-3">
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             <button
               onClick={() => setShowUpload(true)}
-              className="inline-flex items-center px-4 py-2 border border-button text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
             >
-              <Upload className="h-4 w-4 mr-2" />
+              <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               Importar
             </button>
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                className="inline-flex items-center px-4 py-2 border border-button text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+                className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
               >
-                <Download className="h-4 w-4 mr-2" />
+                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 Exportar
               </button>
               {showExportMenu && (
@@ -156,9 +156,9 @@ const WinUsers: React.FC = () => {
             </div>
             <button
               onClick={() => setShowForm(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
+              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               Novo Usuário
             </button>
           </div>
@@ -191,23 +191,23 @@ const WinUsers: React.FC = () => {
       )}
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="p-6 border-b border-neutral-200">
-          <div className="flex items-center justify-between">
-            <div className="relative w-full max-w-md">
+        <div className="p-4 sm:p-6 border-b border-neutral-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+            <div className="relative flex-1 max-w-md">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-neutral-400" />
+                <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
               </div>
               <input
                 type="text"
                 placeholder="Buscar usuários..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
               />
             </div>
-            <div className="flex items-center space-x-2 ml-4">
-              <UserCheck className="h-5 w-5 text-neutral-400" />
-              <span className="text-sm text-neutral-600">{filteredUsers.length} usuários</span>
+            <div className="flex items-center space-x-2">
+              <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+              <span className="text-xs sm:text-sm text-neutral-600">{filteredUsers.length} usuários</span>
             </div>
           </div>
         </div>
@@ -216,67 +216,69 @@ const WinUsers: React.FC = () => {
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Login</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Senha</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Usuário</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Login</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Senha</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Usuário</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
               {currentItems.map((user) => (
                 <tr key={user.id} className="hover:bg-neutral-50">
-                  <td className="px-6 py-4 text-sm text-neutral-900">{user.login}</td>
-                  <td className="px-6 py-4 text-sm text-neutral-600">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-mono">{visiblePasswords.has(user.id) ? user.senha : '••••••••'}</span>
+                  <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-900 truncate max-w-[100px] sm:max-w-none">{user.login}</td>
+                  <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-600">
+                    <div className="flex items-center space-x-1 sm:space-x-2">
+                      <span className="font-mono text-xs sm:text-sm">{visiblePasswords.has(user.id) ? user.senha : '••••••••'}</span>
                       <button
                         onClick={() => togglePasswordVisibility(user.id)}
                         className="text-neutral-400 hover:text-neutral-600"
                       >
-                        {visiblePasswords.has(user.id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {visiblePasswords.has(user.id) ? <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" /> : <Eye className="h-3 w-3 sm:h-4 sm:w-4" />}
                       </button>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-neutral-600">{user.usuario}</td>
-                  <td className="px-6 py-4 text-sm font-medium">
-                    <button
-                      onClick={() => {
-                        setEditingUser(user);
-                        setShowForm(true);
-                      }}
-                      className="text-primary-600 hover:text-primary-900 mr-2"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(user.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-600 truncate max-w-[100px] sm:max-w-none">{user.usuario}</td>
+                  <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm font-medium">
+                    <div className="flex items-center space-x-1 sm:space-x-2">
+                      <button
+                        onClick={() => {
+                          setEditingUser(user);
+                          setShowForm(true);
+                        }}
+                        className="text-primary-600 hover:text-primary-900"
+                      >
+                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(user.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <div className="flex justify-between items-center p-4">
+          <div className="flex justify-between items-center p-3 sm:p-4">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1 rounded ${
+              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
                 currentPage === 1 ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'
               }`}
             >
               ← Anterior
             </button>
-            <span className="text-sm text-neutral-600">
+            <span className="text-xs sm:text-sm text-neutral-600">
               Página {currentPage} de {totalPages}
             </span>
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className={`px-3 py-1 rounded ${
+              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
                 currentPage === totalPages ? 'bg-neutral-200 text-neutral-400' : 'bg-primary-600 text-white'
               }`}
             >

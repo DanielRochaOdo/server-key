@@ -168,33 +168,33 @@ const Acessos: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="px-4 sm:px-0">
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
+    <div className="space-y-6 sm:space-y-8">
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
-            <h1 className="text-3xl font-bold text-primary-900">Acessos</h1>
-            <p className="mt-2 text-primary-600">Gerenciamento de acessos aos sistemas da empresa</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Acessos</h1>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de acessos aos sistemas da empresa</p>
           </div>
-          <div className="flex space-x-3">
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             <button
               onClick={() => setShowUpload(true)}
-              className="inline-flex items-center px-4 py-2 border border-button text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
             >
-              <Upload className="h-4 w-4 mr-2" />
+              <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               Importar
             </button>
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                className="inline-flex items-center px-4 py-2 border border-button text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+                className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
               >
-                <Download className="h-4 w-4 mr-2" />
+                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 Exportar
               </button>
               {showExportMenu && (
@@ -218,9 +218,9 @@ const Acessos: React.FC = () => {
             </div>
             <button
               onClick={() => setShowForm(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
+              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               Novo Acesso
             </button>
           </div>
@@ -228,23 +228,23 @@ const Acessos: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="p-6 border-b border-neutral-200">
-          <div className="flex items-center justify-between">
-            <div className="relative">
+        <div className="p-4 sm:p-6 border-b border-neutral-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+            <div className="relative flex-1 max-w-md">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-neutral-400" />
+                <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
               </div>
               <input
                 type="text"
                 placeholder="Buscar acessos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
               />
             </div>
             <div className="flex items-center space-x-2">
-              <Key className="h-5 w-5 text-neutral-400" />
-              <span className="text-sm text-neutral-600">{filteredAcessosSorted.length} acessos</span>
+              <Key className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+              <span className="text-xs sm:text-sm text-neutral-600">{filteredAcessosSorted.length} acessos</span>
             </div>
           </div>
         </div>
@@ -255,33 +255,33 @@ const Acessos: React.FC = () => {
               <tr>
                 <th 
                   onClick={toggleSortOrder} 
-                  className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
                 >
                   <div className="flex items-center">
                     Descrição
-                    <span className="ml-2">
+                    <span className="ml-1 sm:ml-2">
                       {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
                     </span>
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">IP/URL</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Usuário</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Senha</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Data Pagamento</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">IP/URL</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Usuário</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Senha</th>
+                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Email</th>
+                <th className="hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Data Pagamento</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
               {currentItems.map((acesso) => (
                 <tr key={acesso.id} className="hover:bg-neutral-50 transition-colors duration-150">
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-neutral-900">{acesso.descricao}</div>
+                  <td className="px-3 sm:px-6 py-4">
+                    <div className="text-xs sm:text-sm font-medium text-neutral-900 truncate max-w-[150px] sm:max-w-none">{acesso.descricao}</div>
                     {acesso.para_que_serve && (
-                      <div className="text-sm text-neutral-500 truncate max-w-xs">{acesso.para_que_serve}</div>
+                      <div className="text-xs text-neutral-500 truncate max-w-[150px] sm:max-w-xs">{acesso.para_que_serve}</div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
                     {acesso.ip_url ? (
                       <a 
                         href={acesso.ip_url} 
@@ -290,52 +290,54 @@ const Acessos: React.FC = () => {
                         title="Abrir link" 
                         className="inline-flex items-center text-blue-600 hover:text-blue-800"
                       >
-                        <Eye className="h-5 w-5" />
+                        <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
                       </a>
                     ) : '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">{acesso.usuario_login || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[100px] sm:max-w-none">{acesso.usuario_login || '-'}</td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
                     {acesso.senha && (
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono">
+                      <div className="flex items-center space-x-1 sm:space-x-2">
+                        <span className="font-mono text-xs sm:text-sm">
                           {visiblePasswords.has(acesso.id) ? acesso.senha : '••••••••'}
                         </span>
                         <button 
                           onClick={() => togglePasswordVisibility(acesso.id)} 
                           className="text-neutral-400 hover:text-neutral-600"
                         >
-                          {visiblePasswords.has(acesso.id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          {visiblePasswords.has(acesso.id) ? <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" /> : <Eye className="h-3 w-3 sm:h-4 sm:w-4" />}
                         </button>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">{acesso.email || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">
+                  <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[150px]">{acesso.email || '-'}</td>
+                  <td className="hidden lg:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
                     {acesso.data_pagamento && new Date(acesso.data_pagamento).toLocaleDateString('pt-BR')}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button 
-                      onClick={() => handleView(acesso)}
-                      className="text-neutral-600 hover:text-neutral-900 mr-2"
-                      title="Visualizar"
-                    >
-                      <Search className="h-4 w-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleEdit(acesso)} 
-                      className="text-primary-600 hover:text-primary-900 mr-2"
-                      title="Editar"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(acesso.id)} 
-                      className="text-red-600 hover:text-red-900"
-                      title="Excluir"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
+                    <div className="flex items-center space-x-1 sm:space-x-2">
+                      <button 
+                        onClick={() => handleView(acesso)}
+                        className="text-neutral-600 hover:text-neutral-900"
+                        title="Visualizar"
+                      >
+                        <Search className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleEdit(acesso)} 
+                        className="text-primary-600 hover:text-primary-900"
+                        title="Editar"
+                      >
+                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(acesso.id)} 
+                        className="text-red-600 hover:text-red-900"
+                        title="Excluir"
+                      >
+                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -343,10 +345,10 @@ const Acessos: React.FC = () => {
           </table>
 
           {filteredAcessosSorted.length === 0 && (
-            <div className="text-center py-12">
-              <Key className="mx-auto h-12 w-12 text-neutral-400" />
+            <div className="text-center py-8 sm:py-12">
+              <Key className="mx-auto h-8 w-8 sm:h-12 sm:w-12 text-neutral-400" />
               <h3 className="mt-2 text-sm font-medium text-neutral-900">Nenhum acesso encontrado</h3>
-              <p className="mt-1 text-sm text-neutral-500">
+              <p className="mt-1 text-xs sm:text-sm text-neutral-500">
                 {searchTerm ? 'Tente ajustar sua busca' : 'Comece adicionando um novo acesso'}
               </p>
             </div>
@@ -354,11 +356,11 @@ const Acessos: React.FC = () => {
         </div>
 
         {totalPages > 1 && (
-          <div className="flex justify-between items-center p-4 border-t border-neutral-200">
+          <div className="flex justify-between items-center p-3 sm:p-4 border-t border-neutral-200">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1 rounded transition-colors ${
+              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
                 currentPage === 1 
                   ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
                   : 'bg-primary-600 text-white hover:bg-primary-700'
@@ -366,13 +368,13 @@ const Acessos: React.FC = () => {
             >
               ← Anterior
             </button>
-            <span className="text-sm text-neutral-600">
+            <span className="text-xs sm:text-sm text-neutral-600">
               Página {currentPage} de {totalPages}
             </span>
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className={`px-3 py-1 rounded transition-colors ${
+              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
                 currentPage === totalPages 
                   ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
                   : 'bg-primary-600 text-white hover:bg-primary-700'
@@ -401,10 +403,10 @@ const Acessos: React.FC = () => {
       )}
 
       {viewingAccess && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-lg mx-4">
-            <h2 className="text-xl font-bold mb-4">Detalhes do Acesso</h2>
-            <div className="space-y-3 text-sm text-neutral-700">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-lg w-full shadow-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Acesso</h2>
+            <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700">
               <div><strong>Descrição:</strong> {viewingAccess.descricao}</div>
               <div><strong>Para que serve:</strong> {viewingAccess.para_que_serve || '-'}</div>
               <div><strong>IP/URL:</strong> {viewingAccess.ip_url || '-'}</div>
@@ -415,10 +417,10 @@ const Acessos: React.FC = () => {
               <div><strong>Observação:</strong> {viewingAccess.observacao || '-'}</div>
               <div><strong>Suporte contato:</strong> {viewingAccess.suporte_contato || '-'}</div>
             </div>
-            <div className="mt-6 text-right">
+            <div className="mt-4 sm:mt-6 text-right">
               <button
                 onClick={handleCloseView}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-xs sm:text-sm"
               >
                 Fechar
               </button>
