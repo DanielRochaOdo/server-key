@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Users, Activity, AlertTriangle, Key, UserCheck, Database, TrendingUp } from 'lucide-react';
+import { Shield, Users, Activity, AlertTriangle, Key, UserCheck, Database, TrendingUp, Phone } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -7,9 +7,11 @@ interface DashboardStats {
   totalAcessos: number;
   totalTeams: number;
   totalWinUsers: number;
+  totalRateioClaro: number;
   recentAcessos: any[];
   recentTeams: any[];
   recentWinUsers: any[];
+  recentRateioClaro: any[];
 }
 
 const Dashboard: React.FC = () => {
@@ -17,9 +19,11 @@ const Dashboard: React.FC = () => {
     totalAcessos: 0,
     totalTeams: 0,
     totalWinUsers: 0,
+    totalRateioClaro: 0,
     recentAcessos: [],
     recentTeams: [],
-    recentWinUsers: []
+    recentWinUsers: [],
+    recentRateioClaro: []
   });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -56,13 +60,23 @@ const Dashboard: React.FC = () => {
 
       if (winUsersError) throw winUsersError;
 
+      // Fetch Rateio Claro data
+      const { data: rateioData, error: rateioError } = await supabase
+        .from('rateio_claro')
+        .select('id, completo, numero_linha, created_at')
+        .order('created_at', { ascending: false });
+
+      if (rateioError) throw rateioError;
+
       setStats({
         totalAcessos: acessosData?.length || 0,
         totalTeams: teamsData?.length || 0,
         totalWinUsers: winUsersData?.length || 0,
+        totalRateioClaro: rateioData?.length || 0,
         recentAcessos: acessosData?.slice(0, 5) || [],
         recentTeams: teamsData?.slice(0, 5) || [],
-        recentWinUsers: winUsersData?.slice(0, 5) || []
+        recentWinUsers: winUsersData?.slice(0, 5) || [],
+        recentRateioClaro: rateioData?.slice(0, 5) || []
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -107,8 +121,16 @@ const Dashboard: React.FC = () => {
       description: 'Usuários Windows'
     },
     {
+      name: 'Rateio Claro',
+      value: stats.totalRateioClaro.toString(),
+      icon: Phone,
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-100',
+      description: 'Linhas Claro'
+    },
+    {
       name: 'Total Geral',
-      value: (stats.totalAcessos + stats.totalTeams + stats.totalWinUsers).toString(),
+      value: (stats.totalAcessos + stats.totalTeams + stats.totalWinUsers + stats.totalRateioClaro).toString(),
       icon: Database,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
@@ -134,7 +156,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
         {dashboardCards.map((card) => (
           <div key={card.name} className="bg-white rounded-xl shadow-md p-4 sm:p-6 transition-transform duration-200 hover:scale-105">
             <div className="flex items-center">
@@ -151,7 +173,7 @@ const Dashboard: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Acessos Recentes */}
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -214,7 +236,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Win Users Recentes */}
-        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 lg:col-span-2 xl:col-span-1">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Win Users Recentes</h3>
             <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
@@ -244,6 +266,38 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Rateio Claro Recentes */}
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Rateio Claro Recentes</h3>
+            <Phone className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
+          </div>
+          <div className="space-y-2 sm:space-y-3">
+            {stats.recentRateioClaro.length > 0 ? (
+              stats.recentRateioClaro.map((rateio) => (
+                <div key={rateio.id} className="flex items-center justify-between py-2 border-b border-neutral-100 last:border-b-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-neutral-900 truncate">
+                      {rateio.completo}
+                    </p>
+                    <p className="text-xs text-neutral-500 truncate">
+                      Linha: {rateio.numero_linha || 'N/A'}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {formatDate(rateio.created_at)}
+                    </p>
+                  </div>
+                  <div className="w-2 h-2 bg-purple-500 rounded-full ml-2"></div>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs sm:text-sm text-neutral-500 text-center py-4">
+                Nenhum rateio cadastrado
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Resumo do Sistema */}
@@ -252,7 +306,7 @@ const Dashboard: React.FC = () => {
           <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Status do Sistema</h3>
           <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="flex items-center justify-between p-3 sm:p-4 bg-primary-50 rounded-lg">
             <div className="flex-1 min-w-0">
               <p className="text-xs sm:text-sm font-medium text-primary-900">Módulo Acessos</p>
@@ -267,10 +321,17 @@ const Dashboard: React.FC = () => {
             </div>
             <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
           </div>
-          <div className="flex items-center justify-between p-3 sm:p-4 bg-blue-50 rounded-lg sm:col-span-2 lg:col-span-1">
+          <div className="flex items-center justify-between p-3 sm:p-4 bg-blue-50 rounded-lg">
             <div className="flex-1 min-w-0">
               <p className="text-xs sm:text-sm font-medium text-blue-900">Módulo Win Users</p>
               <p className="text-xs text-blue-600">Usuários Windows</p>
+            </div>
+            <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
+          </div>
+          <div className="flex items-center justify-between p-3 sm:p-4 bg-purple-50 rounded-lg">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-purple-900">Módulo Rateio Claro</p>
+              <p className="text-xs text-purple-600">Linhas telefônicas</p>
             </div>
             <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
           </div>
