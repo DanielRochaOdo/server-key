@@ -5,10 +5,12 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface RateioGoogle {
   id: string;
-  completo: string;
-  servico?: string;
-  responsavel_atual?: string;
-  setor?: string;
+  nome_completo: string;
+  email?: string;
+  status?: string;
+  ultimo_login?: string;
+  armazenamento?: string;
+  situacao?: string;
 }
 
 interface RateioGoogleFormProps {
@@ -19,46 +21,52 @@ interface RateioGoogleFormProps {
 
 const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState({
-    completo: '',
-    servico: '',
-    responsavel_atual: '',
-    setor: '',
+    nome_completo: '',
+    email: '',
+    status: '',
+    ultimo_login: '',
+    armazenamento: '',
+    situacao: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
 
-  const googleServices = [
-    'Gmail',
-    'Google Drive',
-    'Google Workspace',
-    'Google Cloud',
-    'Google Analytics',
-    'Google Ads',
-    'YouTube',
-    'Google Meet',
-    'Google Calendar',
-    'Google Docs',
-    'Google Sheets',
-    'Google Slides',
-    'Google Forms',
-    'Outro'
+  const statusOptions = [
+    'Ativo',
+    'Inativo',
+    'Suspenso',
+    'Bloqueado',
+    'Pendente'
+  ];
+
+  const situacaoOptions = [
+    'Regular',
+    'Irregular',
+    'Em análise',
+    'Aprovado',
+    'Reprovado',
+    'Pendente'
   ];
 
   useEffect(() => {
     if (rateio) {
       setFormData({
-        completo: rateio.completo || '',
-        servico: rateio.servico || '',
-        responsavel_atual: rateio.responsavel_atual || '',
-        setor: rateio.setor || '',
+        nome_completo: rateio.nome_completo || '',
+        email: rateio.email || '',
+        status: rateio.status || '',
+        ultimo_login: rateio.ultimo_login ? rateio.ultimo_login.slice(0, 16) : '',
+        armazenamento: rateio.armazenamento || '',
+        situacao: rateio.situacao || '',
       });
     } else {
       setFormData({
-        completo: '',
-        servico: '',
-        responsavel_atual: '',
-        setor: '',
+        nome_completo: '',
+        email: '',
+        status: '',
+        ultimo_login: '',
+        armazenamento: '',
+        situacao: '',
       });
     }
     setError('');
@@ -79,6 +87,7 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
     try {
       const dataToSave = {
         ...formData,
+        ultimo_login: formData.ultimo_login ? new Date(formData.ultimo_login).toISOString() : null,
         user_id: user.id,
         updated_at: new Date().toISOString(),
       };
@@ -136,73 +145,109 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
-              <label htmlFor="completo" className="block text-sm font-medium text-neutral-700 mb-2">
-                Completo *
+              <label htmlFor="nome_completo" className="block text-sm font-medium text-neutral-700 mb-2">
+                Nome Completo *
               </label>
-              <textarea
-                id="completo"
-                name="completo"
+              <input
+                type="text"
+                id="nome_completo"
+                name="nome_completo"
                 required
-                rows={3}
-                value={formData.completo}
+                value={formData.nome_completo}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
-                placeholder="Informações completas do rateio Google"
+                placeholder="Nome completo do usuário"
               />
             </div>
 
             <div>
-              <label htmlFor="servico" className="block text-sm font-medium text-neutral-700 mb-2">
-                Serviço Google
+              <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={loading}
+                placeholder="email@exemplo.com"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="status" className="block text-sm font-medium text-neutral-700 mb-2">
+                Status
               </label>
               <select
-                id="servico"
-                name="servico"
-                value={formData.servico}
+                id="status"
+                name="status"
+                value={formData.status}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
               >
-                <option value="">Selecione um serviço</option>
-                {googleServices.map((service) => (
-                  <option key={service} value={service}>
-                    {service}
+                <option value="">Selecione um status</option>
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label htmlFor="responsavel_atual" className="block text-sm font-medium text-neutral-700 mb-2">
-                Responsável Atual
+              <label htmlFor="ultimo_login" className="block text-sm font-medium text-neutral-700 mb-2">
+                Último Login
               </label>
               <input
-                type="text"
-                id="responsavel_atual"
-                name="responsavel_atual"
-                value={formData.responsavel_atual}
+                type="datetime-local"
+                id="ultimo_login"
+                name="ultimo_login"
+                value={formData.ultimo_login}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
-                placeholder="Nome do responsável"
               />
             </div>
 
-            <div className="md:col-span-2">
-              <label htmlFor="setor" className="block text-sm font-medium text-neutral-700 mb-2">
-                Setor
+            <div>
+              <label htmlFor="armazenamento" className="block text-sm font-medium text-neutral-700 mb-2">
+                Armazenamento
               </label>
               <input
                 type="text"
-                id="setor"
-                name="setor"
-                value={formData.setor}
+                id="armazenamento"
+                name="armazenamento"
+                value={formData.armazenamento}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
-                placeholder="Departamento ou setor"
+                placeholder="Ex: 15 GB, 100 GB, 2 TB"
               />
+            </div>
+
+            <div>
+              <label htmlFor="situacao" className="block text-sm font-medium text-neutral-700 mb-2">
+                Situação
+              </label>
+              <select
+                id="situacao"
+                name="situacao"
+                value={formData.situacao}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={loading}
+              >
+                <option value="">Selecione uma situação</option>
+                {situacaoOptions.map((situacao) => (
+                  <option key={situacao} value={situacao}>
+                    {situacao}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

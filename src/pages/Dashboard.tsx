@@ -75,7 +75,7 @@ const Dashboard: React.FC = () => {
       // Fetch Rateio Google data
       const { data: rateioGoogleData, error: rateioGoogleError } = await supabase
         .from('rateio_google')
-        .select('id, completo, servico, created_at')
+        .select('id, nome_completo, email, created_at')
         .order('created_at', { ascending: false });
 
       if (rateioGoogleError) throw rateioGoogleError;
@@ -148,7 +148,7 @@ const Dashboard: React.FC = () => {
       icon: Globe,
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-100',
-      description: 'Serviços Google'
+      description: 'Usuários Google'
     },
     {
       name: 'Total Geral',
@@ -333,10 +333,10 @@ const Dashboard: React.FC = () => {
                 <div key={rateio.id} className="flex items-center justify-between py-2 border-b border-neutral-100 last:border-b-0">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs sm:text-sm font-medium text-neutral-900 truncate">
-                      {rateio.completo}
+                      {rateio.nome_completo}
                     </p>
                     <p className="text-xs text-neutral-500 truncate">
-                      Serviço: {rateio.servico || 'N/A'}
+                      Email: {rateio.email || 'N/A'}
                     </p>
                     <p className="text-xs text-neutral-500">
                       {formatDate(rateio.created_at)}
@@ -347,7 +347,7 @@ const Dashboard: React.FC = () => {
               ))
             ) : (
               <p className="text-xs sm:text-sm text-neutral-500 text-center py-4">
-                Nenhum rateio Google cadastrado
+                Nenhum usuário Google cadastrado
               </p>
             )}
           </div>
@@ -392,7 +392,7 @@ const Dashboard: React.FC = () => {
           <div className="flex items-center justify-between p-3 sm:p-4 bg-indigo-50 rounded-lg">
             <div className="flex-1 min-w-0">
               <p className="text-xs sm:text-sm font-medium text-indigo-900">Módulo Rateio Google</p>
-              <p className="text-xs text-indigo-600">Serviços Google</p>
+              <p className="text-xs text-indigo-600">Usuários Google</p>
             </div>
             <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
           </div>

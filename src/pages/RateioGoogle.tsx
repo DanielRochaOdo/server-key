@@ -8,10 +8,12 @@ import * as XLSX from 'xlsx';
 
 interface RateioGoogle {
   id: string;
-  completo: string;
-  servico?: string;
-  responsavel_atual?: string;
-  setor?: string;
+  nome_completo: string;
+  email?: string;
+  status?: string;
+  ultimo_login?: string;
+  armazenamento?: string;
+  situacao?: string;
   created_at: string;
 }
 
@@ -22,8 +24,8 @@ const RateioGoogle: React.FC = () => {
   const [showUpload, setShowUpload] = useState(false);
   const [editingRateio, setEditingRateio] = useState<RateioGoogle | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSetor, setSelectedSetor] = useState('');
-  const [selectedServico, setSelectedServico] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedSituacao, setSelectedSituacao] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(null);
@@ -37,7 +39,7 @@ const RateioGoogle: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('rateio_google')
-        .select('id, completo, servico, responsavel_atual, setor, created_at')
+        .select('id, nome_completo, email, status, ultimo_login, armazenamento, situacao, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -55,7 +57,7 @@ const RateioGoogle: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedSetor, selectedServico]);
+  }, [searchTerm, selectedStatus, selectedSituacao]);
 
   const toggleSortOrder = useCallback(() => {
     setSortOrder((prev) => {
@@ -79,7 +81,10 @@ const RateioGoogle: React.FC = () => {
   }, []);
 
   const exportData = useCallback((format: 'csv' | 'xlsx') => {
-    const dataToExport = rateios.map(({ id, created_at, ...rest }) => rest);
+    const dataToExport = rateios.map(({ id, created_at, ...rest }) => ({
+      ...rest,
+      ultimo_login: rest.ultimo_login ? new Date(rest.ultimo_login).toLocaleString('pt-BR') : ''
+    }));
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'RateioGoogle');
@@ -93,41 +98,41 @@ const RateioGoogle: React.FC = () => {
     setShowExportMenu(false);
   }, [rateios]);
 
-  const setores = useMemo(() => {
-    const setorList = rateios
-      .map((rateio) => rateio.setor?.trim() || '')
-      .filter((setor) => setor !== '');
-    return Array.from(new Set(setorList)).sort();
+  const statusOptions = useMemo(() => {
+    const statusList = rateios
+      .map((rateio) => rateio.status?.trim() || '')
+      .filter((status) => status !== '');
+    return Array.from(new Set(statusList)).sort();
   }, [rateios]);
 
-  const servicos = useMemo(() => {
-    const servicoList = rateios
-      .map((rateio) => rateio.servico?.trim() || '')
-      .filter((servico) => servico !== '');
-    return Array.from(new Set(servicoList)).sort();
+  const situacaoOptions = useMemo(() => {
+    const situacaoList = rateios
+      .map((rateio) => rateio.situacao?.trim() || '')
+      .filter((situacao) => situacao !== '');
+    return Array.from(new Set(situacaoList)).sort();
   }, [rateios]);
 
   const filteredRateiosSorted = useMemo(() => {
     let filtered = rateios.filter((rateio) => {
       const matchesSearch =
-        rateio.completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        rateio.servico?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        rateio.responsavel_atual?.toLowerCase().includes(searchTerm.toLowerCase());
+        rateio.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        rateio.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        rateio.armazenamento?.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesSetor = selectedSetor === '' || rateio.setor === selectedSetor;
-      const matchesServico = selectedServico === '' || rateio.servico === selectedServico;
+      const matchesStatus = selectedStatus === '' || rateio.status === selectedStatus;
+      const matchesSituacao = selectedSituacao === '' || rateio.situacao === selectedSituacao;
 
-      return matchesSearch && matchesSetor && matchesServico;
+      return matchesSearch && matchesStatus && matchesSituacao;
     });
 
     if (sortOrder === 'asc') {
-      filtered.sort((a, b) => a.completo.localeCompare(b.completo));
+      filtered.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
     } else if (sortOrder === 'desc') {
-      filtered.sort((a, b) => b.completo.localeCompare(a.completo));
+      filtered.sort((a, b) => b.nome_completo.localeCompare(a.nome_completo));
     }
 
     return filtered;
-  }, [rateios, searchTerm, selectedSetor, selectedServico, sortOrder]);
+  }, [rateios, searchTerm, selectedStatus, selectedSituacao, sortOrder]);
 
   const currentItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -169,6 +174,39 @@ const RateioGoogle: React.FC = () => {
     setViewingRateio(null);
   }, []);
 
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
+    try {
+      return new Date(dateString).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '-';
+    }
+  };
+
+  const getStatusBadge = (status?: string) => {
+    if (!status) return null;
+    
+    const statusColors: Record<string, string> = {
+      'Ativo': 'bg-green-100 text-green-800',
+      'Inativo': 'bg-red-100 text-red-800',
+      'Suspenso': 'bg-yellow-100 text-yellow-800',
+      'Bloqueado': 'bg-red-100 text-red-800',
+      'Pendente': 'bg-blue-100 text-blue-800'
+    };
+
+    return (
+      <span className={`px-2 py-1 text-xs rounded-full ${statusColors[status] || 'bg-gray-100 text-gray-800'}`}>
+        {status}
+      </span>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -183,7 +221,7 @@ const RateioGoogle: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Rateio Google</h1>
-            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de rateio de serviços Google</p>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de usuários Google Workspace</p>
           </div>
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             <button
@@ -225,7 +263,7 @@ const RateioGoogle: React.FC = () => {
               className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
             >
               <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              Novo Rateio
+              Novo Usuário
             </button>
           </div>
         </div>
@@ -240,7 +278,7 @@ const RateioGoogle: React.FC = () => {
               </div>
               <input
                 type="text"
-                placeholder="Buscar rateios..."
+                placeholder="Buscar usuários..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
@@ -248,38 +286,38 @@ const RateioGoogle: React.FC = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-              <label htmlFor="filter-servico" className="text-xs sm:text-sm font-medium text-neutral-700 whitespace-nowrap">
-                Serviço:
+              <label htmlFor="filter-status" className="text-xs sm:text-sm font-medium text-neutral-700 whitespace-nowrap">
+                Status:
               </label>
               <select
-                id="filter-servico"
+                id="filter-status"
                 className="border border-neutral-300 rounded-lg px-2 sm:px-3 py-1 text-xs sm:text-sm"
-                value={selectedServico}
-                onChange={(e) => setSelectedServico(e.target.value)}
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
               >
                 <option value="">Todos</option>
-                {servicos.map((servico) => (
-                  <option key={servico} value={servico}>
-                    {servico}
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
                   </option>
                 ))}
               </select>
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-              <label htmlFor="filter-setor" className="text-xs sm:text-sm font-medium text-neutral-700 whitespace-nowrap">
-                Setor:
+              <label htmlFor="filter-situacao" className="text-xs sm:text-sm font-medium text-neutral-700 whitespace-nowrap">
+                Situação:
               </label>
               <select
-                id="filter-setor"
+                id="filter-situacao"
                 className="border border-neutral-300 rounded-lg px-2 sm:px-3 py-1 text-xs sm:text-sm"
-                value={selectedSetor}
-                onChange={(e) => setSelectedSetor(e.target.value)}
+                value={selectedSituacao}
+                onChange={(e) => setSelectedSituacao(e.target.value)}
               >
-                <option value="">Todos</option>
-                {setores.map((setor) => (
-                  <option key={setor} value={setor}>
-                    {setor}
+                <option value="">Todas</option>
+                {situacaoOptions.map((situacao) => (
+                  <option key={situacao} value={situacao}>
+                    {situacao}
                   </option>
                 ))}
               </select>
@@ -287,7 +325,7 @@ const RateioGoogle: React.FC = () => {
 
             <div className="flex items-center space-x-2">
               <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
-              <span className="text-xs sm:text-sm text-neutral-600">{filteredRateiosSorted.length} rateios</span>
+              <span className="text-xs sm:text-sm text-neutral-600">{filteredRateiosSorted.length} usuários</span>
             </div>
           </div>
         </div>
@@ -301,15 +339,16 @@ const RateioGoogle: React.FC = () => {
                   className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
                 >
                   <div className="flex items-center">
-                    Completo
+                    Nome Completo
                     <span className="ml-1 sm:ml-2">
                       {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
                     </span>
                   </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Serviço</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Responsável Atual</th>
-                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Setor</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Email</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Status</th>
+                <th className="hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Último Login</th>
+                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Armazenamento</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
@@ -317,11 +356,14 @@ const RateioGoogle: React.FC = () => {
               {currentItems.map((rateio) => (
                 <tr key={rateio.id} className="hover:bg-neutral-50 transition-colors duration-150">
                   <td className="px-3 sm:px-6 py-4">
-                    <div className="text-xs sm:text-sm font-medium text-neutral-900 truncate max-w-[200px] sm:max-w-none">{rateio.completo}</div>
+                    <div className="text-xs sm:text-sm font-medium text-neutral-900 truncate max-w-[150px] sm:max-w-none">{rateio.nome_completo}</div>
                   </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.servico || '-'}</td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.responsavel_atual || '-'}</td>
-                  <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[150px]">{rateio.setor || '-'}</td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.email || '-'}</td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
+                    {getStatusBadge(rateio.status) || '-'}
+                  </td>
+                  <td className="hidden lg:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">{formatDate(rateio.ultimo_login)}</td>
+                  <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[100px]">{rateio.armazenamento || '-'}</td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button 
@@ -355,9 +397,9 @@ const RateioGoogle: React.FC = () => {
           {filteredRateiosSorted.length === 0 && (
             <div className="text-center py-8 sm:py-12">
               <Globe className="mx-auto h-8 w-8 sm:h-12 sm:w-12 text-neutral-400" />
-              <h3 className="mt-2 text-sm font-medium text-neutral-900">Nenhum rateio encontrado</h3>
+              <h3 className="mt-2 text-sm font-medium text-neutral-900">Nenhum usuário encontrado</h3>
               <p className="mt-1 text-xs sm:text-sm text-neutral-500">
-                {searchTerm ? 'Tente ajustar sua busca' : 'Comece adicionando um novo rateio'}
+                {searchTerm ? 'Tente ajustar sua busca' : 'Comece adicionando um novo usuário'}
               </p>
             </div>
           )}
@@ -413,12 +455,14 @@ const RateioGoogle: React.FC = () => {
       {viewingRateio && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-4 sm:p-6 max-w-lg w-full shadow-lg max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Rateio Google</h2>
+            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Usuário Google</h2>
             <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700">
-              <div><strong>Completo:</strong> {viewingRateio.completo}</div>
-              <div><strong>Serviço:</strong> {viewingRateio.servico || '-'}</div>
-              <div><strong>Responsável Atual:</strong> {viewingRateio.responsavel_atual || '-'}</div>
-              <div><strong>Setor:</strong> {viewingRateio.setor || '-'}</div>
+              <div><strong>Nome Completo:</strong> {viewingRateio.nome_completo}</div>
+              <div><strong>Email:</strong> {viewingRateio.email || '-'}</div>
+              <div><strong>Status:</strong> {viewingRateio.status || '-'}</div>
+              <div><strong>Último Login:</strong> {formatDate(viewingRateio.ultimo_login)}</div>
+              <div><strong>Armazenamento:</strong> {viewingRateio.armazenamento || '-'}</div>
+              <div><strong>Situação:</strong> {viewingRateio.situacao || '-'}</div>
             </div>
             <div className="mt-4 sm:mt-6 text-right">
               <button

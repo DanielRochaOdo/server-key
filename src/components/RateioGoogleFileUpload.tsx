@@ -10,10 +10,12 @@ interface RateioGoogleFileUploadProps {
 }
 
 interface ParsedRow {
-  completo?: string;
-  servico?: string;
-  responsavel_atual?: string;
-  setor?: string;
+  nome_completo?: string;
+  email?: string;
+  status?: string;
+  ultimo_login?: string;
+  armazenamento?: string;
+  situacao?: string;
 }
 
 const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSuccess, onCancel }) => {
@@ -34,10 +36,12 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
   const mapHeader = (header: string): string | null => {
     const norm = normalize(header);
     
-    if (norm.includes('completo') || norm.includes('complete')) return 'completo';
-    if (norm.includes('servico') || norm.includes('service') || norm.includes('google')) return 'servico';
-    if (norm.includes('responsavel') || norm.includes('responsible') || norm.includes('atual')) return 'responsavel_atual';
-    if (norm.includes('setor') || norm.includes('department') || norm.includes('sector')) return 'setor';
+    if (norm.includes('nome') && norm.includes('completo') || norm.includes('name') || norm.includes('usuario')) return 'nome_completo';
+    if (norm.includes('email') || norm.includes('mail')) return 'email';
+    if (norm.includes('status') || norm.includes('estado')) return 'status';
+    if (norm.includes('ultimo') && norm.includes('login') || norm.includes('last') && norm.includes('login')) return 'ultimo_login';
+    if (norm.includes('armazenamento') || norm.includes('storage') || norm.includes('espaco')) return 'armazenamento';
+    if (norm.includes('situacao') || norm.includes('situation') || norm.includes('condicao')) return 'situacao';
     
     return null;
   };
@@ -70,10 +74,22 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
         const row: ParsedRow = {};
         (json[i] as string[]).forEach((val, idx) => {
           const key = mapHeader(headers[idx]);
-          if (key) row[key as keyof ParsedRow] = val?.toString().trim() || '';
+          if (key) {
+            if (key === 'ultimo_login' && val) {
+              // Try to parse date
+              const date = new Date(val);
+              if (!isNaN(date.getTime())) {
+                row[key] = date.toISOString();
+              } else {
+                row[key] = val?.toString().trim() || '';
+              }
+            } else {
+              row[key as keyof ParsedRow] = val?.toString().trim() || '';
+            }
+          }
         });
         
-        if (row.completo) rows.push(row);
+        if (row.nome_completo) rows.push(row);
       }
 
       if (!rows.length) throw new Error('Nenhum dado válido encontrado no arquivo');
@@ -104,10 +120,22 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
         const row: ParsedRow = {};
         (json[i] as string[]).forEach((val, idx) => {
           const key = mapHeader(headers[idx]);
-          if (key) row[key as keyof ParsedRow] = val?.toString().trim() || '';
+          if (key) {
+            if (key === 'ultimo_login' && val) {
+              // Try to parse date
+              const date = new Date(val);
+              if (!isNaN(date.getTime())) {
+                row[key] = date.toISOString();
+              } else {
+                row[key] = val?.toString().trim() || '';
+              }
+            } else {
+              row[key as keyof ParsedRow] = val?.toString().trim() || '';
+            }
+          }
         });
         
-        if (row.completo) {
+        if (row.nome_completo) {
           rows.push({
             ...row,
             user_id: user.id,
@@ -136,6 +164,21 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
     setError('');
     setShowPreview(false);
     onCancel();
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    try {
+      return new Date(dateString).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateString;
+    }
   };
 
   return (
@@ -207,19 +250,23 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
                 <table className="min-w-full divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
                   <thead className="bg-neutral-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Completo</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Serviço</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Responsável</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Setor</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Nome Completo</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Email</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Status</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Último Login</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Armazenamento</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Situação</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-neutral-200">
                     {preview.map((row, index) => (
                       <tr key={index}>
-                        <td className="px-4 py-2 text-sm text-neutral-900 max-w-xs truncate">{row.completo}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.servico || '-'}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.responsavel_atual || '-'}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.setor || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-900 max-w-xs truncate">{row.nome_completo}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{row.email || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{row.status || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{formatDate(row.ultimo_login || '')}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{row.armazenamento || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{row.situacao || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
