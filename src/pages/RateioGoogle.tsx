@@ -85,7 +85,7 @@ const RateioGoogle: React.FC = () => {
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'RateioGoogle');
-    const filename = rateio_google_${new Date().toISOString().slice(0,10)}.${format};
+    const filename = `rateio_google_${new Date().toISOString().slice(0,10)}.${format}`;
     
     if (format === 'csv') {
       XLSX.writeFile(wb, filename, { bookType: 'csv' });
@@ -183,7 +183,7 @@ const RateioGoogle: React.FC = () => {
     };
 
     return (
-      <span className={px-2 py-1 text-xs rounded-full ${statusColors[status] || 'bg-gray-100 text-gray-800'}}>
+      <span className={`px-2 py-1 text-xs rounded-full ${statusColors[status] || 'bg-gray-100 text-gray-800'}`}>
         {status}
       </span>
     );
@@ -392,11 +392,11 @@ const RateioGoogle: React.FC = () => {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
+              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
                 currentPage === 1 
                   ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
                   : 'bg-primary-600 text-white hover:bg-primary-700'
-              }}
+              }`}
             >
               ← Anterior
             </button>
@@ -406,11 +406,11 @@ const RateioGoogle: React.FC = () => {
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className={px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
+              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
                 currentPage === totalPages 
                   ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
                   : 'bg-primary-600 text-white hover:bg-primary-700'
-              }}
+              }`}
             >
               Próxima →
             </button>
