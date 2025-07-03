@@ -59,6 +59,14 @@ const RateioGoogle: React.FC = () => {
     setCurrentPage(1);
   }, [searchTerm, selectedStatus, selectedSituacao, selectedDominio]);
 
+  const toggleSortOrder = useCallback(() => {
+    setSortOrder((prev) => {
+      if (prev === 'asc') return 'desc';
+      if (prev === 'desc') return null;
+      return 'asc';
+    });
+  }, []);
+
   const statusOptions = useMemo(() => {
     const list = rateios.map(r => r.status?.trim() || '').filter(Boolean);
     return Array.from(new Set(list)).sort();
@@ -76,13 +84,9 @@ const RateioGoogle: React.FC = () => {
     return Array.from(new Set(list)).sort();
   }, [rateios]);
 
-  const toggleSortOrder = () => {
-    setSortOrder(prev => (prev === 'asc' ? 'desc' : prev === 'desc' ? null : 'asc'));
-  };
-
   const filteredRateiosSorted = useMemo(() => {
     let filtered = rateios.filter(r => {
-      const matchesSearch = 
+      const matchesSearch =
         r.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         r.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         r.armazenamento?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -127,8 +131,8 @@ const RateioGoogle: React.FC = () => {
           {showExportMenu && (
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
               <div className="py-1">
-                <button onClick={() => {}} className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100">Exportar como CSV</button>
-                <button onClick={() => {}} className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100">Exportar como XLSX</button>
+                <button className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100">Exportar como CSV</button>
+                <button className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100">Exportar como XLSX</button>
               </div>
             </div>
           )}
@@ -139,7 +143,7 @@ const RateioGoogle: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-        <div className="flex flex-wrap gap-2 sm:gap-4">
+        <div className="flex flex-wrap gap-2 sm:gap-4 mb-4">
           <div className="relative flex-1 max-w-md">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
@@ -166,18 +170,20 @@ const RateioGoogle: React.FC = () => {
           </select>
         </div>
 
-        <div className="overflow-x-auto mt-4">
+        <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">
               <tr>
-                <th onClick={toggleSortOrder} className="th-clickable">Nome Completo {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}</th>
+                <th onClick={toggleSortOrder} className="th-clickable">
+                  Nome Completo {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
+                </th>
                 <th className="th">Email</th>
                 <th className="th">Status</th>
                 <th className="th">Situação</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
-              {currentItems.map(r => (
+              {currentItems.map((r) => (
                 <tr key={r.id}>
                   <td className="td">{r.nome_completo}</td>
                   <td className="td">{r.email}</td>
@@ -192,8 +198,12 @@ const RateioGoogle: React.FC = () => {
         <div className="flex justify-between items-center mt-4">
           <span className="text-xs sm:text-sm text-neutral-600">Página {currentPage} de {totalPages}</span>
           <div className="space-x-2">
-            <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="btn-outline-sm">Anterior</button>
-            <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="btn-outline-sm">Próxima</button>
+            <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="btn-outline-sm">
+              Anterior
+            </button>
+            <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="btn-outline-sm">
+              Próxima
+            </button>
           </div>
         </div>
       </div>
