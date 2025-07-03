@@ -31,7 +31,6 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
-  const [dominioFiltro, setDominioFiltro] = useState('');
 
   const statusOptions = [
     'Ativo',
