@@ -67,7 +67,7 @@ const Dashboard: React.FC = () => {
       // Fetch Rateio Claro data
       const { data: rateioData, error: rateioError } = await supabase
         .from('rateio_claro')
-        .select('id, completo, numero_linha, created_at')
+        .select('id, nome, numero_linha, created_at')
         .order('created_at', { ascending: false });
 
       if (rateioError) throw rateioError;
@@ -301,7 +301,7 @@ const Dashboard: React.FC = () => {
                 <div key={rateio.id} className="flex items-center justify-between py-2 border-b border-neutral-100 last:border-b-0">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs sm:text-sm font-medium text-neutral-900 truncate">
-                      {rateio.completo}
+                      {rateio.nome}
                     </p>
                     <p className="text-xs text-neutral-500 truncate">
                       Linha: {rateio.numero_linha || 'N/A'}
