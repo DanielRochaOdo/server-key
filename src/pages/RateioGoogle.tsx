@@ -89,7 +89,7 @@ const RateioGoogle: React.FC = () => {
 
       const matchesStatus = !selectedStatus || r.status === selectedStatus;
       const matchesSituacao = !selectedSituacao || r.situacao === selectedSituacao;
-      const matchesDominio = !selectedDominio || (r.email && r.email.includes(`@${selectedDominio}`));
+      const matchesDominio = !selectedDominio || (r.email && r.email.endsWith(`@${selectedDominio}`));
 
       return matchesSearch && matchesStatus && matchesSituacao && matchesDominio;
     });
@@ -111,54 +111,91 @@ const RateioGoogle: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(filteredRateiosSorted.length / itemsPerPage));
 
   return (
-    <div>
-      <div className="p-4 flex flex-wrap gap-2">
-        <input
-          type="text"
-          placeholder="Buscar..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="border px-2 py-1 rounded"
-        />
-        <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)} className="border px-2 py-1 rounded">
-          <option value="">Status: Todos</option>
-          {statusOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
-        <select value={selectedSituacao} onChange={e => setSelectedSituacao(e.target.value)} className="border px-2 py-1 rounded">
-          <option value="">Situação: Todas</option>
-          {situacaoOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
-        <select value={selectedDominio} onChange={e => setSelectedDominio(e.target.value)} className="border px-2 py-1 rounded">
-          <option value="">Domínio: Todos</option>
-          {dominioOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
+    <div className="space-y-6 sm:space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Rateio Google</h1>
+          <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de usuários Google Workspace</p>
+        </div>
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+          <button onClick={() => setShowUpload(true)} className="btn-outline">
+            <Upload className="icon-sm mr-1 sm:mr-2" /> Importar
+          </button>
+          <button onClick={() => setShowExportMenu(!showExportMenu)} className="btn-outline">
+            <Download className="icon-sm mr-1 sm:mr-2" /> Exportar
+          </button>
+          {showExportMenu && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
+              <div className="py-1">
+                <button onClick={() => {}} className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100">Exportar como CSV</button>
+                <button onClick={() => {}} className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100">Exportar como XLSX</button>
+              </div>
+            </div>
+          )}
+          <button onClick={() => setShowForm(true)} className="btn-primary">
+            <Plus className="icon-sm mr-1 sm:mr-2" /> Novo Usuário
+          </button>
+        </div>
       </div>
-      <table className="min-w-full border">
-        <thead>
-          <tr>
-            <th onClick={toggleSortOrder} className="cursor-pointer border p-2">
-              Nome Completo {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
-            </th>
-            <th className="border p-2">Email</th>
-            <th className="border p-2">Status</th>
-            <th className="border p-2">Situação</th>
-          </tr>
-        </thead>
-        <tbody>
-          {currentItems.map(r => (
-            <tr key={r.id}>
-              <td className="border p-2">{r.nome_completo}</td>
-              <td className="border p-2">{r.email}</td>
-              <td className="border p-2">{r.status}</td>
-              <td className="border p-2">{r.situacao}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="p-2">
-        Página {currentPage} de {totalPages}
-        <button disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)} className="ml-2">Anterior</button>
-        <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="ml-2">Próxima</button>
+
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+        <div className="flex flex-wrap gap-2 sm:gap-4">
+          <div className="relative flex-1 max-w-md">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Buscar usuários..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border border-neutral-300 rounded-lg text-sm sm:text-base"
+            />
+          </div>
+          <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)} className="filter-select">
+            <option value="">Status: Todos</option>
+            {statusOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+          <select value={selectedSituacao} onChange={e => setSelectedSituacao(e.target.value)} className="filter-select">
+            <option value="">Situação: Todas</option>
+            {situacaoOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+          <select value={selectedDominio} onChange={e => setSelectedDominio(e.target.value)} className="filter-select">
+            <option value="">Domínio: Todos</option>
+            {dominioOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+        </div>
+
+        <div className="overflow-x-auto mt-4">
+          <table className="min-w-full divide-y divide-neutral-200">
+            <thead className="bg-neutral-50">
+              <tr>
+                <th onClick={toggleSortOrder} className="th-clickable">Nome Completo {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}</th>
+                <th className="th">Email</th>
+                <th className="th">Status</th>
+                <th className="th">Situação</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-neutral-200">
+              {currentItems.map(r => (
+                <tr key={r.id}>
+                  <td className="td">{r.nome_completo}</td>
+                  <td className="td">{r.email}</td>
+                  <td className="td">{r.status}</td>
+                  <td className="td">{r.situacao}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex justify-between items-center mt-4">
+          <span className="text-xs sm:text-sm text-neutral-600">Página {currentPage} de {totalPages}</span>
+          <div className="space-x-2">
+            <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="btn-outline-sm">Anterior</button>
+            <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="btn-outline-sm">Próxima</button>
+          </div>
+        </div>
       </div>
     </div>
   );
