@@ -10,7 +10,7 @@ interface RateioClaroFileUploadProps {
 }
 
 interface ParsedRow {
-  completo?: string;
+  nome?: string;
   numero_linha?: string;
   responsavel_atual?: string;
   setor?: string;
@@ -34,7 +34,7 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
   const mapHeader = (header: string): string | null => {
     const norm = normalize(header);
     
-    if (norm.includes('completo') || norm.includes('complete')) return 'completo';
+    if (norm.includes('nome') || norm.includes('complete')) return 'nome';
     if (norm.includes('numero') && norm.includes('linha') || norm.includes('line') || norm.includes('phone')) return 'numero_linha';
     if (norm.includes('responsavel') || norm.includes('responsible') || norm.includes('atual')) return 'responsavel_atual';
     if (norm.includes('setor') || norm.includes('department') || norm.includes('sector')) return 'setor';
@@ -73,7 +73,7 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
           if (key) row[key as keyof ParsedRow] = val?.toString().trim() || '';
         });
         
-        if (row.completo) rows.push(row);
+        if (row.nome) rows.push(row);
       }
 
       if (!rows.length) throw new Error('Nenhum dado válido encontrado no arquivo');
@@ -107,7 +107,7 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
           if (key) row[key as keyof ParsedRow] = val?.toString().trim() || '';
         });
         
-        if (row.completo) {
+        if (row.nome) {
           rows.push({
             ...row,
             user_id: user.id,
@@ -207,7 +207,7 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
                 <table className="min-w-full divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
                   <thead className="bg-neutral-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Completo</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">nome</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Número da Linha</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Responsável</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Setor</th>
@@ -216,7 +216,7 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
                   <tbody className="bg-white divide-y divide-neutral-200">
                     {preview.map((row, index) => (
                       <tr key={index}>
-                        <td className="px-4 py-2 text-sm text-neutral-900 max-w-xs truncate">{row.completo}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-900 max-w-xs truncate">{row.nome}</td>
                         <td className="px-4 py-2 text-sm text-neutral-600">{row.numero_linha || '-'}</td>
                         <td className="px-4 py-2 text-sm text-neutral-600">{row.responsavel_atual || '-'}</td>
                         <td className="px-4 py-2 text-sm text-neutral-600">{row.setor || '-'}</td>

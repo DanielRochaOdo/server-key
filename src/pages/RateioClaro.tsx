@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 
 interface RateioClaro {
   id: string;
-  completo: string;
+  nome: string;
   numero_linha?: string;
   responsavel_atual?: string;
   setor?: string;
@@ -36,7 +36,7 @@ const RateioClaro: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('rateio_claro')
-        .select('id, completo, numero_linha, responsavel_atual, setor, created_at')
+        .select('id, nome, numero_linha, responsavel_atual, setor, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -102,7 +102,7 @@ const RateioClaro: React.FC = () => {
   const filteredRateiosSorted = useMemo(() => {
     let filtered = rateios.filter((rateio) => {
       const matchesSearch =
-        rateio.completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        rateio.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         rateio.numero_linha?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         rateio.responsavel_atual?.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -112,9 +112,9 @@ const RateioClaro: React.FC = () => {
     });
 
     if (sortOrder === 'asc') {
-      filtered.sort((a, b) => a.completo.localeCompare(b.completo));
+      filtered.sort((a, b) => a.nome.localeCompare(b.nome));
     } else if (sortOrder === 'desc') {
-      filtered.sort((a, b) => b.completo.localeCompare(a.completo));
+      filtered.sort((a, b) => b.nome.localeCompare(a.nome));
     }
 
     return filtered;
@@ -273,7 +273,7 @@ const RateioClaro: React.FC = () => {
                   className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
                 >
                   <div className="flex items-center">
-                   Nome Completo
+                   Nome completo
                     <span className="ml-1 sm:ml-2">
                       {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
                     </span>
@@ -289,7 +289,7 @@ const RateioClaro: React.FC = () => {
               {currentItems.map((rateio) => (
                 <tr key={rateio.id} className="hover:bg-neutral-50 transition-colors duration-150">
                   <td className="px-3 sm:px-6 py-4">
-                    <div className="text-xs sm:text-sm font-medium text-neutral-900 truncate max-w-[200px] sm:max-w-none">{rateio.completo}</div>
+                    <div className="text-xs sm:text-sm font-medium text-neutral-900 truncate max-w-[200px] sm:max-w-none">{rateio.nome}</div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.numero_linha || '-'}</td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.responsavel_atual || '-'}</td>
@@ -387,7 +387,7 @@ const RateioClaro: React.FC = () => {
           <div className="bg-white rounded-xl p-4 sm:p-6 max-w-lg w-full shadow-lg max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Rateio</h2>
             <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700">
-              <div><strong>Completo:</strong> {viewingRateio.completo}</div>
+              <div><strong>nome:</strong> {viewingRateio.nome}</div>
               <div><strong>Número da Linha:</strong> {viewingRateio.numero_linha || '-'}</div>
               <div><strong>Responsável Atual:</strong> {viewingRateio.responsavel_atual || '-'}</div>
               <div><strong>Setor:</strong> {viewingRateio.setor || '-'}</div>

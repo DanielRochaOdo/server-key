@@ -31,7 +31,7 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
   useEffect(() => {
     if (rateio) {
       setFormData({
-        nome: (rateio as any).nome || (rateio as any).completo || '',
+        nome: (rateio as any).nome || (rateio as any).nome || '',
         numero_linha: rateio.numero_linha || '',
         responsavel_atual: rateio.responsavel_atual || '',
         setor: rateio.setor || '',
