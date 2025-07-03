@@ -81,10 +81,7 @@ const RateioGoogle: React.FC = () => {
   }, []);
 
   const exportData = useCallback((format: 'csv' | 'xlsx') => {
-    const dataToExport = rateios.map(({ id, created_at, ...rest }) => ({
-      ...rest,
-      ultimo_login: rest.ultimo_login ? new Date(rest.ultimo_login).toLocaleString('pt-BR') : ''
-    }));
+    const dataToExport = rateios.map(({ id, created_at, ...rest }) => rest);
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'RateioGoogle');
@@ -173,21 +170,6 @@ const RateioGoogle: React.FC = () => {
   const handleCloseView = useCallback(() => {
     setViewingRateio(null);
   }, []);
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '-';
-    try {
-      return new Date(dateString).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return '-';
-    }
-  };
 
   const getStatusBadge = (status?: string) => {
     if (!status) return null;
@@ -362,7 +344,7 @@ const RateioGoogle: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
                     {getStatusBadge(rateio.status) || '-'}
                   </td>
-                  <td className="hidden lg:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">{formatDate(rateio.ultimo_login)}</td>
+                  <td className="hidden lg:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">{rateio.ultimo_login || '-'}</td>
                   <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[100px]">{rateio.armazenamento || '-'}</td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
@@ -460,7 +442,7 @@ const RateioGoogle: React.FC = () => {
               <div><strong>Nome Completo:</strong> {viewingRateio.nome_completo}</div>
               <div><strong>Email:</strong> {viewingRateio.email || '-'}</div>
               <div><strong>Status:</strong> {viewingRateio.status || '-'}</div>
-              <div><strong>Último Login:</strong> {formatDate(viewingRateio.ultimo_login)}</div>
+              <div><strong>Último Login:</strong> {viewingRateio.ultimo_login || '-'}</div>
               <div><strong>Armazenamento:</strong> {viewingRateio.armazenamento || '-'}</div>
               <div><strong>Situação:</strong> {viewingRateio.situacao || '-'}</div>
             </div>

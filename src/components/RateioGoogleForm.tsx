@@ -55,7 +55,7 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
         nome_completo: rateio.nome_completo || '',
         email: rateio.email || '',
         status: rateio.status || '',
-        ultimo_login: rateio.ultimo_login ? rateio.ultimo_login.slice(0, 16) : '',
+        ultimo_login: rateio.ultimo_login || '',
         armazenamento: rateio.armazenamento || '',
         situacao: rateio.situacao || '',
       });
@@ -87,7 +87,6 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
     try {
       const dataToSave = {
         ...formData,
-        ultimo_login: formData.ultimo_login ? new Date(formData.ultimo_login).toISOString() : null,
         user_id: user.id,
         updated_at: new Date().toISOString(),
       };
@@ -203,13 +202,14 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
                 Último Login
               </label>
               <input
-                type="datetime-local"
+                type="text"
                 id="ultimo_login"
                 name="ultimo_login"
                 value={formData.ultimo_login}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
+                placeholder="Ex: 15/01/2024 10:30 ou Nunca"
               />
             </div>
 
