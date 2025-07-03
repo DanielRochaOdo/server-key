@@ -31,6 +31,7 @@ const RateioGoogle: React.FC = () => {
   const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const { user } = useAuth();
+  const [selectedDominio, setSelectedDominio] = useState('');
 
   const itemsPerPage = 10;
 
