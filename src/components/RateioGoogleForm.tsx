@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { Globe } from 'lucide-react';
 
 interface RateioGoogle {
   id: string;
@@ -11,272 +10,113 @@ interface RateioGoogle {
   ultimo_login?: string;
   armazenamento?: string;
   situacao?: string;
+  created_at?: string;
 }
 
-interface RateioGoogleFormProps {
-  rateio?: RateioGoogle | null;
-  onSuccess: () => void;
-  onCancel: () => void;
-}
-
-const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, onCancel }) => {
-  const [formData, setFormData] = useState({
-    nome_completo: '',
-    email: '',
-    status: '',
-    ultimo_login: '',
-    armazenamento: '',
-    situacao: '',
-  });
+const RateioGoogleList: React.FC = () => {
+  const [data, setData] = useState<RateioGoogle[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const { user } = useAuth();
-
-  const statusOptions = [
-    'Ativo',
-    'Inativo',
-    'Suspenso',
-    'Bloqueado',
-    'Pendente'
-  ];
-
-  const situacaoOptions = [
-    'Regular',
-    'Irregular',
-    'Em análise',
-    'Aprovado',
-    'Reprovado',
-    'Pendente'
-  ];
+  const [dominio, setDominio] = useState('');
 
   useEffect(() => {
-    if (rateio) {
-      setFormData({
-        nome_completo: rateio.nome_completo || '',
-        email: rateio.email || '',
-        status: rateio.status || '',
-        ultimo_login: rateio.ultimo_login || '',
-        armazenamento: rateio.armazenamento || '',
-        situacao: rateio.situacao || '',
-      });
-    } else {
-      setFormData({
-        nome_completo: '',
-        email: '',
-        status: '',
-        ultimo_login: '',
-        armazenamento: '',
-        situacao: '',
-      });
-    }
-    setError('');
-  }, [rateio]);
+    fetchData();
+  }, [dominio]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
+  const fetchData = async () => {
     setLoading(true);
-    setError('');
+    let query = supabase
+      .from('rateio_google')
+      .select('id, nome_completo, email, status, ultimo_login, armazenamento, situacao, created_at')
+      .order('created_at', { ascending: false });
 
-    try {
-      const dataToSave = {
-        ...formData,
-        user_id: user.id,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (rateio) {
-        const { error } = await supabase
-          .from('rateio_google')
-          .update(dataToSave)
-          .eq('id', rateio.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('rateio_google')
-          .insert([{ ...dataToSave, created_at: new Date().toISOString() }]);
-        if (error) throw error;
-      }
-
-      onSuccess();
-    } catch (err: any) {
-      console.error('Error saving rateio google:', err);
-      setError(err.message || 'Erro ao salvar rateio');
-    } finally {
-      setLoading(false);
+    if (dominio) {
+      query = query.ilike('email', `%@${dominio}`);
     }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Erro ao buscar dados:', error);
+      setData([]);
+    } else {
+      setData(data || []);
+    }
+
+    setLoading(false);
   };
 
-  const handleCancel = () => {
-    setError('');
-    onCancel();
+  const formatDate = (dateStr: string | undefined) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-neutral-200">
-          <h2 className="text-xl font-semibold text-neutral-900">
-            {rateio ? 'Editar Rateio Google' : 'Novo Rateio Google'}
-          </h2>
-          <button
-            onClick={handleCancel}
-            className="text-neutral-400 hover:text-neutral-600 transition-colors"
-            disabled={loading}
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6">
-          {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4 flex items-center space-x-2">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              <span className="text-sm text-red-700">{error}</span>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2">
-              <label htmlFor="nome_completo" className="block text-sm font-medium text-neutral-700 mb-2">
-                Nome Completo *
-              </label>
-              <input
-                type="text"
-                id="nome_completo"
-                name="nome_completo"
-                required
-                value={formData.nome_completo}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
-                placeholder="Nome completo do usuário"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
-                Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
-                placeholder="email@exemplo.com"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="status" className="block text-sm font-medium text-neutral-700 mb-2">
-                Status
-              </label>
-              <select
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
-              >
-                <option value="">Selecione um status</option>
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="ultimo_login" className="block text-sm font-medium text-neutral-700 mb-2">
-                Último Login
-              </label>
-              <input
-                type="text"
-                id="ultimo_login"
-                name="ultimo_login"
-                value={formData.ultimo_login}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
-                placeholder="Ex: 15/01/2024"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="armazenamento" className="block text-sm font-medium text-neutral-700 mb-2">
-                Armazenamento
-              </label>
-              <input
-                type="text"
-                id="armazenamento"
-                name="armazenamento"
-                value={formData.armazenamento}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
-                placeholder="Ex: 15 GB, 100 GB, 2 TB"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="situacao" className="block text-sm font-medium text-neutral-700 mb-2">
-                Situação
-              </label>
-              <select
-                id="situacao"
-                name="situacao"
-                value={formData.situacao}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
-              >
-                <option value="">Selecione uma situação</option>
-                {situacaoOptions.map((situacao) => (
-                  <option key={situacao} value={situacao}>
-                    {situacao}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-neutral-200">
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={loading}
-              className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center px-4 py-2 bg-button text-white rounded-lg hover:bg-button-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              {loading ? 'Salvando...' : 'Salvar'}
-            </button>
-          </div>
-        </form>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">Rateio Google</h1>
+        <Globe className="h-5 w-5 text-indigo-600" />
       </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          placeholder="Filtrar por domínio (ex: gmail.com)"
+          value={dominio}
+          onChange={(e) => setDominio(e.target.value)}
+          className="border rounded px-3 py-2 text-sm w-64"
+        />
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center min-h-48">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto bg-white rounded-xl shadow">
+          <table className="min-w-full text-sm divide-y divide-neutral-200">
+            <thead className="bg-neutral-50">
+              <tr>
+                <th className="px-4 py-2 text-left font-semibold text-neutral-700">Nome</th>
+                <th className="px-4 py-2 text-left font-semibold text-neutral-700">Email</th>
+                <th className="px-4 py-2 text-left font-semibold text-neutral-700">Status</th>
+                <th className="px-4 py-2 text-left font-semibold text-neutral-700">Situação</th>
+                <th className="px-4 py-2 text-left font-semibold text-neutral-700">Último Login</th>
+                <th className="px-4 py-2 text-left font-semibold text-neutral-700">Armazenamento</th>
+                <th className="px-4 py-2 text-left font-semibold text-neutral-700">Criado em</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {data.length > 0 ? (
+                data.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-4 py-2">{item.nome_completo}</td>
+                    <td className="px-4 py-2">{item.email}</td>
+                    <td className="px-4 py-2">{item.status}</td>
+                    <td className="px-4 py-2">{item.situacao}</td>
+                    <td className="px-4 py-2">{item.ultimo_login}</td>
+                    <td className="px-4 py-2">{item.armazenamento}</td>
+                    <td className="px-4 py-2">{formatDate(item.created_at)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="px-4 py-4 text-center text-neutral-500">
+                    Nenhum registro encontrado
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
 
-export default RateioGoogleForm;
+export default RateioGoogleList;
