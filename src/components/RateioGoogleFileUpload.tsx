@@ -13,7 +13,7 @@ interface ParsedRow {
   nome_completo?: string;
   email?: string;
   status?: string;
-  ultimo_login?: string;
+  ultimo_login?: string; // já formatado para exibição
   armazenamento?: string;
   situacao?: string;
 }
@@ -26,24 +26,22 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
   const [showPreview, setShowPreview] = useState(false);
   const { user } = useAuth();
 
-  const normalize = (text: string) =>
-    text.toLowerCase()
-      .normalize("NFD")
-      .replace(/\p{Diacritic}/gu, "")
-      .replace(/\s+/g, ' ')
-      .trim();
+  const excelDateToISO = (val: any): string => {
+    const num = Number(val);
+    if (!isNaN(num)) {
+      const excelEpoch = new Date(1900, 0, 0);
+      excelEpoch.setDate(excelEpoch.getDate() + num - 1);
+      return excelEpoch.toISOString().split('T')[0]; // aaaa-mm-dd
+    }
+    return '';
+  };
 
-  const mapHeader = (header: string): string | null => {
-    const norm = normalize(header);
-    
-    if (norm.includes('nome') && norm.includes('completo') || norm.includes('name') || norm.includes('usuario')) return 'nome_completo';
-    if (norm.includes('email') || norm.includes('mail')) return 'email';
-    if (norm.includes('status') || norm.includes('estado')) return 'status';
-    if (norm.includes('ultimo') && norm.includes('login') || norm.includes('last') && norm.includes('login')) return 'ultimo_login';
-    if (norm.includes('armazenamento') || norm.includes('storage') || norm.includes('espaco')) return 'armazenamento';
-    if (norm.includes('situacao') || norm.includes('situation') || norm.includes('condicao')) return 'situacao';
-    
-    return null;
+  const isoToDisplayDate = (isoDate: string): string => {
+    const parts = isoDate.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return isoDate;
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,22 +65,28 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
 
       if (json.length < 2) throw new Error('Arquivo vazio ou sem dados.');
 
-      const headers = (json[0] as string[]).map(h => (h || '').toString());
       const rows: ParsedRow[] = [];
 
       for (let i = 1; i < json.length; i++) {
-        const row: ParsedRow = {};
-        (json[i] as string[]).forEach((val, idx) => {
-          const key = mapHeader(headers[idx]);
-          if (key) {
-            row[key as keyof ParsedRow] = val?.toString().trim() || '';
-          }
-        });
-        
+        const rowArray = json[i] as any[];
+
+        let isoDate = excelDateToISO(rowArray[3]);
+        let displayDate = isoToDisplayDate(isoDate);
+
+        const row: ParsedRow = {
+          nome_completo: rowArray[0]?.toString().trim() || '',
+          email: rowArray[1]?.toString().trim() || '',
+          status: rowArray[2]?.toString().trim() || '',
+          ultimo_login: displayDate || '',
+          armazenamento: rowArray[4]?.toString().trim() || '',
+          situacao: rowArray[5]?.toString().trim() || '',
+        };
+
         if (row.nome_completo) rows.push(row);
       }
 
       if (!rows.length) throw new Error('Nenhum dado válido encontrado no arquivo');
+
       setPreview(rows.slice(0, 5));
       setShowPreview(true);
     } catch (err: any) {
@@ -103,26 +107,24 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<any>(sheet, { header: 1 });
 
-      const headers = (json[0] as string[]).map(h => (h || '').toString());
-      const rows: ParsedRow[] = [];
+      const rows: any[] = [];
 
       for (let i = 1; i < json.length; i++) {
-        const row: ParsedRow = {};
-        (json[i] as string[]).forEach((val, idx) => {
-          const key = mapHeader(headers[idx]);
-          if (key) {
-            row[key as keyof ParsedRow] = val?.toString().trim() || '';
-          }
-        });
-        
-        if (row.nome_completo) {
-          rows.push({
-            ...row,
-            user_id: user.id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          } as any);
-        }
+        const rowArray = json[i] as any[];
+
+        const row = {
+          nome_completo: rowArray[0]?.toString().trim() || '',
+          email: rowArray[1]?.toString().trim() || '',
+          status: rowArray[2]?.toString().trim() || '',
+          ultimo_login: excelDateToISO(rowArray[3]),
+          armazenamento: rowArray[4]?.toString().trim() || '',
+          situacao: rowArray[5]?.toString().trim() || '',
+          user_id: user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        if (row.nome_completo) rows.push(row);
       }
 
       if (!rows.length) throw new Error('Nenhum dado válido para importar');
@@ -155,7 +157,7 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
             <X className="h-6 w-6" />
           </button>
         </div>
-        
+
         <div className="p-6">
           {error && (
             <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4 flex items-center space-x-2">
@@ -187,7 +189,7 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
                   />
                 </div>
               </div>
-              
+
               {file && (
                 <div className="mt-4 flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -210,7 +212,7 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
                 <CheckCircle className="h-5 w-5 text-green-500" />
                 <span className="text-sm">{preview.length} registros prontos para importação</span>
               </div>
-              
+
               <div className="overflow-x-auto mb-4">
                 <table className="min-w-full divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
                   <thead className="bg-neutral-50">
@@ -237,7 +239,7 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
                   </tbody>
                 </table>
               </div>
-              
+
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setShowPreview(false)}

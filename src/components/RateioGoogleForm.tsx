@@ -209,7 +209,7 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
-                placeholder="Ex: 15/01/2024 10:30 ou Nunca"
+                placeholder="Ex: 15/01/2024"
               />
             </div>
 

@@ -273,7 +273,7 @@ const RateioClaro: React.FC = () => {
                   className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
                 >
                   <div className="flex items-center">
-                    Completo
+                   Nome Completo
                     <span className="ml-1 sm:ml-2">
                       {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
                     </span>

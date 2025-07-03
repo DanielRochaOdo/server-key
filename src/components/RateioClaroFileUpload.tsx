@@ -4,19 +4,19 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 
-interface RateioClaroFileUploadProps {
+interface RateioGoogleFileUploadProps {
   onSuccess: () => void;
   onCancel: () => void;
 }
 
 interface ParsedRow {
-  completo?: string;
-  numero_linha?: string;
-  responsavel_atual?: string;
-  setor?: string;
+  departamento?: string;
+  valor?: string;
+  data?: string; // no formato ISO
+  responsavel?: string;
 }
 
-const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess, onCancel }) => {
+const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSuccess, onCancel }) => {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,21 +33,18 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
 
   const mapHeader = (header: string): string | null => {
     const norm = normalize(header);
-    
-    if (norm.includes('completo') || norm.includes('complete')) return 'completo';
-    if (norm.includes('numero') && norm.includes('linha') || norm.includes('line') || norm.includes('phone')) return 'numero_linha';
-    if (norm.includes('responsavel') || norm.includes('responsible') || norm.includes('atual')) return 'responsavel_atual';
-    if (norm.includes('setor') || norm.includes('department') || norm.includes('sector')) return 'setor';
-    
+    if (norm.includes('departamento') || norm.includes('department')) return 'departamento';
+    if (norm.includes('valor') || norm.includes('amount')) return 'valor';
+    if (norm.includes('data') || norm.includes('date')) return 'data';
+    if (norm.includes('responsavel') || norm.includes('responsible')) return 'responsavel';
     return null;
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0] || null;
-    setFile(selected);
-    setError('');
-    setShowPreview(false);
-    setPreview([]);
+  const formatDateForDisplay = (isoDate: string) => {
+    if (!isoDate) return '';
+    const d = new Date(isoDate);
+    if (isNaN(d.getTime())) return isoDate; // fallback se inválido
+    return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
   };
 
   const parseFile = async () => {
@@ -70,10 +67,25 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
         const row: ParsedRow = {};
         (json[i] as string[]).forEach((val, idx) => {
           const key = mapHeader(headers[idx]);
-          if (key) row[key as keyof ParsedRow] = val?.toString().trim() || '';
+          if (key) {
+            let value = val?.toString().trim() || '';
+            if (key === 'data' && value) {
+              // tenta converter dd/mm/aaaa para yyyy-mm-dd
+              const parts = value.split('/');
+              if (parts.length === 3) {
+                const iso = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                row.data = iso;
+              } else {
+                row.data = value;
+              }
+            } else {
+              row[key as keyof ParsedRow] = value;
+            }
+          }
         });
-        
-        if (row.completo) rows.push(row);
+        if (Object.keys(row).length > 0) {
+          rows.push(row);
+        }
       }
 
       if (!rows.length) throw new Error('Nenhum dado válido encontrado no arquivo');
@@ -98,28 +110,36 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
       const json = XLSX.utils.sheet_to_json<any>(sheet, { header: 1 });
 
       const headers = (json[0] as string[]).map(h => (h || '').toString());
-      const rows: ParsedRow[] = [];
+      const rows: any[] = [];
 
       for (let i = 1; i < json.length; i++) {
-        const row: ParsedRow = {};
+        const row: any = {};
         (json[i] as string[]).forEach((val, idx) => {
           const key = mapHeader(headers[idx]);
-          if (key) row[key as keyof ParsedRow] = val?.toString().trim() || '';
+          if (key) {
+            let value = val?.toString().trim() || '';
+            if (key === 'data' && value) {
+              const parts = value.split('/');
+              if (parts.length === 3) {
+                value = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+              }
+              row.data = value;
+            } else {
+              row[key] = value;
+            }
+          }
         });
-        
-        if (row.completo) {
-          rows.push({
-            ...row,
-            user_id: user.id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          } as any);
+        if (Object.keys(row).length > 0) {
+          row.user_id = user.id;
+          row.created_at = new Date().toISOString();
+          row.updated_at = new Date().toISOString();
+          rows.push(row);
         }
       }
 
       if (!rows.length) throw new Error('Nenhum dado válido para importar');
 
-      const { error } = await supabase.from('rateio_claro').insert(rows);
+      const { error } = await supabase.from('rateio_google').insert(rows);
       if (error) throw error;
 
       onSuccess();
@@ -128,6 +148,14 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0] || null;
+    setFile(selected);
+    setError('');
+    setShowPreview(false);
+    setPreview([]);
   };
 
   const handleCancel = () => {
@@ -142,7 +170,7 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
-          <h2 className="text-xl font-semibold text-neutral-900">Importar Rateio Claro</h2>
+          <h2 className="text-xl font-semibold text-neutral-900">Importar Rateio Google</h2>
           <button onClick={handleCancel} className="text-neutral-400 hover:text-neutral-600">
             <X className="h-6 w-6" />
           </button>
@@ -207,19 +235,19 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
                 <table className="min-w-full divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
                   <thead className="bg-neutral-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Completo</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Número da Linha</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Departamento</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Valor</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Data</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Responsável</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Setor</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-neutral-200">
                     {preview.map((row, index) => (
                       <tr key={index}>
-                        <td className="px-4 py-2 text-sm text-neutral-900 max-w-xs truncate">{row.completo}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.numero_linha || '-'}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.responsavel_atual || '-'}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.setor || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-900 max-w-xs truncate">{row.departamento || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{row.valor || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{row.data ? formatDateForDisplay(row.data) : '-'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{row.responsavel || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -249,4 +277,4 @@ const RateioClaroFileUpload: React.FC<RateioClaroFileUploadProps> = ({ onSuccess
   );
 };
 
-export default RateioClaroFileUpload;
+export default RateioGoogleFileUpload;

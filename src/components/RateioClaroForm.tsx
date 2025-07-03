@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface RateioClaro {
   id: string;
-  completo: string;
+  nome: string;
   numero_linha?: string;
   responsavel_atual?: string;
   setor?: string;
@@ -19,7 +19,7 @@ interface RateioClaroFormProps {
 
 const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState({
-    completo: '',
+    nome: '',
     numero_linha: '',
     responsavel_atual: '',
     setor: '',
@@ -31,14 +31,14 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
   useEffect(() => {
     if (rateio) {
       setFormData({
-        completo: rateio.completo || '',
+        nome: (rateio as any).nome || (rateio as any).completo || '',
         numero_linha: rateio.numero_linha || '',
         responsavel_atual: rateio.responsavel_atual || '',
         setor: rateio.setor || '',
       });
     } else {
       setFormData({
-        completo: '',
+        nome: '',
         numero_linha: '',
         responsavel_atual: '',
         setor: '',
@@ -47,7 +47,7 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
     setError('');
   }, [rateio]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -119,19 +119,19 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
-              <label htmlFor="completo" className="block text-sm font-medium text-neutral-700 mb-2">
-                Completo *
+              <label htmlFor="nome" className="block text-sm font-medium text-neutral-700 mb-2">
+                Nome
               </label>
-              <textarea
-                id="completo"
-                name="completo"
+              <input
+                type="text"
+                id="nome"
+                name="nome"
                 required
-                rows={3}
-                value={formData.completo}
+                value={formData.nome}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
-                placeholder="Informações completas do rateio"
+                placeholder="Nome completo"
               />
             </div>
 
