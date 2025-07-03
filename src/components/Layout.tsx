@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Phone, Menu, X } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Phone, Globe, Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
@@ -45,6 +45,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       name: 'Rateio Claro',
       href: '/rateio-claro',
       icon: Phone,
+    },
+    {
+      name: 'Rateio Google',
+      href: '/rateio-google',
+      icon: Globe,
     },
   ];
 

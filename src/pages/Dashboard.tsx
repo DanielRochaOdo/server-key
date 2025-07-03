@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Users, Activity, AlertTriangle, Key, UserCheck, Database, TrendingUp, Phone } from 'lucide-react';
+import { Shield, Users, Activity, AlertTriangle, Key, UserCheck, Database, TrendingUp, Phone, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -8,10 +8,12 @@ interface DashboardStats {
   totalTeams: number;
   totalWinUsers: number;
   totalRateioClaro: number;
+  totalRateioGoogle: number;
   recentAcessos: any[];
   recentTeams: any[];
   recentWinUsers: any[];
   recentRateioClaro: any[];
+  recentRateioGoogle: any[];
 }
 
 const Dashboard: React.FC = () => {
@@ -20,10 +22,12 @@ const Dashboard: React.FC = () => {
     totalTeams: 0,
     totalWinUsers: 0,
     totalRateioClaro: 0,
+    totalRateioGoogle: 0,
     recentAcessos: [],
     recentTeams: [],
     recentWinUsers: [],
-    recentRateioClaro: []
+    recentRateioClaro: [],
+    recentRateioGoogle: []
   });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -68,15 +72,25 @@ const Dashboard: React.FC = () => {
 
       if (rateioError) throw rateioError;
 
+      // Fetch Rateio Google data
+      const { data: rateioGoogleData, error: rateioGoogleError } = await supabase
+        .from('rateio_google')
+        .select('id, completo, servico, created_at')
+        .order('created_at', { ascending: false });
+
+      if (rateioGoogleError) throw rateioGoogleError;
+
       setStats({
         totalAcessos: acessosData?.length || 0,
         totalTeams: teamsData?.length || 0,
         totalWinUsers: winUsersData?.length || 0,
         totalRateioClaro: rateioData?.length || 0,
+        totalRateioGoogle: rateioGoogleData?.length || 0,
         recentAcessos: acessosData?.slice(0, 5) || [],
         recentTeams: teamsData?.slice(0, 5) || [],
         recentWinUsers: winUsersData?.slice(0, 5) || [],
-        recentRateioClaro: rateioData?.slice(0, 5) || []
+        recentRateioClaro: rateioData?.slice(0, 5) || [],
+        recentRateioGoogle: rateioGoogleData?.slice(0, 5) || []
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -129,8 +143,16 @@ const Dashboard: React.FC = () => {
       description: 'Linhas Claro'
     },
     {
+      name: 'Rateio Google',
+      value: stats.totalRateioGoogle.toString(),
+      icon: Globe,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-100',
+      description: 'Serviços Google'
+    },
+    {
       name: 'Total Geral',
-      value: (stats.totalAcessos + stats.totalTeams + stats.totalWinUsers + stats.totalRateioClaro).toString(),
+      value: (stats.totalAcessos + stats.totalTeams + stats.totalWinUsers + stats.totalRateioClaro + stats.totalRateioGoogle).toString(),
       icon: Database,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
@@ -156,7 +178,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
         {dashboardCards.map((card) => (
           <div key={card.name} className="bg-white rounded-xl shadow-md p-4 sm:p-6 transition-transform duration-200 hover:scale-105">
             <div className="flex items-center">
@@ -173,7 +195,7 @@ const Dashboard: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         {/* Acessos Recentes */}
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -298,6 +320,38 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Rateio Google Recentes */}
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Rateio Google Recentes</h3>
+            <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+          </div>
+          <div className="space-y-2 sm:space-y-3">
+            {stats.recentRateioGoogle.length > 0 ? (
+              stats.recentRateioGoogle.map((rateio) => (
+                <div key={rateio.id} className="flex items-center justify-between py-2 border-b border-neutral-100 last:border-b-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-neutral-900 truncate">
+                      {rateio.completo}
+                    </p>
+                    <p className="text-xs text-neutral-500 truncate">
+                      Serviço: {rateio.servico || 'N/A'}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {formatDate(rateio.created_at)}
+                    </p>
+                  </div>
+                  <div className="w-2 h-2 bg-indigo-500 rounded-full ml-2"></div>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs sm:text-sm text-neutral-500 text-center py-4">
+                Nenhum rateio Google cadastrado
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Resumo do Sistema */}
@@ -306,7 +360,7 @@ const Dashboard: React.FC = () => {
           <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Status do Sistema</h3>
           <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
           <div className="flex items-center justify-between p-3 sm:p-4 bg-primary-50 rounded-lg">
             <div className="flex-1 min-w-0">
               <p className="text-xs sm:text-sm font-medium text-primary-900">Módulo Acessos</p>
@@ -332,6 +386,13 @@ const Dashboard: React.FC = () => {
             <div className="flex-1 min-w-0">
               <p className="text-xs sm:text-sm font-medium text-purple-900">Módulo Rateio Claro</p>
               <p className="text-xs text-purple-600">Linhas telefônicas</p>
+            </div>
+            <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
+          </div>
+          <div className="flex items-center justify-between p-3 sm:p-4 bg-indigo-50 rounded-lg">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-indigo-900">Módulo Rateio Google</p>
+              <p className="text-xs text-indigo-600">Serviços Google</p>
             </div>
             <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
           </div>

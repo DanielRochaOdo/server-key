@@ -9,6 +9,7 @@ import Acessos from './pages/Acessos';
 import Teams from './pages/Teams';
 import WinUsers from './pages/WinUsers';
 import RateioClaro from './pages/RateioClaro';
+import RateioGoogle from './pages/RateioGoogle';
 
 function App() {
   return (
@@ -61,6 +62,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <RateioClaro />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rateio-google"
+            element={
+              <ProtectedRoute>
+                <RateioGoogle />
               </ProtectedRoute>
             }
           />
