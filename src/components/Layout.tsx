@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Phone, Globe, Menu } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, AlertTriangle, Key, UserCheck, Database, TrendingUp, Phone, Globe, Menu } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
@@ -22,6 +22,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navigationItems = [
     { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
+    { name: 'Usuários', href: '/usuarios', icon: Users },
     { name: 'Acessos', href: '/acessos', icon: Key },
     { name: 'Teams', href: '/teams', icon: UserCheck },
     { name: 'Win Users', href: '/win-users', icon: UserCheck },
