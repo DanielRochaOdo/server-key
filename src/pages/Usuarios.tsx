@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { Plus, Pencil, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit, Trash2 } from 'lucide-react';
 import UserForm from '../components/UserForm';
 
 interface User {
@@ -8,30 +8,30 @@ interface User {
   email: string;
   name: string;
   role: 'admin' | 'user';
-  pass: string;
-  permissions: any;
   is_active: boolean;
-  created_at: string;
+  permissions: {
+    acessos: { view: boolean; edit: boolean };
+    teams: { view: boolean; edit: boolean };
+    win_users: { view: boolean; edit: boolean };
+    rateio_claro: { view: boolean; edit: boolean };
+    rateio_google: { view: boolean; edit: boolean };
+  };
+  pass?: string;
 }
 
 const Usuarios: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editUser, setEditUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('created_at', { ascending: false });
-
+    const { data, error } = await supabase.from('users').select('*');
     if (error) {
       console.error('Erro ao buscar usuários:', error);
     } else {
-      setUsers(data || []);
+      setUsers(data as User[]);
     }
     setLoading(false);
   };
@@ -40,100 +40,79 @@ const Usuarios: React.FC = () => {
     fetchUsers();
   }, []);
 
-  const handleCreate = () => {
-    setEditUser(null);
+  const handleNew = () => {
+    setSelectedUser(null);
     setShowForm(true);
   };
 
   const handleEdit = (user: User) => {
-    setEditUser(user);
+    setSelectedUser(user);
     setShowForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este usuário?')) {
-      const { error } = await supabase.from('users').delete().eq('id', id);
-      if (error) {
-        console.error('Erro ao excluir usuário:', error);
-      } else {
-        fetchUsers();
-      }
-    }
+  const handleSuccess = () => {
+    setShowForm(false);
+    fetchUsers();
   };
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleCancel = () => {
+    setShowForm(false);
+  };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Usuários</h1>
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-semibold text-neutral-900">Usuários</h1>
         <button
-          onClick={handleCreate}
-          className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          onClick={handleNew}
+          className="inline-flex items-center px-4 py-2 bg-button text-white rounded-lg hover:bg-button-hover transition-colors"
         >
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Usuário
+          <Plus className="h-4 w-4 mr-2" /> Novo Usuário
         </button>
       </div>
 
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Buscar por nome ou email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
-      </div>
-
       {loading ? (
-        <p>Carregando usuários...</p>
+        <div className="flex justify-center py-10">
+          <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+        </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto border border-neutral-200 rounded-lg">
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">
               <tr>
-                <th className="px-4 py-2 text-left text-sm font-medium text-neutral-700">Nome</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-neutral-700">Email</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-neutral-700">Função</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-neutral-700">Ativo</th>
-                <th className="px-4 py-2 text-right text-sm font-medium text-neutral-700">Ações</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Nome</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Função</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ativo</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((user) => (
-                  <tr key={user.id}>
-                    <td className="px-4 py-2">{user.name}</td>
-                    <td className="px-4 py-2">{user.email}</td>
-                    <td className="px-4 py-2 capitalize">{user.role}</td>
-                    <td className="px-4 py-2">{user.is_active ? 'Sim' : 'Não'}</td>
-                    <td className="px-4 py-2 text-right space-x-2">
-                      <button
-                        onClick={() => handleEdit(user)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Edit className="h-4 w-4 inline" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(user.id)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="h-4 w-4 inline" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-4 py-2 text-center text-neutral-500">
-                    Nenhum usuário encontrado.
+            <tbody className="bg-white divide-y divide-neutral-200">
+              {users.map((user) => (
+                <tr key={user.id}>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-neutral-900">{user.name}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-neutral-700">{user.email}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-neutral-700">{user.role === 'admin' ? 'Administrador' : 'Usuário'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {user.is_active ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
+                    <button
+                      onClick={() => handleEdit(user)}
+                      className="inline-flex items-center px-2 py-1 border border-neutral-300 rounded hover:bg-neutral-50 transition-colors"
+                    >
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Editar
+                    </button>
                   </td>
                 </tr>
-              )}
+              ))}
             </tbody>
           </table>
         </div>
@@ -141,12 +120,9 @@ const Usuarios: React.FC = () => {
 
       {showForm && (
         <UserForm
-          user={editUser}
-          onSuccess={() => {
-            setShowForm(false);
-            fetchUsers(); // Garante atualização após salvar
-          }}
-          onCancel={() => setShowForm(false)}
+          user={selectedUser}
+          onSuccess={handleSuccess}
+          onCancel={handleCancel}
         />
       )}
     </div>
