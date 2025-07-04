@@ -15,7 +15,7 @@ interface User {
     rateio_google: { view: boolean; edit: boolean };
   };
   is_active: boolean;
-  pass?: string;
+  pass?: string; // senha armazenada (não recomendado, só se for seu caso)
 }
 
 interface UserFormProps {
@@ -45,12 +45,18 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   useEffect(() => {
     if (user) {
       setFormData({
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        is_active: user.is_active,
-        pass: '',
-        permissions: user.permissions
+        email: user.email || '',
+        name: user.name || '',
+        role: user.role || 'user',
+        is_active: user.is_active ?? true,
+        pass: '', // senha não carregamos para edição
+        permissions: user.permissions || {
+          acessos: { view: false, edit: false },
+          teams: { view: false, edit: false },
+          win_users: { view: false, edit: false },
+          rateio_claro: { view: false, edit: false },
+          rateio_google: { view: false, edit: false },
+        }
       });
     } else {
       setFormData({
@@ -100,32 +106,52 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     setError('');
 
     try {
-      const dataToSave = {
-        email: formData.email,
-        name: formData.name,
-        role: formData.role,
-        permissions: formData.permissions,
-        is_active: formData.is_active,
-        pass: formData.pass || null,
-        updated_at: new Date().toISOString(),
-      };
-
       if (user) {
+        // Atualiza usuário existente (não altera senha aqui)
         const { error } = await supabase
           .from('users')
-          .update(dataToSave)
+          .update({
+            email: formData.email,
+            name: formData.name,
+            role: formData.role,
+            permissions: formData.permissions,
+            is_active: formData.is_active,
+            updated_at: new Date().toISOString()
+          })
           .eq('id', user.id);
+
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        // Cria usuário no Auth Supabase (admin)
+        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+          email: formData.email,
+          password: formData.pass,
+          email_confirm: true,
+        });
+
+        if (authError) throw authError;
+
+        // Cria registro na tabela users
+        const { error: dbError } = await supabase
           .from('users')
-          .insert([{ ...dataToSave, created_at: new Date().toISOString() }]);
-        if (error) throw error;
+          .insert([{
+            auth_uid: authUser.user.id,
+            email: formData.email,
+            name: formData.name,
+            role: formData.role,
+            permissions: formData.permissions,
+            is_active: formData.is_active,
+            pass: formData.pass,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }]);
+
+        if (dbError) throw dbError;
       }
 
       onSuccess();
     } catch (err: any) {
-      console.error('Error saving user:', err);
+      console.error('Erro ao salvar usuário:', err);
       setError(err.message || 'Erro ao salvar usuário');
     } finally {
       setLoading(false);
@@ -197,6 +223,24 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
               />
             </div>
 
+            {!user && (
+              <div>
+                <label htmlFor="pass" className="block text-sm font-medium text-neutral-700 mb-2">
+                  Senha *
+                </label>
+                <input
+                  type="password"
+                  id="pass"
+                  name="pass"
+                  required
+                  value={formData.pass}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  disabled={loading}
+                />
+              </div>
+            )}
+
             <div>
               <label htmlFor="role" className="block text-sm font-medium text-neutral-700 mb-2">
                 Função
@@ -214,23 +258,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
               </select>
             </div>
 
-            <div>
-              <label htmlFor="pass" className="block text-sm font-medium text-neutral-700 mb-2">
-                Senha *
-              </label>
-              <input
-                type="password"
-                id="pass"
-                name="pass"
-                required={!user}
-                value={formData.pass}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
-              />
-            </div>
-
-            <div className="flex items-center mt-2 md:mt-6">
+            <div className="flex items-center">
               <input
                 type="checkbox"
                 id="is_active"
