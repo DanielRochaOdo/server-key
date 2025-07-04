@@ -7,6 +7,7 @@ interface User {
   email: string;
   name: string;
   role: 'admin' | 'user';
+  pass: string;
   permissions: {
     acessos: { view: boolean; edit: boolean };
     teams: { view: boolean; edit: boolean };
@@ -27,6 +28,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState({
     email: '',
     name: '',
+    pass: '',
     role: 'user' as 'admin' | 'user',
     is_active: true,
     permissions: {
@@ -45,6 +47,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       setFormData({
         email: user.email || '',
         name: user.name || '',
+        pass: '', // nunca preenchemos a senha no form para segurança
         role: user.role || 'user',
         is_active: user.is_active ?? true,
         permissions: user.permissions || {
@@ -59,6 +62,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       setFormData({
         email: '',
         name: '',
+        pass: '',
         role: 'user',
         is_active: true,
         permissions: {
@@ -105,6 +109,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       const dataToSave = {
         email: formData.email,
         name: formData.name,
+        pass: formData.pass,
         role: formData.role,
         permissions: formData.permissions,
         is_active: formData.is_active,
@@ -118,8 +123,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           .eq('id', user.id);
         if (error) throw error;
       } else {
-        // Para novos usuários, você precisará criar o usuário no auth primeiro
-        // Este é um exemplo simplificado - em produção você precisaria de um processo mais robusto
         const { error } = await supabase
           .from('users')
           .insert([{ ...dataToSave, created_at: new Date().toISOString() }]);
@@ -197,6 +200,23 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="pass" className="block text-sm font-medium text-neutral-700 mb-2">
+                Senha *
+              </label>
+              <input
+                type="text"
+                id="pass"
+                name="pass"
+                required={!user}
+                value={formData.pass}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={loading}
+                placeholder={user ? 'Deixe em branco para não alterar' : ''}
               />
             </div>
 
@@ -284,7 +304,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center px-4 py-2 bg-button text-white rounded-lg hover:bg-button-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
