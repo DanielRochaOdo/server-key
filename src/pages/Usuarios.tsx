@@ -58,18 +58,18 @@ const Usuarios: React.FC = () => {
     setCurrentPage(1);
   }, [searchTerm, selectedRole]);
 
-  const handleDelete = useCallback(async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
+const handleDelete = useCallback(async (id: string) => {
+  if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
 
-    try {
-      const { error } = await supabase.from('users').delete().eq('id', id);
-      if (error) throw error;
-      setUsers(prev => prev.filter((user) => user.id !== id));
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      alert('Erro ao excluir usuário');
-    }
-  }, []);
+  try {
+    const { error } = await supabase.from('users').delete().eq('id', id);
+    if (error) throw error;
+    await fetchUsers(); // atualiza lista diretamente do banco
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    alert('Erro ao excluir usuário');
+  }
+}, [fetchUsers]);
 
   const toggleUserStatus = useCallback(async (id: string, currentStatus: boolean) => {
     try {
