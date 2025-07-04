@@ -26,6 +26,7 @@ const RateioGoogle: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedSituacao, setSelectedSituacao] = useState('');
+  const [selectedDominio, setSelectedDominio] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(null);
@@ -57,7 +58,7 @@ const RateioGoogle: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedStatus, selectedSituacao]);
+  }, [searchTerm, selectedStatus, selectedSituacao, selectedDominio]);
 
   const toggleSortOrder = useCallback(() => {
     setSortOrder((prev) => {
@@ -109,6 +110,17 @@ const RateioGoogle: React.FC = () => {
     return Array.from(new Set(situacaoList)).sort();
   }, [rateios]);
 
+  const dominioOptions = useMemo(() => {
+    const dominioList = rateios
+      .map((rateio) => {
+        if (!rateio.email) return '';
+        const emailParts = rateio.email.split('@');
+        return emailParts.length > 1 ? emailParts[1].trim() : '';
+      })
+      .filter((dominio) => dominio !== '');
+    return Array.from(new Set(dominioList)).sort();
+  }, [rateios]);
+
   const filteredRateiosSorted = useMemo(() => {
     let filtered = rateios.filter((rateio) => {
       const matchesSearch =
@@ -118,8 +130,10 @@ const RateioGoogle: React.FC = () => {
 
       const matchesStatus = selectedStatus === '' || rateio.status === selectedStatus;
       const matchesSituacao = selectedSituacao === '' || rateio.situacao === selectedSituacao;
+      
+      const matchesDominio = selectedDominio === '' || (rateio.email && rateio.email.includes(`@${selectedDominio}`));
 
-      return matchesSearch && matchesStatus && matchesSituacao;
+      return matchesSearch && matchesStatus && matchesSituacao && matchesDominio;
     });
 
     if (sortOrder === 'asc') {
@@ -129,7 +143,7 @@ const RateioGoogle: React.FC = () => {
     }
 
     return filtered;
-  }, [rateios, searchTerm, selectedStatus, selectedSituacao, sortOrder]);
+  }, [rateios, searchTerm, selectedStatus, selectedSituacao, selectedDominio, sortOrder]);
 
   const currentItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -253,61 +267,85 @@ const RateioGoogle: React.FC = () => {
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-neutral-200">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-3 lg:space-y-0 lg:space-x-4">
-            <div className="relative flex-1 max-w-md">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+          <div className="flex flex-col space-y-4">
+            {/* Linha 1: Busca */}
+            <div className="flex items-center justify-between">
+              <div className="relative flex-1 max-w-md">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar usuários..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
+                />
               </div>
-              <input
-                type="text"
-                placeholder="Buscar usuários..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
-              />
+              <div className="flex items-center space-x-2">
+                <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+                <span className="text-xs sm:text-sm text-neutral-600">{filteredRateiosSorted.length} usuários</span>
+              </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-              <label htmlFor="filter-status" className="text-xs sm:text-sm font-medium text-neutral-700 whitespace-nowrap">
-                Status:
-              </label>
-              <select
-                id="filter-status"
-                className="border border-neutral-300 rounded-lg px-2 sm:px-3 py-1 text-xs sm:text-sm"
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-              >
-                <option value="">Todos</option>
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Linha 2: Filtros */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="flex flex-col space-y-1">
+                <label htmlFor="filter-dominio" className="text-xs sm:text-sm font-medium text-neutral-700">
+                  Domínio:
+                </label>
+                <select
+                  id="filter-dominio"
+                  className="border border-neutral-300 rounded-lg px-2 sm:px-3 py-1 text-xs sm:text-sm"
+                  value={selectedDominio}
+                  onChange={(e) => setSelectedDominio(e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {dominioOptions.map((dominio) => (
+                    <option key={dominio} value={dominio}>
+                      {dominio}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-              <label htmlFor="filter-situacao" className="text-xs sm:text-sm font-medium text-neutral-700 whitespace-nowrap">
-                Situação:
-              </label>
-              <select
-                id="filter-situacao"
-                className="border border-neutral-300 rounded-lg px-2 sm:px-3 py-1 text-xs sm:text-sm"
-                value={selectedSituacao}
-                onChange={(e) => setSelectedSituacao(e.target.value)}
-              >
-                <option value="">Todas</option>
-                {situacaoOptions.map((situacao) => (
-                  <option key={situacao} value={situacao}>
-                    {situacao}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div className="flex flex-col space-y-1">
+                <label htmlFor="filter-status" className="text-xs sm:text-sm font-medium text-neutral-700">
+                  Status:
+                </label>
+                <select
+                  id="filter-status"
+                  className="border border-neutral-300 rounded-lg px-2 sm:px-3 py-1 text-xs sm:text-sm"
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {statusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="flex items-center space-x-2">
-              <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
-              <span className="text-xs sm:text-sm text-neutral-600">{filteredRateiosSorted.length} usuários</span>
+              <div className="flex flex-col space-y-1">
+                <label htmlFor="filter-situacao" className="text-xs sm:text-sm font-medium text-neutral-700">
+                  Situação:
+                </label>
+                <select
+                  id="filter-situacao"
+                  className="border border-neutral-300 rounded-lg px-2 sm:px-3 py-1 text-xs sm:text-sm"
+                  value={selectedSituacao}
+                  onChange={(e) => setSelectedSituacao(e.target.value)}
+                >
+                  <option value="">Todas</option>
+                  {situacaoOptions.map((situacao) => (
+                    <option key={situacao} value={situacao}>
+                      {situacao}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>
