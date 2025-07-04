@@ -52,24 +52,39 @@ const Usuarios: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
+
+    const channel = supabase
+      .channel('public:users')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        () => {
+          fetchUsers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchUsers]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedRole]);
 
-const handleDelete = useCallback(async (id: string) => {
-  if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
+  const handleDelete = useCallback(async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
 
-  try {
-    const { error } = await supabase.from('users').delete().eq('id', id);
-    if (error) throw error;
-    await fetchUsers(); // atualiza lista diretamente do banco
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    alert('Erro ao excluir usuário');
-  }
-}, [fetchUsers]);
+    try {
+      const { error } = await supabase.from('users').delete().eq('id', id);
+      if (error) throw error;
+      await fetchUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Erro ao excluir usuário');
+    }
+  }, [fetchUsers]);
 
   const toggleUserStatus = useCallback(async (id: string, currentStatus: boolean) => {
     try {
@@ -77,26 +92,20 @@ const handleDelete = useCallback(async (id: string) => {
         .from('users')
         .update({ is_active: !currentStatus, updated_at: new Date().toISOString() })
         .eq('id', id);
-
       if (error) throw error;
-      
-      setUsers(prev => prev.map(user => 
-        user.id === id ? { ...user, is_active: !currentStatus } : user
-      ));
+      await fetchUsers();
     } catch (error) {
       console.error('Error updating user status:', error);
       alert('Erro ao alterar status do usuário');
     }
-  }, []);
+  }, [fetchUsers]);
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const matchesSearch =
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-
       const matchesRole = selectedRole === '' || user.role === selectedRole;
-
       return matchesSearch && matchesRole;
     });
   }, [users, searchTerm, selectedRole]);
@@ -146,7 +155,6 @@ const handleDelete = useCallback(async (id: string) => {
     const modules = Object.keys(permissions);
     const viewCount = modules.filter(module => permissions[module as keyof typeof permissions]?.view).length;
     const editCount = modules.filter(module => permissions[module as keyof typeof permissions]?.edit).length;
-    
     return `${viewCount} visualizar, ${editCount} editar`;
   };
 
@@ -160,22 +168,20 @@ const handleDelete = useCallback(async (id: string) => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Usuários</h1>
-            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">
-              Gerenciamento de usuários do sistema
-            </p>
-          </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
-          >
-            <UserPlus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-            Novo Usuário
-          </button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Usuários</h1>
+          <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">
+            Gerenciamento de usuários do sistema
+          </p>
         </div>
+        <button
+          onClick={() => setShowForm(true)}
+          className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
+        >
+          <UserPlus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+          Novo Usuário
+        </button>
       </div>
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
@@ -358,7 +364,6 @@ const handleDelete = useCallback(async (id: string) => {
         )}
       </div>
 
-      {/* Modals */}
       {showForm && (
         <UserForm
           user={editingUser}
@@ -377,7 +382,6 @@ const handleDelete = useCallback(async (id: string) => {
               <div><strong>Função:</strong> {viewingUser.role === 'admin' ? 'Administrador' : 'Usuário'}</div>
               <div><strong>Status:</strong> {viewingUser.is_active ? 'Ativo' : 'Inativo'}</div>
               <div><strong>Criado em:</strong> {formatDate(viewingUser.created_at)}</div>
-              
               <div className="mt-4">
                 <strong>Permissões por Módulo:</strong>
                 <div className="mt-2 space-y-2">
@@ -397,17 +401,4 @@ const handleDelete = useCallback(async (id: string) => {
             </div>
             <div className="mt-4 sm:mt-6 text-right">
               <button
-                onClick={handleCloseView}
-                className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-xs sm:text-sm"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default Usuarios;
+               
