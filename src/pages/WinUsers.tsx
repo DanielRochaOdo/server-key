@@ -73,12 +73,24 @@ const WinUsers: React.FC = () => {
     setVisiblePasswords(newVisible);
   };
 
+  const filteredUsers = React.useMemo(() => {
+    return winUsers.filter(
+      (user) =>
+        user.login.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.usuario.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [winUsers, searchTerm]);
+
   const exportData = (format: 'csv' | 'xlsx') => {
-    const dataToExport = winUsers.map(({ id, created_at, ...rest }) => rest);
+    // Usar dados filtrados em vez de todos os dados
+    const dataToExport = filteredUsers.map(({ id, created_at, ...rest }) => rest);
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'WinUsers');
-    const filename = `win_users_${new Date().toISOString().slice(0,10)}.${format}`;
+    
+    // Incluir informações sobre filtros no nome do arquivo
+    const filterInfo = searchTerm ? `_filtrado` : '';
+    const filename = `win_users${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
     
     if (format === 'csv') {
       XLSX.writeFile(wb, filename, { bookType: 'csv' });
@@ -87,14 +99,6 @@ const WinUsers: React.FC = () => {
     }
     setShowExportMenu(false);
   };
-
-  const filteredUsers = React.useMemo(() => {
-    return winUsers.filter(
-      (user) =>
-        user.login.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.usuario.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [winUsers, searchTerm]);
 
   const currentItems = React.useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -133,11 +137,14 @@ const WinUsers: React.FC = () => {
                 className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
               >
                 <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                Exportar
+                Exportar ({filteredUsers.length})
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
                   <div className="py-1">
+                    <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
+                      {searchTerm ? `Exportando ${filteredUsers.length} registros filtrados` : `Exportando todos os ${filteredUsers.length} registros`}
+                    </div>
                     <button
                       onClick={() => exportData('csv')}
                       className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"

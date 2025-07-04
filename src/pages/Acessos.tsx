@@ -94,21 +94,6 @@ const Acessos: React.FC = () => {
     });
   }, []);
 
-  const exportData = useCallback((format: 'csv' | 'xlsx') => {
-    const dataToExport = acessos.map(({ id, created_at, ...rest }) => rest);
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Acessos');
-    const filename = `acessos_${new Date().toISOString().slice(0,10)}.${format}`;
-    
-    if (format === 'csv') {
-      XLSX.writeFile(wb, filename, { bookType: 'csv' });
-    } else {
-      XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
-    }
-    setShowExportMenu(false);
-  }, [acessos]);
-
   const filteredAcessosSorted = useMemo(() => {
     let filtered = acessos.filter((acesso) =>
       acesso.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -124,6 +109,25 @@ const Acessos: React.FC = () => {
 
     return filtered;
   }, [acessos, searchTerm, sortOrder]);
+
+  const exportData = useCallback((format: 'csv' | 'xlsx') => {
+    // Usar dados filtrados em vez de todos os dados
+    const dataToExport = filteredAcessosSorted.map(({ id, created_at, ...rest }) => rest);
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Acessos');
+    
+    // Incluir informações sobre filtros no nome do arquivo
+    const filterInfo = searchTerm ? `_filtrado` : '';
+    const filename = `acessos${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
+    
+    if (format === 'csv') {
+      XLSX.writeFile(wb, filename, { bookType: 'csv' });
+    } else {
+      XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+    }
+    setShowExportMenu(false);
+  }, [filteredAcessosSorted, searchTerm]);
 
   const currentItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -195,11 +199,14 @@ const Acessos: React.FC = () => {
                 className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
               >
                 <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                Exportar
+                Exportar ({filteredAcessosSorted.length})
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
                   <div className="py-1">
+                    <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
+                      {searchTerm ? `Exportando ${filteredAcessosSorted.length} registros filtrados` : `Exportando todos os ${filteredAcessosSorted.length} registros`}
+                    </div>
                     <button
                       onClick={() => exportData('csv')}
                       className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
