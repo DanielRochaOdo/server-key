@@ -7,7 +7,6 @@ interface User {
   email: string;
   name: string;
   role: 'admin' | 'user';
-  pass: string;
   permissions: {
     acessos: { view: boolean; edit: boolean };
     teams: { view: boolean; edit: boolean };
@@ -16,6 +15,7 @@ interface User {
     rateio_google: { view: boolean; edit: boolean };
   };
   is_active: boolean;
+  pass?: string;
 }
 
 interface UserFormProps {
@@ -28,9 +28,9 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState({
     email: '',
     name: '',
-    pass: '',
     role: 'user' as 'admin' | 'user',
     is_active: true,
+    pass: '',
     permissions: {
       acessos: { view: false, edit: false },
       teams: { view: false, edit: false },
@@ -45,26 +45,20 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   useEffect(() => {
     if (user) {
       setFormData({
-        email: user.email || '',
-        name: user.name || '',
-        pass: '', // nunca preenchemos a senha no form para segurança
-        role: user.role || 'user',
-        is_active: user.is_active ?? true,
-        permissions: user.permissions || {
-          acessos: { view: false, edit: false },
-          teams: { view: false, edit: false },
-          win_users: { view: false, edit: false },
-          rateio_claro: { view: false, edit: false },
-          rateio_google: { view: false, edit: false },
-        }
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        is_active: user.is_active,
+        pass: '',
+        permissions: user.permissions
       });
     } else {
       setFormData({
         email: '',
         name: '',
-        pass: '',
         role: 'user',
         is_active: true,
+        pass: '',
         permissions: {
           acessos: { view: false, edit: false },
           teams: { view: false, edit: false },
@@ -109,10 +103,10 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       const dataToSave = {
         email: formData.email,
         name: formData.name,
-        pass: formData.pass,
         role: formData.role,
         permissions: formData.permissions,
         is_active: formData.is_active,
+        pass: formData.pass || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -204,23 +198,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             </div>
 
             <div>
-              <label htmlFor="pass" className="block text-sm font-medium text-neutral-700 mb-2">
-                Senha *
-              </label>
-              <input
-                type="text"
-                id="pass"
-                name="pass"
-                required={!user}
-                value={formData.pass}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
-                placeholder={user ? 'Deixe em branco para não alterar' : ''}
-              />
-            </div>
-
-            <div>
               <label htmlFor="role" className="block text-sm font-medium text-neutral-700 mb-2">
                 Função
               </label>
@@ -237,7 +214,23 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
               </select>
             </div>
 
-            <div className="flex items-center">
+            <div>
+              <label htmlFor="pass" className="block text-sm font-medium text-neutral-700 mb-2">
+                Senha *
+              </label>
+              <input
+                type="password"
+                id="pass"
+                name="pass"
+                required={!user}
+                value={formData.pass}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={loading}
+              />
+            </div>
+
+            <div className="flex items-center mt-2 md:mt-6">
               <input
                 type="checkbox"
                 id="is_active"
@@ -304,7 +297,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-button text-white rounded-lg hover:bg-button-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
