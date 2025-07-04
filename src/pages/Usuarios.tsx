@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Plus, Edit, Trash2 } from 'lucide-react';
-import UserForm from './UserForm';
+import UserForm from '../components/UserForm';
 
 interface User {
   id: string;
