@@ -15,10 +15,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredModule,
   adminOnly = false 
 }) => {
-  const { user, loading } = useRequireAuth();
-  const { userProfile, hasModuleAccess, isAdmin } = useAuth();
+  const { user, loading: authLoading } = useRequireAuth();
+  const { userProfile, hasModuleAccess, isAdmin, loading: profileLoading } = useAuth();
 
-  if (loading) {
+  // Mostrar loading enquanto qualquer um dos estados está carregando
+  const isLoading = authLoading || profileLoading;
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
         <div className="text-center">
@@ -29,8 +32,20 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  if (!user || !userProfile) {
+  if (!user) {
     return null; // Will redirect to login via useRequireAuth
+  }
+
+  // Se não temos perfil do usuário ainda, mostrar loading
+  if (!userProfile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-primary-700">Carregando perfil...</p>
+        </div>
+      </div>
+    );
   }
 
   // Check if user is active
@@ -65,7 +80,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Check module access
-  if (requiredModule && !hasModuleAccess(requiredModule)) {
+  if (requiredModule && !hasModuleAccess(requiredModule) && !isAdmin()) {
     return (
       <Layout>
         <div className="min-h-64 flex items-center justify-center">

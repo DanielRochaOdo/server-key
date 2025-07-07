@@ -8,14 +8,15 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, user } = useAuth();
+  const { signIn, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
+    // Só redireciona se não estiver carregando e tiver usuário
+    if (!authLoading && user) {
+      navigate('/dashboard', { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,15 +27,26 @@ const Login: React.FC = () => {
       const { error } = await signIn(email, password);
       if (error) {
         setError('Credenciais inválidas. Verifique seus dados e tente novamente.');
-      } else {
-        navigate('/dashboard');
       }
+      // Não precisamos navegar aqui, o useEffect vai fazer isso
     } catch (err) {
       setError('Erro ao fazer login. Tente novamente.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Mostrar loading se estiver autenticando
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-primary-700">Verificando autenticação...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
@@ -77,7 +89,7 @@ const Login: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200 text-sm sm:text-base"
-                  placeholder="seu@email.com"
+                  placeholder="admin@serverkey.com"
                 />
               </div>
             </div>
@@ -99,7 +111,7 @@ const Login: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200 text-sm sm:text-base"
-                  placeholder="Sua senha"
+                  placeholder="admin123"
                 />
               </div>
             </div>
@@ -118,6 +130,14 @@ const Login: React.FC = () => {
               </button>
             </div>
           </form>
+          
+          <div className="mt-4 p-3 bg-neutral-50 rounded-lg">
+            <p className="text-xs text-neutral-600 text-center">
+              <strong>Usuário padrão:</strong><br />
+              Email: admin@serverkey.com<br />
+              Senha: admin123
+            </p>
+          </div>
         </div>
       </div>
     </div>

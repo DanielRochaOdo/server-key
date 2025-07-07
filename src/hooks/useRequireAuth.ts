@@ -7,8 +7,9 @@ export const useRequireAuth = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Só redireciona se não estiver carregando e não tiver usuário
     if (!loading && !user) {
-      navigate('/login');
+      navigate('/login', { replace: true });
     }
   }, [user, loading, navigate]);
 
