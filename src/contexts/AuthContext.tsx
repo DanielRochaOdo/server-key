@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -37,13 +37,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(false);
+  const fetchingProfile = useRef(false);
+  const mounted = useRef(true);
 
   const fetchUserProfile = async (authUser: User): Promise<UserProfile | null> => {
-    if (profileLoading) return null; // Evita múltiplas chamadas simultâneas
+    if (fetchingProfile.current) return null;
     
-    setProfileLoading(true);
+    fetchingProfile.current = true;
     try {
+      console.log('Fetching profile for user:', authUser.id);
+      
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -52,58 +55,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error fetching user profile:', error);
+        
+        // Se o usuário não existe na tabela users, tentar criar
+        if (error.code === 'PGRST116') {
+          console.log('User not found in users table, checking if it\'s the admin...');
+          
+          // Verificar se é o usuário admin padrão
+          if (authUser.email === 'admin@serverkey.com') {
+            console.log('Creating admin user profile...');
+            const { data: newUser, error: insertError } = await supabase
+              .from('users')
+              .insert([{
+                auth_uid: authUser.id,
+                email: authUser.email,
+                name: 'Administrador',
+                role: 'admin',
+                is_active: true,
+                pass: 'admin123'
+              }])
+              .select()
+              .single();
+
+            if (insertError) {
+              console.error('Error creating admin user:', insertError);
+              return null;
+            }
+            
+            return newUser as UserProfile;
+          }
+        }
         return null;
       }
 
+      console.log('User profile fetched:', data);
       return data as UserProfile;
     } catch (error) {
       console.error('Error fetching user profile:', error);
       return null;
     } finally {
-      setProfileLoading(false);
+      fetchingProfile.current = false;
     }
   };
 
   const refreshUserProfile = async () => {
-    if (user && !profileLoading) {
+    if (user && !fetchingProfile.current && mounted.current) {
       const profile = await fetchUserProfile(user);
-      setUserProfile(profile);
+      if (mounted.current) {
+        setUserProfile(profile);
+      }
     }
   };
 
   useEffect(() => {
-    let mounted = true;
-
+    mounted.current = true;
+    
     const initializeAuth = async () => {
       try {
+        console.log('Initializing auth...');
+        
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
-          if (mounted) {
-            setLoading(false);
-          }
           return;
         }
 
-        if (mounted) {
+        console.log('Initial session:', session?.user?.email || 'No user');
+
+        if (mounted.current) {
           setUser(session?.user ?? null);
         }
         
-        if (session?.user && mounted) {
+        if (session?.user && mounted.current) {
           const profile = await fetchUserProfile(session.user);
-          if (mounted) {
+          if (mounted.current) {
             setUserProfile(profile);
           }
         }
-        
-        if (mounted) {
-          setLoading(false);
-        }
       } catch (error) {
         console.error('Error initializing auth:', error);
-        if (mounted) {
+      } finally {
+        if (mounted.current) {
           setLoading(false);
         }
       }
@@ -114,37 +147,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!mounted) return;
+        if (!mounted.current) return;
 
-        console.log('Auth state changed:', event, session?.user?.email);
+        console.log('Auth state changed:', event, session?.user?.email || 'No user');
         
         setUser(session?.user ?? null);
         
         if (session?.user) {
           const profile = await fetchUserProfile(session.user);
-          if (mounted) {
+          if (mounted.current) {
             setUserProfile(profile);
           }
         } else {
-          if (mounted) {
+          if (mounted.current) {
             setUserProfile(null);
           }
         }
         
-        if (mounted) {
+        if (mounted.current) {
           setLoading(false);
         }
       }
     );
 
     return () => {
-      mounted = false;
+      mounted.current = false;
       subscription.unsubscribe();
     };
-  }, []); // Dependências vazias para executar apenas uma vez
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -152,15 +186,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { error };
     } catch (error) {
       return { error };
+    } finally {
+      // O loading será definido como false pelo onAuthStateChange
     }
   };
 
   const signOut = async () => {
     try {
+      setLoading(true);
       await supabase.auth.signOut();
-      setUserProfile(null);
+      if (mounted.current) {
+        setUserProfile(null);
+      }
     } catch (error) {
       console.error('Error signing out:', error);
+    } finally {
+      if (mounted.current) {
+        setLoading(false);
+      }
     }
   };
 

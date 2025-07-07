@@ -16,12 +16,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   adminOnly = false 
 }) => {
   const { user, loading: authLoading } = useRequireAuth();
-  const { userProfile, hasModuleAccess, isAdmin, loading: profileLoading } = useAuth();
+  const { userProfile, hasModuleAccess, isAdmin } = useAuth();
 
-  // Mostrar loading enquanto qualquer um dos estados está carregando
-  const isLoading = authLoading || profileLoading;
-
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
         <div className="text-center">
