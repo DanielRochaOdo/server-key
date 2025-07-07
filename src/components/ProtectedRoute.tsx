@@ -1,35 +1,16 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from './Layout';
 import { AlertTriangle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requiredModule?: string;
-  adminOnly?: boolean;
-}
-
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
-  requiredModule,
-  adminOnly = false 
-}) => {
+const ProtectedRoute = ({ children, requiredModule, adminOnly = false }) => {
   const { user, loading: authLoading } = useRequireAuth();
-  const { userProfile, hasModuleAccess, isAdmin } = useAuth();
-  const navigate = useNavigate();
+  const { userProfile, hasModuleAccess, isAdmin, loadingProfile } = useAuth();
 
-  useEffect(() => {
-    if (!authLoading && user && userProfile === null) {
-      // Perfil não encontrado no banco
-      navigate('/login?error=usuario_nao_encontrado');
-    }
-  }, [authLoading, user, userProfile, navigate]);
-
-  if (authLoading) {
+  if (authLoading || loadingProfile) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
           <p className="mt-4 text-primary-700">Carregando...</p>
@@ -38,20 +19,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  if (!user) {
-    return null; // useRequireAuth já redireciona
-  }
-
-  if (!userProfile) {
-    // Enquanto o useEffect não redireciona
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-primary-700">Carregando perfil...</p>
-        </div>
-      </div>
-    );
+  if (!user || !userProfile) {
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login?error=not_found';
+    }
+    return null;
   }
 
   if (!userProfile.is_active) {
@@ -76,7 +48,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-neutral-900 mb-2">Acesso Negado</h2>
             <p className="text-neutral-600">Você não tem permissão para acessar esta página.</p>
-            <p className="text-sm text-neutral-500 mt-2">Apenas administradores podem acessar este módulo.</p>
           </div>
         </div>
       </Layout>
@@ -91,9 +62,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-neutral-900 mb-2">Acesso Negado</h2>
             <p className="text-neutral-600">Você não tem permissão para acessar este módulo.</p>
-            <p className="text-sm text-neutral-500 mt-2">
-              Módulo requerido: <span className="font-medium">{requiredModule}</span>
-            </p>
           </div>
         </div>
       </Layout>
