@@ -1,21 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Users, UserPlus, Search, Edit, Eye, Shield } from 'lucide-react';
+import { Users, UserPlus, Search, Edit, Shield, Eye, AlertTriangle } from 'lucide-react';
 import UserForm from '../components/UserForm';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 interface User {
   id: string;
   auth_uid: string;
   email: string;
   name: string;
-  role: 'admin' | 'user';
-  permissions: {
-    acessos: { view: boolean; edit: boolean };
-    teams: { view: boolean; edit: boolean };
-    win_users: { view: boolean; edit: boolean };
-    rateio_claro: { view: boolean; edit: boolean };
-    rateio_google: { view: boolean; edit: boolean };
-  };
+  role: 'admin' | 'financeiro' | 'usuario';
+  modules: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -29,6 +24,8 @@ const Usuarios: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [viewingUser, setViewingUser] = useState<User | null>(null);
+  const { isAdmin, refreshUserProfile } = useAuth();
 
   const itemsPerPage = 10;
 
@@ -36,7 +33,7 @@ const Usuarios: React.FC = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from<User>('users')
+        .from('users')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -91,12 +88,17 @@ const Usuarios: React.FC = () => {
     setEditingUser(null);
   };
 
-  const handleFormSuccess = () => {
-    fetchUsers();
+  const handleFormSuccess = async () => {
+    await fetchUsers();
+    await refreshUserProfile(); // Refresh current user profile in case it was updated
     handleCloseForm();
   };
 
   const toggleUserStatus = async (id: string, currentStatus: boolean) => {
+    if (!confirm(`Tem certeza que deseja ${currentStatus ? 'desativar' : 'ativar'} este usuário?`)) {
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('users')
@@ -124,6 +126,38 @@ const Usuarios: React.FC = () => {
     });
   };
 
+  const getRoleBadge = (role: string) => {
+    const badges = {
+      admin: { label: 'Admin', color: 'bg-red-100 text-red-800' },
+      financeiro: { label: 'Financeiro', color: 'bg-blue-100 text-blue-800' },
+      usuario: { label: 'Usuário', color: 'bg-green-100 text-green-800' },
+    };
+    
+    return badges[role as keyof typeof badges] || badges.usuario;
+  };
+
+  const moduleLabels = {
+    usuarios: 'Usuários',
+    acessos: 'Acessos',
+    teams: 'Teams',
+    win_users: 'Win Users',
+    rateio_claro: 'Rateio Claro',
+    rateio_google: 'Rateio Google',
+  };
+
+  // Check if user has admin access
+  if (!isAdmin()) {
+    return (
+      <div className="min-h-64 flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-neutral-900 mb-2">Acesso Negado</h2>
+          <p className="text-neutral-600">Apenas administradores podem gerenciar usuários.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 sm:space-y-8">
       <div>
@@ -131,7 +165,7 @@ const Usuarios: React.FC = () => {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Usuários</h1>
             <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">
-              Gerenciamento de usuários do sistema
+              Gerenciamento de usuários e permissões do sistema
             </p>
           </div>
           <button
@@ -172,7 +206,8 @@ const Usuarios: React.FC = () => {
               >
                 <option value="">Todas</option>
                 <option value="admin">Administrador</option>
-                <option value="user">Usuário</option>
+                <option value="financeiro">Financeiro</option>
+                <option value="usuario">Usuário</option>
               </select>
             </div>
 
@@ -188,7 +223,7 @@ const Usuarios: React.FC = () => {
             <thead className="bg-neutral-50">
               <tr>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  Nome
+                  Usuário
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                   Email
@@ -205,7 +240,13 @@ const Usuarios: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
-              {currentItems.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="text-center py-8 sm:py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                  </td>
+                </tr>
+              ) : currentItems.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-8 sm:py-12 text-neutral-600">
                     Nenhum usuário encontrado
@@ -225,6 +266,9 @@ const Usuarios: React.FC = () => {
                           <div className="text-xs sm:text-sm font-medium text-neutral-900 truncate max-w-[120px] sm:max-w-none">
                             {user.name}
                           </div>
+                          <div className="text-xs text-neutral-500">
+                            {user.modules.length} módulos
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -233,8 +277,10 @@ const Usuarios: React.FC = () => {
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
                       <div className="flex items-center">
-                        {user.role === 'admin' && <Shield className="h-3 w-3 sm:h-4 sm:w-4 text-button-600 mr-1" />}
-                        {user.role === 'admin' ? 'Administrador' : 'Usuário'}
+                        {user.role === 'admin' && <Shield className="h-3 w-3 sm:h-4 sm:w-4 text-red-600 mr-1" />}
+                        <span className={`px-2 py-1 text-xs rounded-full ${getRoleBadge(user.role).color}`}>
+                          {getRoleBadge(user.role).label}
+                        </span>
                       </div>
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
@@ -248,6 +294,14 @@ const Usuarios: React.FC = () => {
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                       <div className="flex items-center space-x-1 sm:space-x-2">
+                        <button
+                          onClick={() => setViewingUser(user)}
+                          className="text-neutral-600 hover:text-neutral-900"
+                          title="Visualizar"
+                        >
+                          <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </button>
+                        
                         <button
                           onClick={() => handleEdit(user)}
                           className="text-primary-600 hover:text-primary-900"
@@ -308,6 +362,56 @@ const Usuarios: React.FC = () => {
       {/* Modal Formulário */}
       {showForm && (
         <UserForm user={editingUser} onCancel={handleCloseForm} onSuccess={handleFormSuccess} />
+      )}
+
+      {/* Modal Visualização */}
+      {viewingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-lg w-full shadow-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Usuário</h2>
+            <div className="space-y-3 text-xs sm:text-sm text-neutral-700">
+              <div><strong>Nome:</strong> {viewingUser.name}</div>
+              <div><strong>Email:</strong> {viewingUser.email}</div>
+              <div>
+                <strong>Função:</strong> 
+                <span className={`ml-2 px-2 py-1 text-xs rounded-full ${getRoleBadge(viewingUser.role).color}`}>
+                  {getRoleBadge(viewingUser.role).label}
+                </span>
+              </div>
+              <div>
+                <strong>Status:</strong> 
+                <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                  viewingUser.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}>
+                  {viewingUser.is_active ? 'Ativo' : 'Inativo'}
+                </span>
+              </div>
+              <div>
+                <strong>Módulos Permitidos:</strong>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {viewingUser.modules.map((module) => (
+                    <div key={module} className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-xs">
+                        {moduleLabels[module as keyof typeof moduleLabels] || module}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div><strong>Criado em:</strong> {formatDate(viewingUser.created_at)}</div>
+              <div><strong>Atualizado em:</strong> {formatDate(viewingUser.updated_at)}</div>
+            </div>
+            <div className="mt-4 sm:mt-6 text-right">
+              <button
+                onClick={() => setViewingUser(null)}
+                className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-xs sm:text-sm"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

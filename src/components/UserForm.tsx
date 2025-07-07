@@ -6,16 +6,10 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'user';
-  permissions: {
-    acessos: { view: boolean; edit: boolean };
-    teams: { view: boolean; edit: boolean };
-    win_users: { view: boolean; edit: boolean };
-    rateio_claro: { view: boolean; edit: boolean };
-    rateio_google: { view: boolean; edit: boolean };
-  };
+  role: 'admin' | 'financeiro' | 'usuario';
+  modules: string[];
   is_active: boolean;
-  pass?: string; // senha armazenada (não recomendado, só se for seu caso)
+  pass?: string;
 }
 
 interface UserFormProps {
@@ -28,50 +22,58 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState({
     email: '',
     name: '',
-    role: 'user' as 'admin' | 'user',
+    role: 'usuario' as 'admin' | 'financeiro' | 'usuario',
     is_active: true,
     pass: '',
-    permissions: {
-      acessos: { view: false, edit: false },
-      teams: { view: false, edit: false },
-      win_users: { view: false, edit: false },
-      rateio_claro: { view: false, edit: false },
-      rateio_google: { view: false, edit: false },
-    }
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Definir módulos baseado no role
+  const getModulesByRole = (role: string): string[] => {
+    switch (role) {
+      case 'admin':
+        return ['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google'];
+      case 'financeiro':
+        return ['rateio_claro', 'rateio_google'];
+      case 'usuario':
+        return ['acessos', 'teams', 'win_users'];
+      default:
+        return [];
+    }
+  };
+
+  const roleLabels = {
+    admin: 'Administrador',
+    financeiro: 'Financeiro',
+    usuario: 'Usuário',
+  };
+
+  const moduleLabels = {
+    usuarios: 'Usuários',
+    acessos: 'Acessos',
+    teams: 'Teams',
+    win_users: 'Win Users',
+    rateio_claro: 'Rateio Claro',
+    rateio_google: 'Rateio Google',
+  };
 
   useEffect(() => {
     if (user) {
       setFormData({
         email: user.email || '',
         name: user.name || '',
-        role: user.role || 'user',
+        role: user.role || 'usuario',
         is_active: user.is_active ?? true,
         pass: '', // senha não carregamos para edição
-        permissions: user.permissions || {
-          acessos: { view: false, edit: false },
-          teams: { view: false, edit: false },
-          win_users: { view: false, edit: false },
-          rateio_claro: { view: false, edit: false },
-          rateio_google: { view: false, edit: false },
-        }
       });
     } else {
       setFormData({
         email: '',
         name: '',
-        role: 'user',
+        role: 'usuario',
         is_active: true,
         pass: '',
-        permissions: {
-          acessos: { view: false, edit: false },
-          teams: { view: false, edit: false },
-          win_users: { view: false, edit: false },
-          rateio_claro: { view: false, edit: false },
-          rateio_google: { view: false, edit: false },
-        }
       });
     }
     setError('');
@@ -87,19 +89,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     }
   };
 
-  const handlePermissionChange = (module: string, permission: 'view' | 'edit', checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: {
-        ...prev.permissions,
-        [module]: {
-          ...prev.permissions[module as keyof typeof prev.permissions],
-          [permission]: checked
-        }
-      }
-    }));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -107,14 +96,13 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
     try {
       if (user) {
-        // Atualiza usuário existente (não altera senha aqui)
+        // Atualiza usuário existente
         const { error } = await supabase
           .from('users')
           .update({
             email: formData.email,
             name: formData.name,
             role: formData.role,
-            permissions: formData.permissions,
             is_active: formData.is_active,
             updated_at: new Date().toISOString()
           })
@@ -122,7 +110,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
         if (error) throw error;
       } else {
-        // Cria usuário no Auth Supabase (admin)
+        // Cria novo usuário no Auth Supabase
         const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
           email: formData.email,
           password: formData.pass,
@@ -139,7 +127,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             email: formData.email,
             name: formData.name,
             role: formData.role,
-            permissions: formData.permissions,
             is_active: formData.is_active,
             pass: formData.pass,
             created_at: new Date().toISOString(),
@@ -158,13 +145,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     }
   };
 
-  const modules = [
-    { key: 'acessos', label: 'Acessos' },
-    { key: 'teams', label: 'Teams' },
-    { key: 'win_users', label: 'Win Users' },
-    { key: 'rateio_claro', label: 'Rateio Claro' },
-    { key: 'rateio_google', label: 'Rateio Google' },
-  ];
+  const currentModules = getModulesByRole(formData.role);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -243,7 +224,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
             <div>
               <label htmlFor="role" className="block text-sm font-medium text-neutral-700 mb-2">
-                Função
+                Função *
               </label>
               <select
                 id="role"
@@ -253,7 +234,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
               >
-                <option value="user">Usuário</option>
+                <option value="usuario">Usuário</option>
+                <option value="financeiro">Financeiro</option>
                 <option value="admin">Administrador</option>
               </select>
             </div>
@@ -274,43 +256,29 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             </div>
           </div>
 
+          {/* Módulos permitidos (somente leitura) */}
           <div className="mt-6">
-            <h3 className="text-lg font-medium text-neutral-900 mb-4">Permissões por Módulo</h3>
-            <div className="space-y-4">
-              {modules.map((module) => (
-                <div key={module.key} className="bg-neutral-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-neutral-900 mb-3">{module.label}</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id={`${module.key}_view`}
-                        checked={formData.permissions[module.key as keyof typeof formData.permissions]?.view || false}
-                        onChange={(e) => handlePermissionChange(module.key, 'view', e.target.checked)}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
-                        disabled={loading}
-                      />
-                      <label htmlFor={`${module.key}_view`} className="ml-2 block text-sm text-neutral-700">
-                        Visualizar e Exportar
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id={`${module.key}_edit`}
-                        checked={formData.permissions[module.key as keyof typeof formData.permissions]?.edit || false}
-                        onChange={(e) => handlePermissionChange(module.key, 'edit', e.target.checked)}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
-                        disabled={loading}
-                      />
-                      <label htmlFor={`${module.key}_edit`} className="ml-2 block text-sm text-neutral-700">
-                        Importar e Editar
-                      </label>
-                    </div>
+            <h3 className="text-lg font-medium text-neutral-900 mb-4">
+              Módulos Permitidos para {roleLabels[formData.role]}
+            </h3>
+            <div className="bg-neutral-50 p-4 rounded-lg">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {currentModules.map((module) => (
+                  <div key={module} className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm text-neutral-700">
+                      {moduleLabels[module as keyof typeof moduleLabels]}
+                    </span>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              {currentModules.length === 0 && (
+                <p className="text-sm text-neutral-500">Nenhum módulo permitido para esta função.</p>
+              )}
             </div>
+            <p className="text-xs text-neutral-500 mt-2">
+              Os módulos são definidos automaticamente baseado na função selecionada.
+            </p>
           </div>
 
           <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-neutral-200">

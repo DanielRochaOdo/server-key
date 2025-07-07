@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Shield, Users, BarChart3, AlertTriangle, Key, UserCheck, Database, TrendingUp, Phone, Globe, Menu } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
@@ -8,7 +8,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { user, signOut } = useAuth();
+  const { user, userProfile, signOut, hasModuleAccess, isAdmin } = useAuth();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
@@ -20,15 +20,51 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return location.pathname === path;
   };
 
-  const navigationItems = [
-    { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
-    { name: 'Usuários', href: '/usuarios', icon: Users },
-    { name: 'Acessos', href: '/acessos', icon: Key },
-    { name: 'Teams', href: '/teams', icon: UserCheck },
-    { name: 'Win Users', href: '/win-users', icon: UserCheck },
-    { name: 'Rateio Claro', href: '/rateio-claro', icon: Phone },
-    { name: 'Rateio Google', href: '/rateio-google', icon: Globe },
-  ];
+  // Define navigation items based on user permissions
+  const getNavigationItems = () => {
+    const items = [
+      { name: 'Dashboard', href: '/dashboard', icon: BarChart3, module: null },
+    ];
+
+    // Add module-specific items based on user permissions
+    if (hasModuleAccess('usuarios') || isAdmin()) {
+      items.push({ name: 'Usuários', href: '/usuarios', icon: Users, module: 'usuarios' });
+    }
+    
+    if (hasModuleAccess('acessos')) {
+      items.push({ name: 'Acessos', href: '/acessos', icon: Key, module: 'acessos' });
+    }
+    
+    if (hasModuleAccess('teams')) {
+      items.push({ name: 'Teams', href: '/teams', icon: UserCheck, module: 'teams' });
+    }
+    
+    if (hasModuleAccess('win_users')) {
+      items.push({ name: 'Win Users', href: '/win-users', icon: UserCheck, module: 'win_users' });
+    }
+    
+    if (hasModuleAccess('rateio_claro')) {
+      items.push({ name: 'Rateio Claro', href: '/rateio-claro', icon: Phone, module: 'rateio_claro' });
+    }
+    
+    if (hasModuleAccess('rateio_google')) {
+      items.push({ name: 'Rateio Google', href: '/rateio-google', icon: Globe, module: 'rateio_google' });
+    }
+
+    return items;
+  };
+
+  const navigationItems = getNavigationItems();
+
+  const getRoleBadge = (role: string) => {
+    const badges = {
+      admin: { label: 'Admin', color: 'bg-red-100 text-red-800' },
+      financeiro: { label: 'Financeiro', color: 'bg-blue-100 text-blue-800' },
+      usuario: { label: 'Usuário', color: 'bg-green-100 text-green-800' },
+    };
+    
+    return badges[role as keyof typeof badges] || badges.usuario;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex">
@@ -76,16 +112,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* User info + logout */}
         <div className="border-t border-neutral-200 p-2">
-          {!sidebarCollapsed && (
+          {!sidebarCollapsed && userProfile && (
             <div className="flex items-center mb-3">
               <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
                 <span className="text-sm font-medium text-primary-600">
-                  {user?.email?.charAt(0).toUpperCase()}
+                  {userProfile.name?.charAt(0).toUpperCase()}
                 </span>
               </div>
-              <div className="ml-2">
-                <p className="text-sm font-medium text-neutral-900 truncate">{user?.email}</p>
-                <p className="text-xs text-neutral-500">Usuário ativo</p>
+              <div className="ml-2 flex-1 min-w-0">
+                <p className="text-sm font-medium text-neutral-900 truncate">{userProfile.name}</p>
+                <div className="flex items-center space-x-1">
+                  <span className={`px-2 py-0.5 text-xs rounded-full ${getRoleBadge(userProfile.role).color}`}>
+                    {getRoleBadge(userProfile.role).label}
+                  </span>
+                </div>
               </div>
             </div>
           )}

@@ -28,7 +28,7 @@ function App() {
           <Route
             path="/usuarios"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredModule="usuarios" adminOnly={true}>
                 <Usuarios />
               </ProtectedRoute>
             }
@@ -36,7 +36,7 @@ function App() {
           <Route
             path="/acessos"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredModule="acessos">
                 <Acessos />
               </ProtectedRoute>
             }
@@ -44,7 +44,7 @@ function App() {
           <Route
             path="/teams"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredModule="teams">
                 <Teams />
               </ProtectedRoute>
             }
@@ -52,7 +52,7 @@ function App() {
           <Route
             path="/win-users"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredModule="win_users">
                 <WinUsers />
               </ProtectedRoute>
             }
@@ -60,7 +60,7 @@ function App() {
           <Route
             path="/rateio-claro"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredModule="rateio_claro">
                 <RateioClaro />
               </ProtectedRoute>
             }
@@ -68,7 +68,7 @@ function App() {
           <Route
             path="/rateio-google"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredModule="rateio_google">
                 <RateioGoogle />
               </ProtectedRoute>
             }
