@@ -8,7 +8,7 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, user, loadingProfile: authLoading, signOut } = useAuth(); // importei signOut
+  const { signIn, user, loadingProfile: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -36,18 +36,11 @@ const Login: React.FC = () => {
       if (error) {
         setError('Credenciais inválidas. Verifique seus dados e tente novamente.');
       }
-    } catch (err) {
+    } catch {
       setError('Erro ao fazer login. Tente novamente.');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Exemplo rápido de uso do signOut no login (opcional)
-  // Pode ser usado para testes ou botão extra
-  const handleLogout = async () => {
-    await signOut();
-    navigate('/login', { replace: true });
   };
 
   if (authLoading) {
@@ -149,14 +142,6 @@ const Login: React.FC = () => {
               </button>
             </div>
           </form>
-
-          {/* Exemplo botão logout opcional no login, se quiser */}
-          {/* <button
-            onClick={handleLogout}
-            className="mt-4 w-full py-2 px-4 bg-red-600 text-white rounded-lg"
-          >
-            Sair (Logout)
-          </button> */}
         </div>
       </div>
     </div>
