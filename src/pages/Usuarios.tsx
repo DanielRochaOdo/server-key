@@ -129,7 +129,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
   const currentModules = getModulesByRole(formData.role);
 
-  if (!user && !formData.email && !formData.name) return null;
+  if (!user && formData.email === '' && formData.name === '') return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
