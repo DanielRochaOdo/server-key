@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from './Layout';
 import { AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -17,6 +18,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, loading: authLoading } = useRequireAuth();
   const { userProfile, hasModuleAccess, isAdmin } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!authLoading && user && userProfile === null) {
+      // Perfil não encontrado no banco
+      navigate('/login?error=usuario_nao_encontrado');
+    }
+  }, [authLoading, user, userProfile, navigate]);
 
   if (authLoading) {
     return (
@@ -30,11 +39,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!user) {
-    return null; // Will redirect to login via useRequireAuth
+    return null; // useRequireAuth já redireciona
   }
 
-  // Se não temos perfil do usuário ainda, mostrar loading
   if (!userProfile) {
+    // Enquanto o useEffect não redireciona
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
         <div className="text-center">
@@ -45,7 +54,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Check if user is active
   if (!userProfile.is_active) {
     return (
       <Layout>
@@ -60,7 +68,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Check admin-only access
   if (adminOnly && !isAdmin()) {
     return (
       <Layout>
@@ -76,7 +83,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Check module access
   if (requiredModule && !hasModuleAccess(requiredModule) && !isAdmin()) {
     return (
       <Layout>
