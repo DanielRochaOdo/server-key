@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { userForm } from '../components/user-form'
 
 interface User {
   id: string;
