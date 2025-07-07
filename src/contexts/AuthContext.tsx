@@ -1,11 +1,29 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-const AuthContext = createContext(null);
+interface UserProfile {
+  id: string;
+  name: string;
+  role: string;
+  modules: string[];
+  // outros campos do seu perfil
+}
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null);
+interface AuthContextData {
+  user: any | null;
+  userProfile: UserProfile | null;
+  loadingProfile: boolean;
+  signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  signOut: () => Promise<void>;
+  hasModuleAccess: (module: string) => boolean;
+  isAdmin: () => boolean;
+}
+
+const AuthContext = createContext<AuthContextData | null>(null);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<any | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
@@ -52,18 +70,41 @@ export const AuthProvider = ({ children }) => {
     fetchProfile();
   }, [user]);
 
-  const hasModuleAccess = (module) =>
-    userProfile?.modules?.includes(module) || false;
+  const signIn = async (email: string, password: string): Promise<{ error?: string }> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error?.message };
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setUserProfile(null);
+  };
+
+  const hasModuleAccess = (module: string) =>
+    userProfile?.modules?.includes(module) ?? false;
 
   const isAdmin = () => userProfile?.role === 'admin';
 
   return (
     <AuthContext.Provider
-      value={{ user, userProfile, hasModuleAccess, isAdmin, loadingProfile }}
+      value={{
+        user,
+        userProfile,
+        loadingProfile,
+        signIn,
+        signOut,
+        hasModuleAccess,
+        isAdmin,
+      }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  return context;
+};
