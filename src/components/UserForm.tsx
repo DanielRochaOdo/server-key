@@ -9,7 +9,6 @@ interface User {
   role: 'admin' | 'financeiro' | 'usuario';
   modules: string[];
   is_active: boolean;
-  pass?: string;
 }
 
 interface UserFormProps {
@@ -29,7 +28,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Definir módulos baseado no role
   const getModulesByRole = (role: string): string[] => {
     switch (role) {
       case 'admin':
@@ -49,15 +47,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     usuario: 'Usuário',
   };
 
-  const moduleLabels = {
-    usuarios: 'Usuários',
-    acessos: 'Acessos',
-    teams: 'Teams',
-    win_users: 'Win Users',
-    rateio_claro: 'Rateio Claro',
-    rateio_google: 'Rateio Google',
-  };
-
   useEffect(() => {
     if (user) {
       setFormData({
@@ -65,7 +54,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
         name: user.name || '',
         role: user.role || 'usuario',
         is_active: user.is_active ?? true,
-        pass: '', // senha não carregamos para edição
+        pass: '',
       });
     } else {
       setFormData({
@@ -82,8 +71,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
-      const checked = (e.target as HTMLInputElement).checked;
-      setFormData(prev => ({ ...prev, [name]: checked }));
+      setFormData(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -96,30 +84,30 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
     try {
       if (user) {
-        // Atualiza usuário existente
+        // Atualizar usuário existente
         const { error } = await supabase
           .from('users')
           .update({
             email: formData.email,
             name: formData.name,
             role: formData.role,
+            modules: getModulesByRole(formData.role),
             is_active: formData.is_active,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', user.id);
 
         if (error) throw error;
       } else {
-        // Cria novo usuário no Auth Supabase
+        // Criar no Auth
         const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
           email: formData.email,
           password: formData.pass,
           email_confirm: true,
         });
-
         if (authError) throw authError;
 
-        // Cria registro na tabela users
+        // Criar na tabela users
         const { error: dbError } = await supabase
           .from('users')
           .insert([{
@@ -127,8 +115,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             email: formData.email,
             name: formData.name,
             role: formData.role,
+            modules: getModulesByRole(formData.role),
             is_active: formData.is_active,
-            pass: formData.pass,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }]);
@@ -156,7 +144,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           </h2>
           <button
             onClick={onCancel}
-            className="text-neutral-400 hover:text-neutral-600 transition-colors"
+            className="text-neutral-400 hover:text-neutral-600"
             disabled={loading}
           >
             <X className="h-6 w-6" />
@@ -173,65 +161,61 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-neutral-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
                 Nome *
               </label>
               <input
                 type="text"
-                id="name"
                 name="name"
                 required
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
               />
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
                 Email *
               </label>
               <input
                 type="email"
-                id="email"
                 name="email"
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
               />
             </div>
 
             {!user && (
               <div>
-                <label htmlFor="pass" className="block text-sm font-medium text-neutral-700 mb-2">
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
                   Senha *
                 </label>
                 <input
                   type="password"
-                  id="pass"
                   name="pass"
                   required
                   value={formData.pass}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   disabled={loading}
                 />
               </div>
             )}
 
             <div>
-              <label htmlFor="role" className="block text-sm font-medium text-neutral-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
                 Função *
               </label>
               <select
-                id="role"
                 name="role"
                 value={formData.role}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
               >
                 <option value="usuario">Usuário</option>
@@ -240,60 +224,51 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
               </select>
             </div>
 
-            <div className="flex items-center">
+            <div className="flex items-center mt-2 md:mt-0">
               <input
                 type="checkbox"
-                id="is_active"
                 name="is_active"
                 checked={formData.is_active}
                 onChange={handleChange}
-                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
+                className="h-4 w-4 text-primary-600 border-neutral-300 rounded"
                 disabled={loading}
               />
-              <label htmlFor="is_active" className="ml-2 block text-sm text-neutral-700">
+              <label className="ml-2 block text-sm text-neutral-700">
                 Usuário ativo
               </label>
             </div>
           </div>
 
-          {/* Módulos permitidos (somente leitura) */}
           <div className="mt-6">
-            <h3 className="text-lg font-medium text-neutral-900 mb-4">
+            <h3 className="text-lg font-medium text-neutral-900 mb-2">
               Módulos Permitidos para {roleLabels[formData.role]}
             </h3>
-            <div className="bg-neutral-50 p-4 rounded-lg">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {currentModules.map((module) => (
-                  <div key={module} className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm text-neutral-700">
-                      {moduleLabels[module as keyof typeof moduleLabels]}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            <div className="bg-neutral-50 p-3 rounded-lg grid grid-cols-2 md:grid-cols-3 gap-2">
+              {currentModules.map(module => (
+                <div key={module} className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-sm text-neutral-700">{module}</span>
+                </div>
+              ))}
               {currentModules.length === 0 && (
-                <p className="text-sm text-neutral-500">Nenhum módulo permitido para esta função.</p>
+                <p className="text-sm text-neutral-500">Nenhum módulo permitido.</p>
               )}
             </div>
-            <p className="text-xs text-neutral-500 mt-2">
-              Os módulos são definidos automaticamente baseado na função selecionada.
-            </p>
           </div>
 
-          <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-neutral-200">
+          <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-neutral-200">
             <button
               type="button"
               onClick={onCancel}
               disabled={loading}
-              className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 border border-neutral-300 rounded-lg text-neutral-700 hover:bg-neutral-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center px-4 py-2 bg-button text-white rounded-lg hover:bg-button-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
             >
               {loading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
