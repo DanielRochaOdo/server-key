@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Shield, Mail, Lock, AlertCircle } from 'lucide-react';
 
 const Login: React.FC = () => {
@@ -10,9 +10,18 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { signIn, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    // Só redireciona se não estiver carregando e tiver usuário
+    // Captura parâmetro da URL
+    const params = new URLSearchParams(location.search);
+    const urlError = params.get('error');
+    if (urlError === 'usuario_nao_encontrado') {
+      setError('Usuário não encontrado no sistema. Contate o administrador.');
+    }
+  }, [location.search]);
+
+  useEffect(() => {
     if (!authLoading && user) {
       navigate('/dashboard', { replace: true });
     }
@@ -28,7 +37,6 @@ const Login: React.FC = () => {
       if (error) {
         setError('Credenciais inválidas. Verifique seus dados e tente novamente.');
       }
-      // Não precisamos navegar aqui, o useEffect vai fazer isso
     } catch (err) {
       setError('Erro ao fazer login. Tente novamente.');
     } finally {
@@ -36,7 +44,6 @@ const Login: React.FC = () => {
     }
   };
 
-  // Mostrar loading se estiver autenticando
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
