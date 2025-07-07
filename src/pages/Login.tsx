@@ -138,13 +138,6 @@ const Login: React.FC = () => {
             </div>
           </form>
           
-          <div className="mt-4 p-3 bg-neutral-50 rounded-lg">
-            <p className="text-xs text-neutral-600 text-center">
-              <strong>Usuário padrão:</strong><br />
-              Email: admin@serverkey.com<br />
-              Senha: admin123
-            </p>
-          </div>
         </div>
       </div>
     </div>
