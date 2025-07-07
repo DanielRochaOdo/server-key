@@ -1,5 +1,6 @@
 import React from 'react';
 import { useRequireAuth } from '../hooks/useRequireAuth';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext'
 import Layout from './Layout';
 import { AlertTriangle } from 'lucide-react';
