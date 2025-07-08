@@ -21,7 +21,7 @@ const Usuarios: React.FC = () => {
   const fetchUsers = async () => {
     console.log('🔄 Atualizando lista de usuários...');
     setLoading(true);
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
       
     if (error) {
       console.error('Erro ao buscar usuários:', error);
