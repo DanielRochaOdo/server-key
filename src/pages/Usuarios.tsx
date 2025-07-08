@@ -19,9 +19,11 @@ const Usuarios: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const fetchUsers = async () => {
-    console.log('🔄 Atualizando lista de usuários...');
     setLoading(true);
-    const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
       
     if (error) {
       console.error('Erro ao buscar usuários:', error);
@@ -129,3 +131,4 @@ const Usuarios: React.FC = () => {
 };
 
 export default Usuarios;
+
