@@ -19,6 +19,7 @@ const Usuarios: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const fetchUsers = async () => {
+    console.log('🔄 Atualizando lista de usuários...');
     setLoading(true);
     const { data, error } = await supabase
       .from('users')
