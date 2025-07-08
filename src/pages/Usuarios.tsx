@@ -20,11 +20,16 @@ const Usuarios: React.FC = () => {
 
   const fetchUsers = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('users').select('*');
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+      
     if (error) {
       console.error('Erro ao buscar usuários:', error);
       setUsers([]);
     } else {
+      console.log('Users loaded:', data);
       setUsers(data as User[]);
     }
     setLoading(false);

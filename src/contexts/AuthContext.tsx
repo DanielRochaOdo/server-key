@@ -6,7 +6,7 @@ interface UserProfile {
   name: string;
   role: string;
   modules: string[];
-  // outros campos do seu perfil
+  is_active: boolean;
 }
 
 interface AuthContextData {
@@ -61,6 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('❌ Failed to load user profile:', error.message);
         setUserProfile(null);
       } else {
+        console.log('✅ User profile loaded:', data);
         setUserProfile(data);
       }
 

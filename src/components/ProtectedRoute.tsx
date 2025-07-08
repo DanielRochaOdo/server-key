@@ -20,9 +20,8 @@ const ProtectedRoute = ({ children, requiredModule, adminOnly = false }) => {
   }
 
   if (!user || !userProfile) {
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login?error=not_found';
-    }
+    // Redirect to login if not authenticated
+    window.location.href = '/login';
     return null;
   }
 
