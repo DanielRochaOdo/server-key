@@ -84,6 +84,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
     try {
       if (user) {
+        // For updates, use direct Supabase call
         const { error } = await supabase
           .from('users')
           .update({
@@ -98,6 +99,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
         if (error) throw error;
       } else {
+        // For new users, use the Edge Function with better error handling
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
           method: 'POST',
           headers: {
@@ -113,9 +115,21 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           }),
         });
 
+        const responseData = await response.json();
+        
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Erro ao criar usuário');
+          // Handle specific error cases
+          if (response.status === 409) {
+            throw new Error('Usuário com este email já existe no sistema');
+          } else if (response.status === 400) {
+            throw new Error(responseData.error || 'Dados inválidos fornecidos');
+          } else {
+            throw new Error(responseData.error || 'Erro interno do servidor');
+          }
+        }
+        
+        if (!responseData.success) {
+          throw new Error(responseData.error || 'Falha ao criar usuário');
         }
       }
 

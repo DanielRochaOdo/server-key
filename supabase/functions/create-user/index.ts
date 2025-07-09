@@ -70,14 +70,47 @@ serve(async (req) => {
       }
     )
 
-    // Create user in auth.users
+    // First, check if user already exists in auth.users
+    const { data: existingAuthUser } = await supabaseAdmin.auth.admin.getUserByEmail(email)
+    if (existingAuthUser.user) {
+      return new Response(
+        JSON.stringify({ error: 'User with this email already exists in authentication system' }),
+        { 
+          status: 409, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // Check if user already exists in public.users
+    const { data: existingPublicUser } = await supabaseAdmin
+      .from('users')
+      .select('id, email')
+      .eq('email', email)
+      .single()
+
+    if (existingPublicUser) {
+      return new Response(
+        JSON.stringify({ error: 'User with this email already exists in user management system' }),
+        { 
+          status: 409, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // Generate a unique ID for the user to prevent race conditions
+    const userId = crypto.randomUUID()
+
+    // Create user in auth.users with the pre-generated ID
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: {
         name,
-        role
+        role,
+        user_id: userId // Store the public user ID in metadata
       }
     })
 
@@ -116,10 +149,11 @@ serve(async (req) => {
         break
     }
 
-    // Create user in public.users table
+    // Create user in public.users table with the pre-generated ID
     const { data: publicUser, error: publicError } = await supabaseAdmin
       .from('users')
       .insert({
+        id: userId, // Use the pre-generated ID
         email,
         name,
         role,
@@ -135,7 +169,12 @@ serve(async (req) => {
       console.error('Public user error:', publicError)
       
       // If public user creation fails, clean up auth user
-      await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+        console.log('Cleaned up auth user after public user creation failure')
+      } catch (cleanupError) {
+        console.error('Failed to cleanup auth user:', cleanupError)
+      }
       
       return new Response(
         JSON.stringify({ error: `Failed to create user profile: ${publicError.message}` }),
