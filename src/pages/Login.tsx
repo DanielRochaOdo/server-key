@@ -160,8 +160,6 @@ const Login: React.FC = () => {
 
           <div className="mt-6 pt-6 border-t border-neutral-200">
             <div className="text-center space-y-2">
-              <div className="bg-neutral-50 rounded-lg p-3 text-xs">
-              </div>
             </div>
           </div>
         </div>
