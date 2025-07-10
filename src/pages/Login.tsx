@@ -78,7 +78,7 @@ const Login: React.FC = () => {
             ServerKey
           </h2>
           <p className="mt-1 sm:mt-2 text-sm text-primary-600">
-            Sistema de Gerenciamento de Segurança
+            Sistema de Gerenciamento de Acessos Odontoart
           </p>
         </div>
 
