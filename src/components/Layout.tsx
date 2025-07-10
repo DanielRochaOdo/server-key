@@ -8,7 +8,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { user, userProfile, signOut, hasModuleAccess, isAdmin } = useAuth();
+  const { userProfile, signOut, hasModuleAccess, isAdmin } = useAuth();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
@@ -26,11 +26,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { name: 'Dashboard', href: '/dashboard', icon: BarChart3, module: null },
     ];
 
-    // Add module-specific items based on user permissions
-    if (hasModuleAccess('usuarios') || isAdmin()) {
+    // Admin can see user management
+    if (isAdmin()) {
       items.push({ name: 'Usuários', href: '/usuarios', icon: Users, module: 'usuarios' });
     }
     
+    // Usuario role modules
     if (hasModuleAccess('acessos')) {
       items.push({ name: 'Acessos', href: '/acessos', icon: Key, module: 'acessos' });
     }
@@ -40,9 +41,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
     
     if (hasModuleAccess('win_users')) {
-      items.push({ name: 'Win Users', href: '/win-users', icon: UserCheck, module: 'win_users' });
+      items.push({ name: 'Win Users', href: '/win-users', icon: Database, module: 'win_users' });
     }
     
+    // Financeiro role modules
     if (hasModuleAccess('rateio_claro')) {
       items.push({ name: 'Rateio Claro', href: '/rateio-claro', icon: Phone, module: 'rateio_claro' });
     }
@@ -54,8 +56,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return items;
   };
 
-  const navigationItems = getNavigationItems();
-
   const getRoleBadge = (role: string) => {
     const badges = {
       admin: { label: 'Admin', color: 'bg-red-100 text-red-800' },
@@ -65,6 +65,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     
     return badges[role as keyof typeof badges] || badges.usuario;
   };
+
+  if (!userProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-primary-700">Carregando perfil...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const navigationItems = getNavigationItems();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex">
@@ -112,7 +125,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* User info + logout */}
         <div className="border-t border-neutral-200 p-2">
-          {!sidebarCollapsed && userProfile && (
+          {!sidebarCollapsed && (
             <div className="flex items-center mb-3">
               <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
                 <span className="text-sm font-medium text-primary-600">

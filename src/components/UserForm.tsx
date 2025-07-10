@@ -23,7 +23,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     name: '',
     role: 'usuario' as 'admin' | 'financeiro' | 'usuario',
     is_active: true,
-    pass: '',
+    password: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -54,7 +54,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
         name: user.name || '',
         role: user.role || 'usuario',
         is_active: user.is_active ?? true,
-        pass: '',
+        password: '', // Never pre-fill password for security
       });
     } else {
       setFormData({
@@ -62,7 +62,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
         name: '',
         role: 'usuario',
         is_active: true,
-        pass: '',
+        password: '',
       });
     }
     setError('');
@@ -84,7 +84,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
     try {
       if (user) {
-        // For updates, use direct Supabase call
+        // For updates, use direct Supabase call to update public.users only
         const { error } = await supabase
           .from('users')
           .update({
@@ -99,7 +99,11 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
         if (error) throw error;
       } else {
-        // For new users, use the Edge Function with better error handling
+        // For new users, use the Edge Function
+        if (!formData.password) {
+          throw new Error('Password is required for new users');
+        }
+
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
           method: 'POST',
           headers: {
@@ -108,7 +112,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           },
           body: JSON.stringify({
             email: formData.email,
-            password: formData.pass,
+            password: formData.password,
             name: formData.name,
             role: formData.role,
             is_active: formData.is_active,
@@ -200,12 +204,14 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
                 <label className="block text-sm font-medium text-neutral-700 mb-2">Senha *</label>
                 <input
                   type="password"
-                  name="pass"
+                  name="password"
                   required
-                  value={formData.pass}
+                  value={formData.password}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   disabled={loading}
+                  minLength={6}
+                  placeholder="Mínimo 6 caracteres"
                 />
               </div>
             )}

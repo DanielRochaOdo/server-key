@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Shield, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Shield, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@serverkey.com');
+  const [password, setPassword] = useState('admin123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, user, loadingProfile: authLoading } = useAuth();
+  const { signIn, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,22 +22,35 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     if (!authLoading && user) {
+      console.log('✅ User authenticated, redirecting to dashboard');
       navigate('/dashboard', { replace: true });
     }
   }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!email || !password) {
+      setError('Por favor, preencha todos os campos.');
+      return;
+    }
+    
     setError('');
     setLoading(true);
 
     try {
+      console.log('🔐 Starting login process for:', email);
       const { error } = await signIn(email, password);
+      
       if (error) {
-        setError('Credenciais inválidas. Verifique seus dados e tente novamente.');
+        console.error('❌ Login failed:', error);
+        setError(error);
+      } else {
+        console.log('✅ Login successful, waiting for redirect...');
       }
-    } catch {
-      setError('Erro ao fazer login. Tente novamente.');
+    } catch (error) {
+      console.error('❌ Unexpected login error:', error);
+      setError('Erro inesperado ao fazer login. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -47,7 +60,7 @@ const Login: React.FC = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto" />
           <p className="mt-4 text-primary-700">Verificando autenticação...</p>
         </div>
       </div>
@@ -73,7 +86,7 @@ const Login: React.FC = () => {
           <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 sm:p-4 flex items-start space-x-2">
-                <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 mt-0.5" />
+                <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 mt-0.5 flex-shrink-0" />
                 <span className="text-xs sm:text-sm text-red-700">{error}</span>
               </div>
             )}
@@ -99,6 +112,7 @@ const Login: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200 text-sm sm:text-base"
                   placeholder="admin@serverkey.com"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -124,6 +138,7 @@ const Login: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200 text-sm sm:text-base"
                   placeholder="admin123"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -135,13 +150,26 @@ const Login: React.FC = () => {
                 className="group relative w-full flex justify-center py-2 sm:py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-button-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
               >
                 {loading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-white"></div>
+                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
                 ) : (
                   'Entrar'
                 )}
               </button>
             </div>
           </form>
+
+          <div className="mt-6 pt-6 border-t border-neutral-200">
+            <div className="text-center space-y-2">
+              <p className="text-xs text-neutral-500">Credenciais padrão:</p>
+              <div className="bg-neutral-50 rounded-lg p-3 text-xs">
+                <p><strong>Email:</strong> admin@serverkey.com</p>
+                <p><strong>Senha:</strong> admin123</p>
+              </div>
+              <p className="text-xs text-neutral-400">
+                Altere essas credenciais após o primeiro login
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

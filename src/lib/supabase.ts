@@ -1,37 +1,35 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Substitua pelas suas variáveis de ambiente reais
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    storage: window.localStorage,
+    storageKey: 'supabase.auth.token',
+    flowType: 'pkce'
+  }
+});
 
-// Função para login
-export const signIn = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
+// Debug function to check auth state
+export const debugAuthState = async () => {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  console.log('🔍 Debug Auth State:', {
+    session: session ? {
+      user: session.user?.email,
+      access_token: session.access_token ? 'present' : 'missing',
+      refresh_token: session.refresh_token ? 'present' : 'missing',
+      expires_at: session.expires_at,
+      expires_in: session.expires_in
+    } : null,
+    error,
+    localStorage: {
+      authToken: localStorage.getItem('supabase.auth.token') ? 'present' : 'missing',
+      keys: Object.keys(localStorage).filter(key => key.includes('supabase'))
+    }
   });
-  return { data, error };
-};
-
-// Função para logout
-export const signOut = async () => {
-  const { error } = await supabase.auth.signOut();
-  return { error };
-};
-
-// Função para pegar o usuário atual
-export const getCurrentUser = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-};
-
-// Nova função para criar usuário (signup) via frontend
-export const signUp = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  });
-  return { data, error };
+  return { session, error };
 };

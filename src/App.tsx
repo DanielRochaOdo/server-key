@@ -16,7 +16,10 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
+          {/* Public route */}
           <Route path="/login" element={<Login />} />
+          
+          {/* Protected routes */}
           <Route
             path="/dashboard"
             element={
@@ -25,14 +28,18 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          {/* Admin only routes */}
           <Route
             path="/usuarios"
             element={
-              <ProtectedRoute requiredModule="usuarios" adminOnly={true}>
+              <ProtectedRoute adminOnly={true}>
                 <Usuarios />
               </ProtectedRoute>
             }
           />
+          
+          {/* Usuario role routes */}
           <Route
             path="/acessos"
             element={
@@ -57,6 +64,8 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          {/* Financeiro role routes */}
           <Route
             path="/rateio-claro"
             element={
@@ -73,7 +82,10 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          {/* Default redirects */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Router>
     </AuthProvider>
