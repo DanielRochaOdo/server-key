@@ -158,7 +158,17 @@ const Login: React.FC = () => {
             </div>
           </form>
 
-          
+          <div className="mt-6 pt-6 border-t border-neutral-200">
+            <div className="text-center space-y-2">
+              <p className="text-xs text-neutral-500">Aviso:</p>
+              <div className="bg-neutral-50 rounded-lg p-3 text-xs">
+              </div>
+              <p className="text-xs text-neutral-400">
+                Altere essas credenciais após o primeiro login
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
