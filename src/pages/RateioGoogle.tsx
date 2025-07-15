@@ -227,7 +227,7 @@ const RateioGoogle: React.FC = () => {
     }, {} as Record<string, number>);
 
     const totalCostOdontoart = domainStats.odontoart * 7.587096774193548; // Valores aproximados em USD
-    const totalCostOdontoartonline = domainStats.odontoartonline * 49; // R$49 BRL
+    const totalCostOdontoartonline = domainStats.odontoartonline * 42.46666666666667; // Valores aproximados e BRL
 
     // Bloco baseado no filtro de situação selecionado
     const situacaoBlockTitle = selectedSituacao === '' ? 'Todos' : selectedSituacao;
