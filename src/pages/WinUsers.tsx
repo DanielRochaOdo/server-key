@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, UserCheck } from 'lucide-react';
+import { Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, UserCheck, Users } from 'lucide-react';
 import WinUserForm from '../components/WinUserForm';
 import WinUserFileUpload from '../components/WinUserFileUpload';
+import DashboardStats from '../components/DashboardStats';
+import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
 
@@ -24,6 +26,10 @@ const WinUsers: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingUser, setViewingUser] = useState<WinUser | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
+  const [showViewPasswordModal, setShowViewPasswordModal] = useState(false);
+  const [pendingViewUser, setPendingViewUser] = useState<WinUser | null>(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -64,15 +70,38 @@ const WinUsers: React.FC = () => {
   };
 
   const togglePasswordVisibility = (id: string) => {
-    const newVisible = new Set(visiblePasswords);
-    if (newVisible.has(id)) {
+    if (visiblePasswords.has(id)) {
+      // Hide password
+      const newVisible = new Set(visiblePasswords);
       newVisible.delete(id);
+      setVisiblePasswords(newVisible);
     } else {
-      newVisible.add(id);
+      // Show password - require authentication
+      setPendingPasswordReveal(id);
+      setShowPasswordModal(true);
     }
-    setVisiblePasswords(newVisible);
   };
 
+  const handlePasswordVerified = () => {
+    if (pendingPasswordReveal) {
+      const newVisible = new Set(visiblePasswords);
+      newVisible.add(pendingPasswordReveal);
+      setVisiblePasswords(newVisible);
+      setPendingPasswordReveal(null);
+    }
+  };
+
+  const handleViewPasswordVerified = () => {
+    if (pendingViewUser) {
+      setViewingUser(pendingViewUser);
+      setPendingViewUser(null);
+    }
+  };
+
+  const handleViewWithVerification = (user: WinUser) => {
+    setPendingViewUser(user);
+    setShowViewPasswordModal(true);
+  };
   const filteredUsers = React.useMemo(() => {
     return winUsers.filter(
       (user) =>
@@ -81,21 +110,34 @@ const WinUsers: React.FC = () => {
     );
   }, [winUsers, searchTerm]);
 
-  const exportData = (format: 'csv' | 'xlsx') => {
-    // Usar dados filtrados em vez de todos os dados
-    const dataToExport = filteredUsers.map(({ id, created_at, ...rest }) => rest);
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'WinUsers');
-    
-    // Incluir informações sobre filtros no nome do arquivo
-    const filterInfo = searchTerm ? `_filtrado` : '';
-    const filename = `win_users${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-    
-    if (format === 'csv') {
-      XLSX.writeFile(wb, filename, { bookType: 'csv' });
+  const exportData = (format: 'csv' | 'xlsx' | 'template') => {
+    if (format === 'template') {
+      // Create template with headers only
+      const templateData = [{
+        login: '',
+        senha: '',
+        usuario: ''
+      }];
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Template');
+      XLSX.writeFile(wb, 'template_win_users.xlsx', { bookType: 'xlsx' });
     } else {
-      XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+      // Usar dados filtrados em vez de todos os dados
+      const dataToExport = filteredUsers.map(({ id, created_at, ...rest }) => rest);
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'WinUsers');
+      
+      // Incluir informações sobre filtros no nome do arquivo
+      const filterInfo = searchTerm ? `_filtrado` : '';
+      const filename = `win_users${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
+      
+      if (format === 'csv') {
+        XLSX.writeFile(wb, filename, { bookType: 'csv' });
+      } else {
+        XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+      }
     }
     setShowExportMenu(false);
   };
@@ -106,6 +148,18 @@ const WinUsers: React.FC = () => {
   }, [filteredUsers, currentPage]);
 
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / itemsPerPage));
+
+  // Dashboard stats based on filtered data
+  const dashboardStats = React.useMemo(() => {
+    return [{
+      title: 'Total de Usuários',
+      value: filteredUsers.length,
+      icon: Users,
+      color: 'text-primary-600',
+      bgColor: 'bg-primary-100',
+      description: `${filteredUsers.length} usuário${filteredUsers.length !== 1 ? 's' : ''} cadastrado${filteredUsers.length !== 1 ? 's' : ''}`
+    }];
+  }, [filteredUsers]);
 
   if (loading) {
     return (
@@ -157,6 +211,12 @@ const WinUsers: React.FC = () => {
                     >
                       Exportar como XLSX
                     </button>
+                    <button
+                      onClick={() => exportData('template')}
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 border-t border-neutral-200"
+                    >
+                      Baixar Modelo
+                    </button>
                   </div>
                 </div>
               )}
@@ -196,6 +256,9 @@ const WinUsers: React.FC = () => {
           onCancel={() => setShowUpload(false)}
         />
       )}
+
+      {/* Dashboard Stats */}
+      <DashboardStats stats={dashboardStats} />
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-neutral-200">
@@ -248,6 +311,12 @@ const WinUsers: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button
+                        onClick={() => handleViewWithVerification(user)}
+                        className="text-neutral-600 hover:text-neutral-900"
+                      >
+                        <Search className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </button>
+                      <button
                         onClick={() => {
                           setEditingUser(user);
                           setShowForm(true);
@@ -295,6 +364,54 @@ const WinUsers: React.FC = () => {
         </div>
       </div>
 
+      {viewingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-lg w-full shadow-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Usuário Windows</h2>
+            <div className="space-y-2 text-xs sm:text-sm text-neutral-700">
+              <div>
+                <strong>Login:</strong> {viewingUser.login}
+              </div>
+              <div>
+                <strong>Senha:</strong> {viewingUser.senha}
+              </div>
+              <div>
+                <strong>Usuário:</strong> {viewingUser.usuario}
+              </div>
+            </div>
+            <div className="mt-4 sm:mt-6 text-right">
+              <button
+                onClick={() => setViewingUser(null)}
+                className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-xs sm:text-sm"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <PasswordVerificationModal
+        isOpen={showPasswordModal}
+        onClose={() => {
+          setShowPasswordModal(false);
+          setPendingPasswordReveal(null);
+        }}
+        onSuccess={handlePasswordVerified}
+        title="Verificação de Senha"
+        message="Digite sua senha para visualizar a senha do usuário:"
+      />
+
+      <PasswordVerificationModal
+        isOpen={showViewPasswordModal}
+        onClose={() => {
+          setShowViewPasswordModal(false);
+          setPendingViewUser(null);
+        }}
+        onSuccess={handleViewPasswordVerified}
+        title="Verificação de Senha"
+        message="Digite sua senha para visualizar os detalhes do usuário:"
+      />
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (
         <div 

@@ -13,7 +13,7 @@ interface Access {
   observacao?: string;
   suporte_contato?: string;
   email?: string;
-  data_pagamento?: string;
+  dia_pagamento?: number;
 }
 
 interface AccessFormProps {
@@ -32,7 +32,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
     observacao: '',
     suporte_contato: '',
     email: '',
-    data_pagamento: '',
+    dia_pagamento: 0,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -49,7 +49,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
         observacao: access.observacao || '',
         suporte_contato: access.suporte_contato || '',
         email: access.email || '',
-        data_pagamento: access.data_pagamento || '',
+        dia_pagamento: access.dia_pagamento || 0,
       });
     } else {
       setFormData({
@@ -61,15 +61,26 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
         observacao: '',
         suporte_contato: '',
         email: '',
-        data_pagamento: '',
+        dia_pagamento: 0,
       });
     }
     setError('');
   }, [access]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: type === 'number' ? parseInt(value) || 0 : value 
+    }));
+  };
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: parseInt(value) || 0 
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,21 +93,34 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
     try {
       const dataToSave = {
         ...formData,
+        dia_pagamento: formData.dia_pagamento || null,
         user_id: user.id,
         updated_at: new Date().toISOString(),
       };
 
       if (access) {
+        console.log('Updating access with ID:', access.id);
+        console.log('Data to save:', dataToSave);
         const { error } = await supabase
           .from('acessos')
           .update(dataToSave)
           .eq('id', access.id);
-        if (error) throw error;
+        if (error) {
+          console.error('Update error:', error);
+          throw error;
+        }
+        console.log('Update successful');
       } else {
+        console.log('Creating new access');
+        console.log('Data to save:', dataToSave);
         const { error } = await supabase
           .from('acessos')
           .insert([{ ...dataToSave, created_at: new Date().toISOString() }]);
-        if (error) throw error;
+        if (error) {
+          console.error('Insert error:', error);
+          throw error;
+        }
+        console.log('Insert successful');
       }
 
       onSuccess();
@@ -245,18 +269,24 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
             </div>
 
             <div>
-              <label htmlFor="data_pagamento" className="block text-sm font-medium text-neutral-700 mb-2">
-                Data de Pagamento
+              <label htmlFor="dia_pagamento" className="block text-sm font-medium text-neutral-700 mb-2">
+                Dia de Pagamento
               </label>
-              <input
-                type="date"
-                id="data_pagamento"
-                name="data_pagamento"
-                value={formData.data_pagamento}
-                onChange={handleChange}
+              <select
+                id="dia_pagamento"
+                name="dia_pagamento"
+                value={formData.dia_pagamento}
+                onChange={handleSelectChange}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
-              />
+              >
+                <option value={0}>Selecione o dia</option>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                  <option key={day} value={day}>
+                    Dia {day}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="md:col-span-2">

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Phone, Plus, Upload, Download, Search, Edit, Trash2, Eye } from 'lucide-react';
+import { Phone, Plus, Upload, Download, Search, Edit, Trash2, Eye, Building } from 'lucide-react';
 import RateioClaroForm from '../components/RateioClaroForm';
 import RateioClaroFileUpload from '../components/RateioClaroFileUpload';
+import DashboardStats from '../components/DashboardStats';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
@@ -106,20 +107,34 @@ const RateioClaro: React.FC = () => {
   }, [rateios, searchTerm, selectedSetor, sortOrder]);
 
   const exportData = useCallback((format: 'csv' | 'xlsx') => {
-    // Usar dados filtrados em vez de todos os dados
-    const dataToExport = filteredRateiosSorted.map(({ id, created_at, ...rest }) => rest);
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'RateioClaro');
-    
-    // Incluir informações sobre filtros no nome do arquivo
-    const filterInfo = (searchTerm || selectedSetor) ? `_filtrado` : '';
-    const filename = `rateio_claro${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-    
-    if (format === 'csv') {
-      XLSX.writeFile(wb, filename, { bookType: 'csv' });
+    if (format === 'template') {
+      // Create template with headers only
+      const templateData = [{
+        nome: '',
+        numero_linha: '',
+        responsavel_atual: '',
+        setor: ''
+      }];
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Template');
+      XLSX.writeFile(wb, 'template_rateio_claro.xlsx', { bookType: 'xlsx' });
     } else {
-      XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+      // Usar dados filtrados em vez de todos os dados
+      const dataToExport = filteredRateiosSorted.map(({ id, created_at, ...rest }) => rest);
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'RateioClaro');
+      
+      // Incluir informações sobre filtros no nome do arquivo
+      const filterInfo = (searchTerm || selectedSetor) ? `_filtrado` : '';
+      const filename = `rateio_claro${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
+      
+      if (format === 'csv') {
+        XLSX.writeFile(wb, filename, { bookType: 'csv' });
+      } else {
+        XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+      }
     }
     setShowExportMenu(false);
   }, [filteredRateiosSorted, searchTerm, selectedSetor]);
@@ -163,6 +178,24 @@ const RateioClaro: React.FC = () => {
   const handleCloseView = useCallback(() => {
     setViewingRateio(null);
   }, []);
+
+  // Dashboard stats based on filtered data
+  const dashboardStats = useMemo(() => {
+    // Bloco baseado no filtro de setor selecionado
+    const setorBlockTitle = selectedSetor === '' ? 'Todos' : selectedSetor;
+    const setorBlockValue = selectedSetor === '' 
+      ? filteredRateiosSorted.length 
+      : filteredRateiosSorted.filter(r => r.setor === selectedSetor).length;
+    
+    return [{
+      title: setorBlockTitle,
+      value: setorBlockValue,
+      icon: Building,
+      color: 'text-primary-600',
+      bgColor: 'bg-primary-100',
+      description: `${setorBlockValue} rateio${setorBlockValue !== 1 ? 's' : ''}`
+    }];
+  }, [filteredRateiosSorted]);
 
   if (loading) {
     return (
@@ -214,6 +247,12 @@ const RateioClaro: React.FC = () => {
                     >
                       Exportar como XLSX
                     </button>
+                    <button
+                      onClick={() => exportData('template')}
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 border-t border-neutral-200"
+                    >
+                      Baixar Modelo
+                    </button>
                   </div>
                 </div>
               )}
@@ -228,6 +267,9 @@ const RateioClaro: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Dashboard Stats */}
+      <DashboardStats stats={dashboardStats} />
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-neutral-200">

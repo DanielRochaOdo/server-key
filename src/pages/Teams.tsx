@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, UserCheck } from 'lucide-react';
+import { Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, UserCheck, Building } from 'lucide-react';
 import TeamForm from '../components/TeamForm';
 import TeamFileUpload from '../components/TeamFileUpload';
+import DashboardStats from '../components/DashboardStats';
+import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
 
@@ -27,6 +29,10 @@ const Teams: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
+  const [showViewPasswordModal, setShowViewPasswordModal] = useState(false);
+  const [pendingViewTeam, setPendingViewTeam] = useState<Team | null>(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -67,13 +73,37 @@ const Teams: React.FC = () => {
   };
 
   const togglePasswordVisibility = (id: string) => {
-    const newVisible = new Set(visiblePasswords);
-    if (newVisible.has(id)) {
+    if (visiblePasswords.has(id)) {
+      // Hide password
+      const newVisible = new Set(visiblePasswords);
       newVisible.delete(id);
+      setVisiblePasswords(newVisible);
     } else {
-      newVisible.add(id);
+      // Show password - require authentication
+      setPendingPasswordReveal(id);
+      setShowPasswordModal(true);
     }
-    setVisiblePasswords(newVisible);
+  };
+
+  const handlePasswordVerified = () => {
+    if (pendingPasswordReveal) {
+      const newVisible = new Set(visiblePasswords);
+      newVisible.add(pendingPasswordReveal);
+      setVisiblePasswords(newVisible);
+      setPendingPasswordReveal(null);
+    }
+  };
+
+  const handleViewWithVerification = (team: Team) => {
+    setPendingViewTeam(team);
+    setShowViewPasswordModal(true);
+  };
+
+  const handleViewPasswordVerified = () => {
+    if (pendingViewTeam) {
+      setViewingTeam(pendingViewTeam);
+      setPendingViewTeam(null);
+    }
   };
 
   const departments = React.useMemo(() => {
@@ -95,21 +125,36 @@ const Teams: React.FC = () => {
     });
   }, [teams, searchTerm, selectedDepartment]);
 
-  const exportData = (format: 'csv' | 'xlsx') => {
-    // Usar dados filtrados em vez de todos os dados
-    const dataToExport = filteredTeams.map(({ id, created_at, ...rest }) => rest);
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Teams');
-    
-    // Incluir informações sobre filtros no nome do arquivo
-    const filterInfo = (searchTerm || selectedDepartment) ? `_filtrado` : '';
-    const filename = `teams${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-    
-    if (format === 'csv') {
-      XLSX.writeFile(wb, filename, { bookType: 'csv' });
+  const exportData = (format: 'csv' | 'xlsx' | 'template') => {
+    if (format === 'template') {
+      // Create template with headers only
+      const templateData = [{
+        login: '',
+        senha: '',
+        usuario: '',
+        observacao: '',
+        departamento: ''
+      }];
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Template');
+      XLSX.writeFile(wb, 'template_teams.xlsx', { bookType: 'xlsx' });
     } else {
-      XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+      // Usar dados filtrados em vez de todos os dados
+      const dataToExport = filteredTeams.map(({ id, created_at, ...rest }) => rest);
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Teams');
+      
+      // Incluir informações sobre filtros no nome do arquivo
+      const filterInfo = (searchTerm || selectedDepartment) ? `_filtrado` : '';
+      const filename = `teams${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
+      
+      if (format === 'csv') {
+        XLSX.writeFile(wb, filename, { bookType: 'csv' });
+      } else {
+        XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+      }
     }
     setShowExportMenu(false);
   };
@@ -120,6 +165,24 @@ const Teams: React.FC = () => {
   }, [filteredTeams, currentPage]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTeams.length / itemsPerPage));
+
+  // Dashboard stats based on filtered data
+  const dashboardStats = React.useMemo(() => {
+    // Bloco baseado no filtro de departamento selecionado
+    const departamentoBlockTitle = selectedDepartment === '' ? 'Todos' : selectedDepartment;
+    const departamentoBlockValue = selectedDepartment === '' 
+      ? filteredTeams.length 
+      : filteredTeams.filter(t => t.departamento === selectedDepartment).length;
+    
+    return [{
+      title: departamentoBlockTitle,
+      value: departamentoBlockValue,
+      icon: Building,
+      color: 'text-primary-600',
+      bgColor: 'bg-primary-100',
+      description: `${departamentoBlockValue} team${departamentoBlockValue !== 1 ? 's' : ''}`
+    }];
+  }, [filteredTeams, selectedDepartment]);
 
   if (loading) {
     return (
@@ -171,6 +234,12 @@ const Teams: React.FC = () => {
                     >
                       Exportar como XLSX
                     </button>
+                    <button
+                      onClick={() => exportData('template')}
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 border-t border-neutral-200"
+                    >
+                      Baixar Modelo
+                    </button>
                   </div>
                 </div>
               )}
@@ -210,6 +279,9 @@ const Teams: React.FC = () => {
           onCancel={() => setShowUpload(false)}
         />
       )}
+
+      {/* Dashboard Stats */}
+      <DashboardStats stats={dashboardStats} />
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-neutral-200">
@@ -284,7 +356,7 @@ const Teams: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button
-                        onClick={() => setViewingTeam(team)}
+                        onClick={() => handleViewWithVerification(team)}
                         className="text-neutral-600 hover:text-neutral-900"
                       >
                         <Search className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -369,6 +441,28 @@ const Teams: React.FC = () => {
           </div>
         </div>
       )}
+
+      <PasswordVerificationModal
+        isOpen={showPasswordModal}
+        onClose={() => {
+          setShowPasswordModal(false);
+          setPendingPasswordReveal(null);
+        }}
+        onSuccess={handlePasswordVerified}
+        title="Verificação de Senha"
+        message="Digite sua senha para visualizar a senha do team:"
+      />
+
+      <PasswordVerificationModal
+        isOpen={showViewPasswordModal}
+        onClose={() => {
+          setShowViewPasswordModal(false);
+          setPendingViewTeam(null);
+        }}
+        onSuccess={handleViewPasswordVerified}
+        title="Verificação de Senha"
+        message="Digite sua senha para visualizar os detalhes do team:"
+      />
 
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (

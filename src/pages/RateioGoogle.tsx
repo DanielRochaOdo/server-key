@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Globe, Plus, Upload, Download, Search, Edit, Trash2 } from 'lucide-react';
+import { Globe, Plus, Upload, Download, Search, Edit, Trash2, DollarSign, Users, CheckCircle, XCircle } from 'lucide-react';
 import RateioGoogleForm from '../components/RateioGoogleForm';
 import RateioGoogleFileUpload from '../components/RateioGoogleFileUpload';
+import DashboardStats from '../components/DashboardStats';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
@@ -131,20 +132,36 @@ const RateioGoogle: React.FC = () => {
   }, [rateios, searchTerm, selectedStatus, selectedSituacao, selectedDominio, sortOrder]);
 
   const exportData = useCallback((format: 'csv' | 'xlsx') => {
-    // Usar dados filtrados em vez de todos os dados
-    const dataToExport = filteredRateiosSorted.map(({ id, created_at, ...rest }) => rest);
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'RateioGoogle');
-    
-    // Incluir informações sobre filtros no nome do arquivo
-    const filterInfo = (searchTerm || selectedStatus || selectedSituacao || selectedDominio) ? `_filtrado` : '';
-    const filename = `rateio_google${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-    
-    if (format === 'csv') {
-      XLSX.writeFile(wb, filename, { bookType: 'csv' });
+    if (format === 'template') {
+      // Create template with headers only
+      const templateData = [{
+        nome_completo: '',
+        email: '',
+        status: '',
+        ultimo_login: '',
+        armazenamento: '',
+        situacao: ''
+      }];
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Template');
+      XLSX.writeFile(wb, 'template_rateio_google.xlsx', { bookType: 'xlsx' });
     } else {
-      XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+      // Usar dados filtrados em vez de todos os dados
+      const dataToExport = filteredRateiosSorted.map(({ id, created_at, ...rest }) => rest);
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'RateioGoogle');
+      
+      // Incluir informações sobre filtros no nome do arquivo
+      const filterInfo = (searchTerm || selectedStatus || selectedSituacao || selectedDominio) ? `_filtrado` : '';
+      const filename = `rateio_google${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
+      
+      if (format === 'csv') {
+        XLSX.writeFile(wb, filename, { bookType: 'csv' });
+      } else {
+        XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+      }
     }
     setShowExportMenu(false);
   }, [filteredRateiosSorted, searchTerm, selectedStatus, selectedSituacao, selectedDominio]);
@@ -188,6 +205,62 @@ const RateioGoogle: React.FC = () => {
   const handleCloseView = useCallback(() => {
     setViewingRateio(null);
   }, []);
+
+  // Dashboard stats based on filtered data
+  const dashboardStats = useMemo(() => {
+    const domainStats = filteredRateiosSorted.reduce((acc, rateio) => {
+      if (rateio.email) {
+        const domain = rateio.email.split('@')[1];
+        if (domain === 'odontoart.com') {
+          acc.odontoart++;
+        } else if (domain === 'odontoartonline.com.br') {
+          acc.odontoartonline++;
+        }
+      }
+      return acc;
+    }, { odontoart: 0, odontoartonline: 0 });
+
+    const situacaoStats = filteredRateiosSorted.reduce((acc, rateio) => {
+      const situacao = rateio.situacao || 'Não definida';
+      acc[situacao] = (acc[situacao] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const totalCostOdontoart = domainStats.odontoart * 7; // $7 USD
+    const totalCostOdontoartonline = domainStats.odontoartonline * 49; // R$49 BRL
+
+    // Bloco baseado no filtro de situação selecionado
+    const situacaoBlockTitle = selectedSituacao === '' ? 'Todos' : selectedSituacao;
+    const situacaoBlockValue = selectedSituacao === '' 
+      ? filteredRateiosSorted.length 
+      : filteredRateiosSorted.filter(r => r.situacao === selectedSituacao).length;
+    return [
+      {
+        title: 'E-mails @odontoart.com',
+        value: domainStats.odontoart,
+        icon: Globe,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-100',
+        description: `Custo: $${totalCostOdontoart} USD`
+      },
+      {
+        title: 'E-mails @odontoartonline.com.br',
+        value: domainStats.odontoartonline,
+        icon: Globe,
+        color: 'text-green-600',
+        bgColor: 'bg-green-100',
+        description: `Custo: R$${totalCostOdontoartonline} BRL`
+      },
+      {
+        title: situacaoBlockTitle,
+        value: situacaoBlockValue,
+        icon: Users,
+        color: 'text-purple-600',
+        bgColor: 'bg-purple-100',
+        description: `${situacaoBlockValue} usuário${situacaoBlockValue !== 1 ? 's' : ''}`
+      }
+    ];
+  }, [filteredRateiosSorted]);
 
   const getStatusBadge = (status?: string) => {
     if (!status) return null;
@@ -257,6 +330,12 @@ const RateioGoogle: React.FC = () => {
                     >
                       Exportar como XLSX
                     </button>
+                    <button
+                      onClick={() => exportData('template')}
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 border-t border-neutral-200"
+                    >
+                      Baixar Modelo
+                    </button>
                   </div>
                 </div>
               )}
@@ -271,6 +350,9 @@ const RateioGoogle: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Dashboard Stats */}
+      <DashboardStats stats={dashboardStats} />
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-neutral-200">
