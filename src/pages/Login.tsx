@@ -4,8 +4,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Shield, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState('admin@serverkey.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn, user, loading: authLoading } = useAuth();
@@ -111,7 +111,7 @@ const Login: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200 text-sm sm:text-base"
-                  placeholder="admin@serverkey.com"
+                  placeholder="E-mail"
                   disabled={loading}
                 />
               </div>
@@ -137,7 +137,7 @@ const Login: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200 text-sm sm:text-base"
-                  placeholder="admin123"
+                  placeholder="Senha"
                   disabled={loading}
                 />
               </div>
@@ -158,18 +158,6 @@ const Login: React.FC = () => {
             </div>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-neutral-200">
-            <div className="text-center space-y-2">
-              <p className="text-xs text-neutral-500">Credenciais padrão:</p>
-              <div className="bg-neutral-50 rounded-lg p-3 text-xs">
-                <p><strong>Email:</strong> admin@serverkey.com</p>
-                <p><strong>Senha:</strong> admin123</p>
-              </div>
-              <p className="text-xs text-neutral-400">
-                Altere essas credenciais após o primeiro login
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
