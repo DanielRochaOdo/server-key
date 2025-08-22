@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx';
+import { decryptPassword } from '../utils/encryption';
 
 interface Access {
   id: string;
@@ -26,45 +27,24 @@ interface Access {
 const Acessos: React.FC = () => {
   const [acessos, setAcessos] = useState<Access[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
-  const [editingAccess, setEditingAccess] = useState<Access | null>(null);
+  const { getState, setState, clearState } = usePersistence();
+  
+  const [showForm, setShowForm] = useState(() => getState('acessos_showForm') || false);
+  const [showUpload, setShowUpload] = useState(() => getState('acessos_showUpload') || false);
+  const [editingAccess, setEditingAccess] = useState<Access | null>(() => getState('acessos_editingAccess') || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewingAccess, setViewingAccess] = useState<Access | null>(null);
+  const [viewingAccess, setViewingAccess] = useState<Access | null>(() => getState('acessos_viewingAccess') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
   const [showViewPasswordModal, setShowViewPasswordModal] = useState(false);
   const [pendingViewAccess, setPendingViewAccess] = useState<Access | null>(null);
   const { user } = useAuth();
-  const { getState, setState } = usePersistence();
 
   const itemsPerPage = 10;
-  const persistenceKey = 'acessos-page-state';
-
-  // Load persisted state
-  useEffect(() => {
-    const savedState = getState(persistenceKey);
-    if (savedState) {
-      setSearchTerm(savedState.searchTerm || '');
-      setSortOrder(savedState.sortOrder || null);
-      setCurrentPage(savedState.currentPage || 1);
-      setVisiblePasswords(new Set(savedState.visiblePasswords || []));
-    }
-  }, [getState]);
-
-  // Save state to persistence
-  useEffect(() => {
-    setState(persistenceKey, {
-      searchTerm,
-      sortOrder,
-      currentPage,
-      visiblePasswords: Array.from(visiblePasswords)
-    });
-  }, [searchTerm, sortOrder, currentPage, visiblePasswords, setState]);
 
   const fetchAcessos = useCallback(async () => {
     try {
@@ -87,6 +67,22 @@ const Acessos: React.FC = () => {
     fetchAcessos();
   }, [fetchAcessos]);
 
+  // Persist form states
+  useEffect(() => {
+    setState('acessos_showForm', showForm);
+  }, [showForm, setState]);
+
+  useEffect(() => {
+    setState('acessos_showUpload', showUpload);
+  }, [showUpload, setState]);
+
+  useEffect(() => {
+    setState('acessos_editingAccess', editingAccess);
+  }, [editingAccess, setState]);
+
+  useEffect(() => {
+    setState('acessos_viewingAccess', viewingAccess);
+  }, [viewingAccess, setState]);
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
@@ -211,11 +207,14 @@ const Acessos: React.FC = () => {
     fetchAcessos();
     setShowForm(false);
     setEditingAccess(null);
+    clearState('acessos_showForm');
+    clearState('acessos_editingAccess');
   }, [fetchAcessos]);
 
   const handleUploadSuccess = useCallback(() => {
     fetchAcessos();
     setShowUpload(false);
+    clearState('acessos_showUpload');
   }, [fetchAcessos]);
 
   const handleEdit = useCallback((acesso: Access) => {
@@ -226,10 +225,13 @@ const Acessos: React.FC = () => {
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingAccess(null);
+    clearState('acessos_showForm');
+    clearState('acessos_editingAccess');
   }, []);
 
   const handleCancelUpload = useCallback(() => {
     setShowUpload(false);
+    clearState('acessos_showUpload');
   }, []);
 
   const handleView = useCallback((acesso: Access) => {
@@ -238,6 +240,7 @@ const Acessos: React.FC = () => {
 
   const handleCloseView = useCallback(() => {
     setViewingAccess(null);
+    clearState('acessos_viewingAccess');
   }, []);
 
   // Dashboard stats based on filtered data
@@ -397,13 +400,17 @@ const Acessos: React.FC = () => {
                     {acesso.senha && (
                       <div className="flex items-center space-x-1 sm:space-x-2">
                         <span className="font-mono text-xs sm:text-sm">
-                          {visiblePasswords.has(acesso.id) ? acesso.senha : '••••••••'}
+                          {visiblePasswords.has(acesso.id) ? decryptPassword(acesso.senha) : '••••••••'}
                         </span>
                         <button 
                           onClick={() => togglePasswordVisibility(acesso.id)} 
                           className="text-neutral-400 hover:text-neutral-600"
                         >
-                          {visiblePasswords.has(acesso.id) ? <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" /> : <Eye className="h-3 w-3 sm:h-4 sm:w-4" />}
+                          {visiblePasswords.has(acesso.id) ? (
+                            <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" />
+                          ) : (
+                            <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+                          )}
                         </button>
                       </div>
                     )}
@@ -506,7 +513,7 @@ const Acessos: React.FC = () => {
               <div><strong>Para que serve:</strong> {viewingAccess.para_que_serve || '-'}</div>
               <div><strong>IP/URL:</strong> {viewingAccess.ip_url || '-'}</div>
               <div><strong>Usuário:</strong> {viewingAccess.usuario_login || '-'}</div>
-              <div><strong>Senha:</strong> {viewingAccess.senha || '-'}</div>
+              <div><strong>Senha:</strong> {viewingAccess.senha ? decryptPassword(viewingAccess.senha) : '-'}</div>
               <div><strong>Email:</strong> {viewingAccess.email || '-'}</div>
               <div><strong>Dia de Pagamento:</strong> {viewingAccess.dia_pagamento ? `Dia ${viewingAccess.dia_pagamento}` : '-'}</div>
               <div><strong>Observação:</strong> {viewingAccess.observacao || '-'}</div>

@@ -31,6 +31,7 @@ const PasswordVerificationModal: React.FC<PasswordVerificationModalProps> = ({
     setError('');
 
     try {
+      console.log('🔐 Verifying password for user:', user.email);
       // Create a new Supabase client instance for verification only
       const { createClient } = await import('@supabase/supabase-js');
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -59,13 +60,14 @@ const PasswordVerificationModal: React.FC<PasswordVerificationModalProps> = ({
         console.error('Password verification failed:', error);
         setError('Senha incorreta');
       } else if (data.user) {
-        console.log('Password verified successfully');
-        // Password is correct, call success callback
-        onSuccess();
-        handleClose();
+        console.log('✅ Password verified successfully');
         
         // Immediately sign out from the temporary client to avoid session conflicts
         await tempClient.auth.signOut();
+        
+        // Password is correct, call success callback
+        onSuccess();
+        handleClose();
       } else {
         setError('Erro na verificação da senha');
       }

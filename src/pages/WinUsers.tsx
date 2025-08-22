@@ -5,7 +5,9 @@ import WinUserFileUpload from '../components/WinUserFileUpload';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
+import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx';
+import { decryptPassword } from '../utils/encryption';
 
 interface WinUser {
   id: string;
@@ -18,13 +20,15 @@ interface WinUser {
 const WinUsers: React.FC = () => {
   const [winUsers, setWinUsers] = useState<WinUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
-  const [editingUser, setEditingUser] = useState<WinUser | null>(null);
+  const { getState, setState, clearState } = usePersistence();
+  
+  const [showForm, setShowForm] = useState(() => getState('winusers_showForm') || false);
+  const [showUpload, setShowUpload] = useState(() => getState('winusers_showUpload') || false);
+  const [editingUser, setEditingUser] = useState<WinUser | null>(() => getState('winusers_editingUser') || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewingUser, setViewingUser] = useState<WinUser | null>(null);
+  const [viewingUser, setViewingUser] = useState<WinUser | null>(() => getState('winusers_viewingUser') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
@@ -36,6 +40,22 @@ const WinUsers: React.FC = () => {
     fetchWinUsers();
   }, []);
 
+  // Persist form states
+  useEffect(() => {
+    setState('winusers_showForm', showForm);
+  }, [showForm, setState]);
+
+  useEffect(() => {
+    setState('winusers_showUpload', showUpload);
+  }, [showUpload, setState]);
+
+  useEffect(() => {
+    setState('winusers_editingUser', editingUser);
+  }, [editingUser, setState]);
+
+  useEffect(() => {
+    setState('winusers_viewingUser', viewingUser);
+  }, [viewingUser, setState]);
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
@@ -239,10 +259,14 @@ const WinUsers: React.FC = () => {
             fetchWinUsers();
             setShowForm(false);
             setEditingUser(null);
+            clearState('winusers_showForm');
+            clearState('winusers_editingUser');
           }}
           onCancel={() => {
             setShowForm(false);
             setEditingUser(null);
+            clearState('winusers_showForm');
+            clearState('winusers_editingUser');
           }}
         />
       )}
@@ -252,8 +276,12 @@ const WinUsers: React.FC = () => {
           onSuccess={() => {
             fetchWinUsers();
             setShowUpload(false);
+            clearState('winusers_showUpload');
           }}
-          onCancel={() => setShowUpload(false)}
+          onCancel={() => {
+            setShowUpload(false);
+            clearState('winusers_showUpload');
+          }}
         />
       )}
 
@@ -298,12 +326,18 @@ const WinUsers: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-900 truncate max-w-[100px] sm:max-w-none">{user.login}</td>
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-600">
                     <div className="flex items-center space-x-1 sm:space-x-2">
-                      <span className="font-mono text-xs sm:text-sm">{visiblePasswords.has(user.id) ? user.senha : '••••••••'}</span>
+                      <span className="font-mono text-xs sm:text-sm">
+                        {visiblePasswords.has(user.id) ? decryptPassword(user.senha) : '••••••••'}
+                      </span>
                       <button
                         onClick={() => togglePasswordVisibility(user.id)}
                         className="text-neutral-400 hover:text-neutral-600"
                       >
-                        {visiblePasswords.has(user.id) ? <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" /> : <Eye className="h-3 w-3 sm:h-4 sm:w-4" />}
+                        {visiblePasswords.has(user.id) ? (
+                          <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" />
+                        ) : (
+                          <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+                        )}
                       </button>
                     </div>
                   </td>
@@ -373,7 +407,7 @@ const WinUsers: React.FC = () => {
                 <strong>Login:</strong> {viewingUser.login}
               </div>
               <div>
-                <strong>Senha:</strong> {viewingUser.senha}
+                <strong>Senha:</strong> {decryptPassword(viewingUser.senha)}
               </div>
               <div>
                 <strong>Usuário:</strong> {viewingUser.usuario}
@@ -381,7 +415,10 @@ const WinUsers: React.FC = () => {
             </div>
             <div className="mt-4 sm:mt-6 text-right">
               <button
-                onClick={() => setViewingUser(null)}
+                onClick={() => {
+                  setViewingUser(null);
+                  clearState('winusers_viewingUser');
+                }}
                 className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-xs sm:text-sm"
               >
                 Fechar

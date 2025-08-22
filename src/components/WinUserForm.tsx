@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { hashPassword, isPasswordHashed } from '../utils/encryption';
+import { encryptPassword } from '../utils/encryption';
 
 interface WinUserFormProps {
   user: { id: string; login: string; senha: string; usuario: string } | null;
@@ -15,18 +15,49 @@ const WinUserForm: React.FC<WinUserFormProps> = ({ user, onSuccess, onCancel }) 
   const [usuario, setUsuario] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
+  
+  // Persistência de dados do formulário
+  const persistenceKey = user ? `winUserForm_edit_${user.id}` : 'winUserForm_new';
+  
+  // Carregar dados persistidos
   useEffect(() => {
+    const savedData = localStorage.getItem(persistenceKey);
+    if (savedData && savedData !== 'undefined') {
+      try {
+        const parsedData = JSON.parse(savedData);
+        // Só usar dados salvos se não estiver vazio
+        if (parsedData && Object.keys(parsedData).length > 0) {
+          setLogin(parsedData.login || '');
+          setSenha(parsedData.senha || '');
+          setUsuario(parsedData.usuario || '');
+        }
+        return;
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+      }
+    }
+    
+    // Só definir dados iniciais se não há dados salvos
     if (user) {
-      setLogin(user.login);
-      setSenha(user.senha);
-      setUsuario(user.usuario);
+      setLogin(user.login || '');
+      setSenha(user.senha || '');
+      setUsuario(user.usuario || '');
     } else {
       setLogin('');
       setSenha('');
       setUsuario('');
     }
-  }, [user]);
+  }, [user?.id, persistenceKey]); // Usar user.id em vez de user completo
+  
+  // Salvar dados quando os campos mudam
+  useEffect(() => {
+    // Só salvar se há dados para salvar
+    if (login || senha || usuario) {
+      const formData = { login, senha, usuario };
+      localStorage.setItem(persistenceKey, JSON.stringify(formData));
+    }
+  }, [login, senha, usuario, persistenceKey]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,16 +65,12 @@ const WinUserForm: React.FC<WinUserFormProps> = ({ user, onSuccess, onCancel }) 
     setError('');
 
     try {
-      let processedPassword = senha;
-      
-      // Hash password if it's not empty and not already hashed
-      if (processedPassword && !isPasswordHashed(processedPassword)) {
-        processedPassword = await hashPassword(processedPassword);
-      }
+      // Encrypt password for storage (reversible for frontend viewing)
+      let processedPassword = senha ? encryptPassword(senha) : '';
 
       const dataToSave = {
         login,
-        senha: processedPassword,
+        senha: processedPassword || null,
         usuario
       };
 
@@ -59,6 +86,8 @@ const WinUserForm: React.FC<WinUserFormProps> = ({ user, onSuccess, onCancel }) 
         const { error } = await supabase.from('win_users').insert([dataToSave]);
         if (error) throw error;
       }
+      // Limpar dados persistidos após sucesso
+      localStorage.removeItem(persistenceKey);
       onSuccess();
     } catch (err: any) {
       console.error('Error saving win user:', err);
@@ -69,6 +98,8 @@ const WinUserForm: React.FC<WinUserFormProps> = ({ user, onSuccess, onCancel }) 
   };
 
   const handleCancel = () => {
+    // Limpar dados persistidos ao cancelar
+    localStorage.removeItem(persistenceKey);
     setError('');
     onCancel();
   };

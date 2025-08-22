@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx';
+import { decryptPassword } from '../utils/encryption';
 
 interface Pessoal {
   id: string;
@@ -26,45 +27,24 @@ interface Pessoal {
 const Pessoal: React.FC = () => {
   const [pessoais, setPessoais] = useState<Pessoal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
-  const [editingPessoal, setEditingPessoal] = useState<Pessoal | null>(null);
+  const { getState, setState, clearState } = usePersistence();
+  
+  const [showForm, setShowForm] = useState(() => getState('pessoal_showForm') || false);
+  const [showUpload, setShowUpload] = useState(() => getState('pessoal_showUpload') || false);
+  const [editingPessoal, setEditingPessoal] = useState<Pessoal | null>(() => getState('pessoal_editingPessoal') || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewingPessoal, setViewingPessoal] = useState<Pessoal | null>(null);
+  const [viewingPessoal, setViewingPessoal] = useState<Pessoal | null>(() => getState('pessoal_viewingPessoal') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
   const [showViewPasswordModal, setShowViewPasswordModal] = useState(false);
   const [pendingViewPessoal, setPendingViewPessoal] = useState<Pessoal | null>(null);
   const { user } = useAuth();
-  const { getState, setState } = usePersistence();
 
   const itemsPerPage = 10;
-  const persistenceKey = 'pessoal-page-state';
-
-  // Load persisted state
-  useEffect(() => {
-    const savedState = getState(persistenceKey);
-    if (savedState) {
-      setSearchTerm(savedState.searchTerm || '');
-      setSortOrder(savedState.sortOrder || null);
-      setCurrentPage(savedState.currentPage || 1);
-      setVisiblePasswords(new Set(savedState.visiblePasswords || []));
-    }
-  }, [getState]);
-
-  // Save state to persistence
-  useEffect(() => {
-    setState(persistenceKey, {
-      searchTerm,
-      sortOrder,
-      currentPage,
-      visiblePasswords: Array.from(visiblePasswords)
-    });
-  }, [searchTerm, sortOrder, currentPage, visiblePasswords, setState]);
 
   const fetchPessoais = useCallback(async () => {
     try {
@@ -90,6 +70,22 @@ const Pessoal: React.FC = () => {
     fetchPessoais();
   }, [fetchPessoais]);
 
+  // Persist form states
+  useEffect(() => {
+    setState('pessoal_showForm', showForm);
+  }, [showForm, setState]);
+
+  useEffect(() => {
+    setState('pessoal_showUpload', showUpload);
+  }, [showUpload, setState]);
+
+  useEffect(() => {
+    setState('pessoal_editingPessoal', editingPessoal);
+  }, [editingPessoal, setState]);
+
+  useEffect(() => {
+    setState('pessoal_viewingPessoal', viewingPessoal);
+  }, [viewingPessoal, setState]);
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
@@ -211,11 +207,14 @@ const Pessoal: React.FC = () => {
     fetchPessoais();
     setShowForm(false);
     setEditingPessoal(null);
+    clearState('pessoal_showForm');
+    clearState('pessoal_editingPessoal');
   }, [fetchPessoais]);
 
   const handleUploadSuccess = useCallback(() => {
     fetchPessoais();
     setShowUpload(false);
+    clearState('pessoal_showUpload');
   }, [fetchPessoais]);
 
   const handleEdit = useCallback((pessoal: Pessoal) => {
@@ -226,14 +225,18 @@ const Pessoal: React.FC = () => {
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingPessoal(null);
+    clearState('pessoal_showForm');
+    clearState('pessoal_editingPessoal');
   }, []);
 
   const handleCancelUpload = useCallback(() => {
     setShowUpload(false);
+    clearState('pessoal_showUpload');
   }, []);
 
   const handleCloseView = useCallback(() => {
     setViewingPessoal(null);
+    clearState('pessoal_viewingPessoal');
   }, []);
 
   // Dashboard stats based on filtered data
@@ -393,13 +396,17 @@ const Pessoal: React.FC = () => {
                     {pessoal.senha && (
                       <div className="flex items-center space-x-1 sm:space-x-2">
                         <span className="font-mono text-xs sm:text-sm">
-                          {visiblePasswords.has(pessoal.id) ? pessoal.senha : '••••••••'}
+                          {visiblePasswords.has(pessoal.id) ? decryptPassword(pessoal.senha) : '••••••••'}
                         </span>
                         <button 
                           onClick={() => togglePasswordVisibility(pessoal.id)} 
                           className="text-neutral-400 hover:text-neutral-600"
                         >
-                          {visiblePasswords.has(pessoal.id) ? <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" /> : <Eye className="h-3 w-3 sm:h-4 sm:w-4" />}
+                          {visiblePasswords.has(pessoal.id) ? (
+                            <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" />
+                          ) : (
+                            <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+                          )}
                         </button>
                       </div>
                     )}
@@ -502,7 +509,7 @@ const Pessoal: React.FC = () => {
               <div><strong>Para que serve:</strong> {viewingPessoal.para_que_serve || '-'}</div>
               <div><strong>IP/URL:</strong> {viewingPessoal.ip_url || '-'}</div>
               <div><strong>Usuário:</strong> {viewingPessoal.usuario_login || '-'}</div>
-              <div><strong>Senha:</strong> {viewingPessoal.senha || '-'}</div>
+              <div><strong>Senha:</strong> {viewingPessoal.senha ? decryptPassword(viewingPessoal.senha) : '-'}</div>
               <div><strong>Email:</strong> {viewingPessoal.email || '-'}</div>
               <div><strong>Dia de Pagamento:</strong> {viewingPessoal.dia_pagamento ? `Dia ${viewingPessoal.dia_pagamento}` : '-'}</div>
               <div><strong>Observação:</strong> {viewingPessoal.observacao || '-'}</div>

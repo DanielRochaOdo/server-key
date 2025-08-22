@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import * as XLSX from 'xlsx';
+import { encryptPassword } from '../utils/encryption';
 
 interface FileUploadProps {
   onSuccess: () => void;
@@ -118,6 +118,10 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, onCancel }) => {
         });
         
         if (row.descricao) {
+          // Encrypt password for storage (reversible for frontend viewing)
+          if (row.senha) {
+            row.senha = encryptPassword(row.senha);
+          }
           rows.push({
             ...row,
             user_id: user.id,

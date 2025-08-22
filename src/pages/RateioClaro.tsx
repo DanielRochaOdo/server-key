@@ -5,6 +5,7 @@ import RateioClaroFileUpload from '../components/RateioClaroFileUpload';
 import DashboardStats from '../components/DashboardStats';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx';
 
 interface RateioClaro {
@@ -19,14 +20,16 @@ interface RateioClaro {
 const RateioClaro: React.FC = () => {
   const [rateios, setRateios] = useState<RateioClaro[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
-  const [editingRateio, setEditingRateio] = useState<RateioClaro | null>(null);
+  const { getState, setState, clearState } = usePersistence();
+  
+  const [showForm, setShowForm] = useState(() => getState('rateioClaro_showForm') || false);
+  const [showUpload, setShowUpload] = useState(() => getState('rateioClaro_showUpload') || false);
+  const [editingRateio, setEditingRateio] = useState<RateioClaro | null>(() => getState('rateioClaro_editingRateio') || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSetor, setSelectedSetor] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewingRateio, setViewingRateio] = useState<RateioClaro | null>(null);
+  const [viewingRateio, setViewingRateio] = useState<RateioClaro | null>(() => getState('rateioClaro_viewingRateio') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const { user } = useAuth();
 
@@ -53,6 +56,22 @@ const RateioClaro: React.FC = () => {
     fetchRateios();
   }, [fetchRateios]);
 
+  // Persist form states
+  useEffect(() => {
+    setState('rateioClaro_showForm', showForm);
+  }, [showForm, setState]);
+
+  useEffect(() => {
+    setState('rateioClaro_showUpload', showUpload);
+  }, [showUpload, setState]);
+
+  useEffect(() => {
+    setState('rateioClaro_editingRateio', editingRateio);
+  }, [editingRateio, setState]);
+
+  useEffect(() => {
+    setState('rateioClaro_viewingRateio', viewingRateio);
+  }, [viewingRateio, setState]);
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedSetor]);
@@ -150,11 +169,14 @@ const RateioClaro: React.FC = () => {
     fetchRateios();
     setShowForm(false);
     setEditingRateio(null);
+    clearState('rateioClaro_showForm');
+    clearState('rateioClaro_editingRateio');
   }, [fetchRateios]);
 
   const handleUploadSuccess = useCallback(() => {
     fetchRateios();
     setShowUpload(false);
+    clearState('rateioClaro_showUpload');
   }, [fetchRateios]);
 
   const handleEdit = useCallback((rateio: RateioClaro) => {
@@ -165,10 +187,13 @@ const RateioClaro: React.FC = () => {
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingRateio(null);
+    clearState('rateioClaro_showForm');
+    clearState('rateioClaro_editingRateio');
   }, []);
 
   const handleCancelUpload = useCallback(() => {
     setShowUpload(false);
+    clearState('rateioClaro_showUpload');
   }, []);
 
   const handleView = useCallback((rateio: RateioClaro) => {
@@ -177,6 +202,7 @@ const RateioClaro: React.FC = () => {
 
   const handleCloseView = useCallback(() => {
     setViewingRateio(null);
+    clearState('rateioClaro_viewingRateio');
   }, []);
 
   // Dashboard stats based on filtered data

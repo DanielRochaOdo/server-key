@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { hashPassword, isPasswordHashed } from '../utils/encryption';
+import { encryptPassword } from '../utils/encryption';
 
 interface Pessoal {
   id: string;
@@ -38,35 +38,65 @@ const PessoalForm: React.FC<PessoalFormProps> = ({ pessoal, onSuccess, onCancel 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
-
+  
+  // Persistência de dados do formulário
+  const persistenceKey = pessoal ? `pessoalForm_edit_${pessoal.id}` : 'pessoalForm_new';
+  
+  // Carregar dados persistidos
   useEffect(() => {
-    if (pessoal) {
-      setFormData({
-        descricao: pessoal.descricao || '',
-        para_que_serve: pessoal.para_que_serve || '',
-        ip_url: pessoal.ip_url || '',
-        usuario_login: pessoal.usuario_login || '',
-        senha: pessoal.senha || '',
-        observacao: pessoal.observacao || '',
-        suporte_contato: pessoal.suporte_contato || '',
-        email: pessoal.email || '',
-        dia_pagamento: pessoal.dia_pagamento || 0,
-      });
-    } else {
-      setFormData({
-        descricao: '',
-        para_que_serve: '',
-        ip_url: '',
-        usuario_login: '',
-        senha: '',
-        observacao: '',
-        suporte_contato: '',
-        email: '',
-        dia_pagamento: 0,
-      });
+    const savedData = localStorage.getItem(persistenceKey);
+    if (savedData && savedData !== 'undefined') {
+      try {
+        const parsedData = JSON.parse(savedData);
+        // Só usar dados salvos se não estiver vazio
+        if (parsedData && Object.keys(parsedData).length > 0) {
+          setFormData(prev => ({ ...prev, ...parsedData }));
+        }
+        return;
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+      }
     }
+    
+    // Só definir dados iniciais se não há dados salvos
+    setFormData(prev => {
+      if (pessoal) {
+        return {
+          descricao: pessoal.descricao || '',
+          para_que_serve: pessoal.para_que_serve || '',
+          ip_url: pessoal.ip_url || '',
+          usuario_login: pessoal.usuario_login || '',
+          senha: pessoal.senha || '',
+          observacao: pessoal.observacao || '',
+          suporte_contato: pessoal.suporte_contato || '',
+          email: pessoal.email || '',
+          dia_pagamento: pessoal.dia_pagamento || 0,
+        };
+      } else {
+        return {
+          descricao: '',
+          para_que_serve: '',
+          ip_url: '',
+          usuario_login: '',
+          senha: '',
+          observacao: '',
+          suporte_contato: '',
+          email: '',
+          dia_pagamento: 0,
+        };
+      }
+    });
     setError('');
-  }, [pessoal]);
+  }, [pessoal?.id, persistenceKey]); // Usar pessoal.id em vez de pessoal completo
+  
+  // Salvar dados quando formData muda
+  useEffect(() => {
+    // Só salvar se formData não estiver vazio
+    if (formData.descricao) {
+      localStorage.setItem(persistenceKey, JSON.stringify(formData));
+    }
+  }, [formData, persistenceKey]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -96,16 +126,12 @@ const PessoalForm: React.FC<PessoalFormProps> = ({ pessoal, onSuccess, onCancel 
 
     try {
       console.log('💾 Saving pessoal data for user:', user.id);
-      let processedPassword = formData.senha;
-      
-      // Hash password if it's not empty and not already hashed
-      if (processedPassword && !isPasswordHashed(processedPassword)) {
-        processedPassword = await hashPassword(processedPassword);
-      }
+      // Encrypt password for storage (reversible for frontend viewing)
+      let processedPassword = formData.senha ? encryptPassword(formData.senha) : '';
 
       const dataToSave = {
         ...formData,
-        senha: processedPassword || null,
+        senha: processedPassword,
         dia_pagamento: formData.dia_pagamento || null,
         user_id: user.id,
         updated_at: new Date().toISOString(),
@@ -128,6 +154,8 @@ const PessoalForm: React.FC<PessoalFormProps> = ({ pessoal, onSuccess, onCancel 
       }
 
       console.log('✅ Pessoal data saved successfully');
+      // Limpar dados persistidos após sucesso
+      localStorage.removeItem(persistenceKey);
       onSuccess();
     } catch (err: any) {
       console.error('Error saving pessoal:', err);
@@ -138,6 +166,8 @@ const PessoalForm: React.FC<PessoalFormProps> = ({ pessoal, onSuccess, onCancel 
   };
 
   const handleCancel = () => {
+    // Limpar dados persistidos ao cancelar
+    localStorage.removeItem(persistenceKey);
     setError('');
     onCancel();
   };

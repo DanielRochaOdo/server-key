@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import UserForm from '../components/UserForm';
+import { usePersistence } from '../contexts/PersistenceContext';
 
 interface User {
   id: string;
@@ -15,8 +16,10 @@ interface User {
 const Usuarios: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const { getState, setState, clearState } = usePersistence();
+  
+  const [showForm, setShowForm] = useState(() => getState('usuarios_showForm') || false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(() => getState('usuarios_selectedUser') || null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -39,6 +42,14 @@ const Usuarios: React.FC = () => {
     fetchUsers();
   }, []);
 
+  // Persist form state
+  useEffect(() => {
+    setState('usuarios_showForm', showForm);
+  }, [showForm, setState]);
+
+  useEffect(() => {
+    setState('usuarios_selectedUser', selectedUser);
+  }, [selectedUser, setState]);
   const handleNew = () => {
     setSelectedUser(null); // limpa usuário selecionado
     setShowForm(true); // abre o formulário
@@ -51,11 +62,17 @@ const Usuarios: React.FC = () => {
 
   const handleSuccess = () => {
     setShowForm(false);
+    setSelectedUser(null);
+    clearState('usuarios_showForm');
+    clearState('usuarios_selectedUser');
     fetchUsers(); // atualiza a lista
   };
 
   const handleCancel = () => {
     setShowForm(false);
+    setSelectedUser(null);
+    clearState('usuarios_showForm');
+    clearState('usuarios_selectedUser');
   };
 
   return (

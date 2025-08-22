@@ -27,25 +27,55 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
-
+  
+  // Persistência de dados do formulário
+  const persistenceKey = rateio ? `rateioClaroForm_edit_${rateio.id}` : 'rateioClaroForm_new';
+  
+  // Carregar dados persistidos
   useEffect(() => {
-    if (rateio) {
-      setFormData({
-        nome: (rateio as any).nome || (rateio as any).nome || '',
-        numero_linha: rateio.numero_linha || '',
-        responsavel_atual: rateio.responsavel_atual || '',
-        setor: rateio.setor || '',
-      });
-    } else {
-      setFormData({
-        nome: '',
-        numero_linha: '',
-        responsavel_atual: '',
-        setor: '',
-      });
+    const savedData = localStorage.getItem(persistenceKey);
+    if (savedData && savedData !== 'undefined') {
+      try {
+        const parsedData = JSON.parse(savedData);
+        // Só usar dados salvos se não estiver vazio
+        if (parsedData && Object.keys(parsedData).length > 0) {
+          setFormData(prev => ({ ...prev, ...parsedData }));
+        }
+        return;
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+      }
     }
+    
+    // Só definir dados iniciais se não há dados salvos
+    setFormData(prev => {
+      if (rateio) {
+        return {
+          nome: rateio.nome || '',
+          numero_linha: rateio.numero_linha || '',
+          responsavel_atual: rateio.responsavel_atual || '',
+          setor: rateio.setor || '',
+        };
+      } else {
+        return {
+          nome: '',
+          numero_linha: '',
+          responsavel_atual: '',
+          setor: '',
+        };
+      }
+    });
     setError('');
-  }, [rateio]);
+  }, [rateio?.id, persistenceKey]); // Usar rateio.id em vez de rateio completo
+  
+  // Salvar dados quando formData muda
+  useEffect(() => {
+    // Só salvar se formData não estiver vazio
+    if (formData.nome) {
+      localStorage.setItem(persistenceKey, JSON.stringify(formData));
+    }
+  }, [formData, persistenceKey]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -79,6 +109,8 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
         if (error) throw error;
       }
 
+      // Limpar dados persistidos após sucesso
+      localStorage.removeItem(persistenceKey);
       onSuccess();
     } catch (err: any) {
       console.error('Error saving rateio claro:', err);
@@ -89,6 +121,8 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
   };
 
   const handleCancel = () => {
+    // Limpar dados persistidos ao cancelar
+    localStorage.removeItem(persistenceKey);
     setError('');
     onCancel();
   };

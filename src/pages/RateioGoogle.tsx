@@ -5,6 +5,7 @@ import RateioGoogleFileUpload from '../components/RateioGoogleFileUpload';
 import DashboardStats from '../components/DashboardStats';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx';
 
 interface RateioGoogle {
@@ -21,16 +22,18 @@ interface RateioGoogle {
 const RateioGoogle: React.FC = () => {
   const [rateios, setRateios] = useState<RateioGoogle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
-  const [editingRateio, setEditingRateio] = useState<RateioGoogle | null>(null);
+  const { getState, setState, clearState } = usePersistence();
+  
+  const [showForm, setShowForm] = useState(() => getState('rateioGoogle_showForm') || false);
+  const [showUpload, setShowUpload] = useState(() => getState('rateioGoogle_showUpload') || false);
+  const [editingRateio, setEditingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_editingRateio') || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedSituacao, setSelectedSituacao] = useState('');
   const [selectedDominio, setSelectedDominio] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(null);
+  const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_viewingRateio') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const { user } = useAuth();
 
@@ -57,6 +60,22 @@ const RateioGoogle: React.FC = () => {
     fetchRateios();
   }, [fetchRateios]);
 
+  // Persist form states
+  useEffect(() => {
+    setState('rateioGoogle_showForm', showForm);
+  }, [showForm, setState]);
+
+  useEffect(() => {
+    setState('rateioGoogle_showUpload', showUpload);
+  }, [showUpload, setState]);
+
+  useEffect(() => {
+    setState('rateioGoogle_editingRateio', editingRateio);
+  }, [editingRateio, setState]);
+
+  useEffect(() => {
+    setState('rateioGoogle_viewingRateio', viewingRateio);
+  }, [viewingRateio, setState]);
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedStatus, selectedSituacao, selectedDominio]);
@@ -177,11 +196,14 @@ const RateioGoogle: React.FC = () => {
     fetchRateios();
     setShowForm(false);
     setEditingRateio(null);
+    clearState('rateioGoogle_showForm');
+    clearState('rateioGoogle_editingRateio');
   }, [fetchRateios]);
 
   const handleUploadSuccess = useCallback(() => {
     fetchRateios();
     setShowUpload(false);
+    clearState('rateioGoogle_showUpload');
   }, [fetchRateios]);
 
   const handleEdit = useCallback((rateio: RateioGoogle) => {
@@ -192,10 +214,13 @@ const RateioGoogle: React.FC = () => {
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingRateio(null);
+    clearState('rateioGoogle_showForm');
+    clearState('rateioGoogle_editingRateio');
   }, []);
 
   const handleCancelUpload = useCallback(() => {
     setShowUpload(false);
+    clearState('rateioGoogle_showUpload');
   }, []);
 
   const handleView = useCallback((rateio: RateioGoogle) => {
@@ -204,6 +229,7 @@ const RateioGoogle: React.FC = () => {
 
   const handleCloseView = useCallback(() => {
     setViewingRateio(null);
+    clearState('rateioGoogle_viewingRateio');
   }, []);
 
   // Dashboard stats based on filtered data

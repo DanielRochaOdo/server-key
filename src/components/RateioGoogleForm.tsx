@@ -31,29 +31,59 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
-
+  
+  // Persistência de dados do formulário
+  const persistenceKey = rateio ? `rateioGoogleForm_edit_${rateio.id}` : 'rateioGoogleForm_new';
+  
+  // Carregar dados persistidos
   useEffect(() => {
-    if (rateio) {
-      setFormData({
-        nome_completo: rateio.nome_completo || '',
-        email: rateio.email || '',
-        status: rateio.status || '',
-        ultimo_login: rateio.ultimo_login || '',
-        armazenamento: rateio.armazenamento || '',
-        situacao: rateio.situacao || '',
-      });
-    } else {
-      setFormData({
-        nome_completo: '',
-        email: '',
-        status: '',
-        ultimo_login: '',
-        armazenamento: '',
-        situacao: '',
-      });
+    const savedData = localStorage.getItem(persistenceKey);
+    if (savedData && savedData !== 'undefined') {
+      try {
+        const parsedData = JSON.parse(savedData);
+        // Só usar dados salvos se não estiver vazio
+        if (parsedData && Object.keys(parsedData).length > 0) {
+          setFormData(prev => ({ ...prev, ...parsedData }));
+        }
+        return;
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+      }
     }
+    
+    // Só definir dados iniciais se não há dados salvos
+    setFormData(prev => {
+      if (rateio) {
+        return {
+          nome_completo: rateio.nome_completo || '',
+          email: rateio.email || '',
+          status: rateio.status || '',
+          ultimo_login: rateio.ultimo_login || '',
+          armazenamento: rateio.armazenamento || '',
+          situacao: rateio.situacao || '',
+        };
+      } else {
+        return {
+          nome_completo: '',
+          email: '',
+          status: '',
+          ultimo_login: '',
+          armazenamento: '',
+          situacao: '',
+        };
+      }
+    });
     setError('');
-  }, [rateio]);
+  }, [rateio?.id, persistenceKey]); // Usar rateio.id em vez de rateio completo
+  
+  // Salvar dados quando formData muda
+  useEffect(() => {
+    // Só salvar se formData não estiver vazio
+    if (formData.nome_completo) {
+      localStorage.setItem(persistenceKey, JSON.stringify(formData));
+    }
+  }, [formData, persistenceKey]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -109,6 +139,8 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
       }
 
       // Sucesso - chamar callback
+      // Limpar dados persistidos após sucesso
+      localStorage.removeItem(persistenceKey);
       onSuccess();
     } catch (err: any) {
       console.error('Error saving rateio google:', err);
@@ -119,6 +151,8 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
   };
 
   const handleCancel = () => {
+    // Limpar dados persistidos ao cancelar
+    localStorage.removeItem(persistenceKey);
     setError('');
     onCancel();
   };

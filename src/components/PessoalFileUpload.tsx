@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { hashPassword, isPasswordHashed } from '../utils/encryption';
+import { encryptPassword } from '../utils/encryption';
 import * as XLSX from 'xlsx';
 
 interface PessoalFileUploadProps {
@@ -119,9 +119,9 @@ const PessoalFileUpload: React.FC<PessoalFileUploadProps> = ({ onSuccess, onCanc
         });
         
         if (row.descricao) {
-          // Hash password if present and not already hashed
-          if (row.senha && !isPasswordHashed(row.senha)) {
-            row.senha = await hashPassword(row.senha);
+          // Encrypt password for storage (reversible for frontend viewing)
+          if (row.senha) {
+            row.senha = encryptPassword(row.senha);
           }
 
           rows.push({

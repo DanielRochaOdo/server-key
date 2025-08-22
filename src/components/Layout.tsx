@@ -8,7 +8,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { userProfile, signOut, hasModuleAccess, isAdmin } = useAuth();
+  const { userProfile, signOut, hasModuleAccess, isAdmin, isUsuario } = useAuth();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
@@ -31,20 +31,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       items.push({ name: 'Usuários', href: '/usuarios', icon: Users, module: 'usuarios' });
     }
     
-    // Usuario role modules
-    if (hasModuleAccess('acessos')) {
-      items.push({ name: 'Acessos', href: '/acessos', icon: Key, module: 'acessos' });
-    }
-    
+    // Pessoal module - only for usuario role
     if (hasModuleAccess('pessoal')) {
       items.push({ name: 'Pessoal', href: '/pessoal', icon: User, module: 'pessoal' });
     }
     
-    if (hasModuleAccess('teams')) {
+    // Admin and specific role modules (not for usuario role)
+    if (hasModuleAccess('acessos') && !isUsuario()) {
+      items.push({ name: 'Acessos', href: '/acessos', icon: Key, module: 'acessos' });
+    }
+    
+    if (hasModuleAccess('teams') && !isUsuario()) {
       items.push({ name: 'Teams', href: '/teams', icon: UserCheck, module: 'teams' });
     }
     
-    if (hasModuleAccess('win_users')) {
+    if (hasModuleAccess('win_users') && !isUsuario()) {
       items.push({ name: 'Win Users', href: '/win-users', icon: Database, module: 'win_users' });
     }
     

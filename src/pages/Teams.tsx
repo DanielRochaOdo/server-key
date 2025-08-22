@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx';
+import { decryptPassword } from '../utils/encryption';
 
 interface Team {
   id: string;
@@ -22,52 +23,45 @@ interface Team {
 const Teams: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
-  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const { getState, setState, clearState } = usePersistence();
+  
+  const [showForm, setShowForm] = useState(() => getState('teams_showForm') || false);
+  const [showUpload, setShowUpload] = useState(() => getState('teams_showUpload') || false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(() => getState('teams_editingTeam') || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
+  const [viewingTeam, setViewingTeam] = useState<Team | null>(() => getState('teams_viewingTeam') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
   const [showViewPasswordModal, setShowViewPasswordModal] = useState(false);
   const [pendingViewTeam, setPendingViewTeam] = useState<Team | null>(null);
+  const [sortOrder, setSortOrder] = useState<string | null>(null);
   const itemsPerPage = 10;
   const { user } = useAuth();
-  const { getState, setState } = usePersistence();
-
-  const persistenceKey = 'teams-page-state';
-
-  // Load persisted state
-  useEffect(() => {
-    const savedState = getState(persistenceKey);
-    if (savedState) {
-      setSearchTerm(savedState.searchTerm || '');
-      setSelectedDepartment(savedState.selectedDepartment || '');
-      setSortOrder(savedState.sortOrder || null);
-      setCurrentPage(savedState.currentPage || 1);
-      setVisiblePasswords(new Set(savedState.visiblePasswords || []));
-    }
-  }, [getState]);
-
-  // Save state to persistence
-  useEffect(() => {
-    setState(persistenceKey, {
-      searchTerm,
-      selectedDepartment,
-      sortOrder,
-      currentPage,
-      visiblePasswords: Array.from(visiblePasswords)
-    });
-  }, [searchTerm, selectedDepartment, sortOrder, currentPage, visiblePasswords, setState]);
 
   useEffect(() => {
     fetchTeams();
   }, []);
 
+  // Persist form states
+  useEffect(() => {
+    setState('teams_showForm', showForm);
+  }, [showForm, setState]);
+
+  useEffect(() => {
+    setState('teams_showUpload', showUpload);
+  }, [showUpload, setState]);
+
+  useEffect(() => {
+    setState('teams_editingTeam', editingTeam);
+  }, [editingTeam, setState]);
+
+  useEffect(() => {
+    setState('teams_viewingTeam', viewingTeam);
+  }, [viewingTeam, setState]);
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedDepartment]);
@@ -291,10 +285,14 @@ const Teams: React.FC = () => {
             fetchTeams();
             setShowForm(false);
             setEditingTeam(null);
+            clearState('teams_showForm');
+            clearState('teams_editingTeam');
           }}
           onCancel={() => {
             setShowForm(false);
             setEditingTeam(null);
+            clearState('teams_showForm');
+            clearState('teams_editingTeam');
           }}
         />
       )}
@@ -304,8 +302,12 @@ const Teams: React.FC = () => {
           onSuccess={() => {
             fetchTeams();
             setShowUpload(false);
+            clearState('teams_showUpload');
           }}
-          onCancel={() => setShowUpload(false)}
+          onCancel={() => {
+            setShowUpload(false);
+            clearState('teams_showUpload');
+          }}
         />
       )}
 
@@ -374,9 +376,18 @@ const Teams: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-900 truncate max-w-[100px] sm:max-w-none">{team.login}</td>
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-600">
                     <div className="flex items-center space-x-1 sm:space-x-2">
-                      <span className="font-mono text-xs sm:text-sm">{visiblePasswords.has(team.id) ? team.senha : '••••••••'}</span>
-                      <button onClick={() => togglePasswordVisibility(team.id)} className="text-neutral-400 hover:text-neutral-600">
-                        {visiblePasswords.has(team.id) ? <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" /> : <Eye className="h-3 w-3 sm:h-4 sm:w-4" />}
+                      <span className="font-mono text-xs sm:text-sm">
+                        {visiblePasswords.has(team.id) ? decryptPassword(team.senha) : '••••••••'}
+                      </span>
+                      <button 
+                        onClick={() => togglePasswordVisibility(team.id)} 
+                        className="text-neutral-400 hover:text-neutral-600"
+                      >
+                        {visiblePasswords.has(team.id) ? (
+                          <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" />
+                        ) : (
+                          <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+                        )}
                       </button>
                     </div>
                   </td>
@@ -447,7 +458,7 @@ const Teams: React.FC = () => {
                 <strong>Login:</strong> {viewingTeam.login}
               </div>
               <div>
-                <strong>Senha:</strong> {viewingTeam.senha}
+                <strong>Senha:</strong> {decryptPassword(viewingTeam.senha)}
               </div>
               <div>
                 <strong>Usuário:</strong> {viewingTeam.usuario}
@@ -461,7 +472,10 @@ const Teams: React.FC = () => {
             </div>
             <div className="mt-4 sm:mt-6 text-right">
               <button
-                onClick={() => setViewingTeam(null)}
+                onClick={() => {
+                  setViewingTeam(null);
+                  clearState('teams_viewingTeam');
+                }}
                 className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-xs sm:text-sm"
               >
                 Fechar

@@ -27,6 +27,56 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Persistência de dados do formulário
+  const persistenceKey = user ? `userForm_edit_${user.id}` : 'userForm_new';
+  
+  // Carregar dados persistidos
+  useEffect(() => {
+    const savedData = localStorage.getItem(persistenceKey);
+    if (savedData && savedData !== 'undefined') {
+      try {
+        const parsedData = JSON.parse(savedData);
+        // Só usar dados salvos se não estiver vazio
+        if (parsedData && Object.keys(parsedData).length > 0) {
+          setFormData(prev => ({ ...prev, ...parsedData }));
+        }
+        return;
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+      }
+    }
+    
+    // Só definir dados iniciais se não há dados salvos
+    setFormData(prev => {
+      if (user) {
+        return {
+          email: user.email || '',
+          name: user.name || '',
+          role: user.role || 'usuario',
+          is_active: user.is_active ?? true,
+          password: '', // Never pre-fill password for security
+        };
+      } else {
+        return {
+          email: '',
+          name: '',
+          role: 'usuario',
+          is_active: true,
+          password: '',
+        };
+      }
+    });
+    setError('');
+  }, [user?.id, persistenceKey]); // Usar user.id em vez de user completo
+  
+  // Salvar dados quando formData muda
+  useEffect(() => {
+    // Só salvar se formData não estiver vazio
+    if (formData.email || formData.name) {
+      localStorage.setItem(persistenceKey, JSON.stringify(formData));
+    }
+  }, [formData, persistenceKey]);
 
   const getModulesByRole = (role: string): string[] => {
     switch (role) {
@@ -35,7 +85,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       case 'financeiro':
         return ['rateio_claro', 'rateio_google'];
       case 'usuario':
-        return ['acessos', 'teams', 'win_users'];
+        return ['pessoal'];
       default:
         return [];
     }
@@ -47,26 +97,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     usuario: 'Usuário',
   };
 
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        email: user.email || '',
-        name: user.name || '',
-        role: user.role || 'usuario',
-        is_active: user.is_active ?? true,
-        password: '', // Never pre-fill password for security
-      });
-    } else {
-      setFormData({
-        email: '',
-        name: '',
-        role: 'usuario',
-        is_active: true,
-        password: '',
-      });
-    }
-    setError('');
-  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -137,6 +167,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
         }
       }
 
+      // Limpar dados persistidos após sucesso
+      localStorage.removeItem(persistenceKey);
       onSuccess();
     } catch (err: any) {
       console.error('Erro ao salvar usuário:', err);
@@ -147,6 +179,12 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   };
 
   const currentModules = getModulesByRole(formData.role);
+  
+  const handleCancel = () => {
+    // Limpar dados persistidos ao cancelar
+    localStorage.removeItem(persistenceKey);
+    onCancel();
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -157,6 +195,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           </h2>
           <button
             onClick={onCancel}
+            onClick={handleCancel}
             className="text-neutral-400 hover:text-neutral-600"
             disabled={loading}
           >
@@ -264,7 +303,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-neutral-200">
             <button
               type="button"
-              onClick={onCancel}
+              onClick={handleCancel}
               disabled={loading}
               className="px-4 py-2 border border-neutral-300 rounded-lg text-neutral-700 hover:bg-neutral-50"
             >

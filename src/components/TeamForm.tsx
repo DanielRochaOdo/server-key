@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { hashPassword, isPasswordHashed } from '../utils/encryption';
+import { encryptPassword } from '../utils/encryption';
 
 interface TeamFormProps {
   team?: any;
@@ -21,18 +21,56 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
     observacao: '',
     departamento: '',
   });
-
+  
+  // Persistência de dados do formulário
+  const persistenceKey = team ? `teamForm_edit_${team.id}` : 'teamForm_new';
+  
+  // Carregar dados persistidos
   useEffect(() => {
-    if (team) {
-      setFormData({
-        login: team.login || '',
-        senha: team.senha || '',
-        usuario: team.usuario || '',
-        observacao: team.observacao || '',
-        departamento: team.departamento || '',
-      });
+    const savedData = localStorage.getItem(persistenceKey);
+    if (savedData && savedData !== 'undefined') {
+      try {
+        const parsedData = JSON.parse(savedData);
+        // Só usar dados salvos se não estiver vazio
+        if (parsedData && Object.keys(parsedData).length > 0) {
+          setFormData(prev => ({ ...prev, ...parsedData }));
+        }
+        return;
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+      }
     }
-  }, [team]);
+    
+    // Só definir dados iniciais se não há dados salvos
+    setFormData(prev => {
+      if (team) {
+        return {
+          login: team.login || '',
+          senha: team.senha || '',
+          usuario: team.usuario || '',
+          observacao: team.observacao || '',
+          departamento: team.departamento || '',
+        };
+      } else {
+        return {
+          login: '',
+          senha: '',
+          usuario: '',
+          observacao: '',
+          departamento: '',
+        };
+      }
+    });
+  }, [team?.id, persistenceKey]); // Usar team.id em vez de team completo
+  
+  // Salvar dados quando formData muda
+  useEffect(() => {
+    // Só salvar se formData não estiver vazio
+    if (formData.login || formData.usuario) {
+      localStorage.setItem(persistenceKey, JSON.stringify(formData));
+    }
+  }, [formData, persistenceKey]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -47,16 +85,12 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
     setError('');
 
     try {
-      let processedPassword = formData.senha;
-      
-      // Hash password if it's not empty and not already hashed
-      if (processedPassword && !isPasswordHashed(processedPassword)) {
-        processedPassword = await hashPassword(processedPassword);
-      }
+      // Encrypt password for storage (reversible for frontend viewing)
+      let processedPassword = formData.senha ? encryptPassword(formData.senha) : '';
 
       const dataToSave = {
         ...formData,
-        senha: processedPassword,
+        senha: processedPassword || null,
         user_id: user.id,
         updated_at: new Date().toISOString(),
       };
@@ -71,6 +105,8 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
         }]);
         if (error) throw error;
       }
+      // Limpar dados persistidos após sucesso
+      localStorage.removeItem(persistenceKey);
       onSuccess();
     } catch (err: any) {
       console.error('Error saving team:', err);
@@ -81,6 +117,8 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
   };
 
   const handleCancel = () => {
+    // Limpar dados persistidos ao cancelar
+    localStorage.removeItem(persistenceKey);
     setError('');
     onCancel();
   };
