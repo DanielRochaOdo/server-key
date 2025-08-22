@@ -23,8 +23,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Define navigation items based on user permissions
   const getNavigationItems = () => {
     const items = [
-      { name: 'Dashboard', href: '/dashboard', icon: BarChart3, module: null },
     ];
+
+    // Dashboard - não disponível para usuários nível "usuario"
+    if (!isUsuario()) {
+      items.push({ name: 'Dashboard', href: '/dashboard', icon: BarChart3, module: null });
+    }
 
     // Admin can see user management
     if (isAdmin()) {

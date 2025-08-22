@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { encryptPassword } from '../utils/encryption';
+import { decryptPassword } from '../utils/encryption';
 
 interface WinUserFormProps {
   user: { id: string; login: string; senha: string; usuario: string } | null;
@@ -40,7 +41,7 @@ const WinUserForm: React.FC<WinUserFormProps> = ({ user, onSuccess, onCancel }) 
     // Só definir dados iniciais se não há dados salvos
     if (user) {
       setLogin(user.login || '');
-      setSenha(user.senha || '');
+      setSenha(user.senha ? decryptPassword(user.senha) : '');
       setUsuario(user.usuario || '');
     } else {
       setLogin('');

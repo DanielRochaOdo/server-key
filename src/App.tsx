@@ -26,11 +26,14 @@ function App() {
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute adminOnly={false} requiredModule={null}>
                   <Dashboard />
                 </ProtectedRoute>
               }
             />
+            
+            {/* Redirect usuarios to pessoal instead of dashboard */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             
             {/* Admin only routes */}
             <Route
@@ -44,18 +47,20 @@ function App() {
             
             {/* Usuario role routes */}
             <Route
-              path="/acessos"
-              element={
-                <ProtectedRoute requiredModule="acessos">
-                  <Acessos />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/pessoal"
               element={
                 <ProtectedRoute requiredModule="pessoal">
                   <Pessoal />
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* Admin and other role routes */}
+            <Route
+              path="/acessos"
+              element={
+                <ProtectedRoute requiredModule="acessos">
+                  <Acessos />
                 </ProtectedRoute>
               }
             />
@@ -95,8 +100,7 @@ function App() {
             />
             
             {/* Default redirects */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/pessoal" replace />} />
           </Routes>
         </Router>
       </AuthProvider>

@@ -3,6 +3,7 @@ import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { encryptPassword } from '../utils/encryption';
+import { decryptPassword } from '../utils/encryption';
 
 interface TeamFormProps {
   team?: any;
@@ -46,7 +47,7 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
       if (team) {
         return {
           login: team.login || '',
-          senha: team.senha || '',
+          senha: team.senha ? decryptPassword(team.senha) : '',
           usuario: team.usuario || '',
           observacao: team.observacao || '',
           departamento: team.departamento || '',

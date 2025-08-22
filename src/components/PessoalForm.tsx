@@ -3,6 +3,7 @@ import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { encryptPassword } from '../utils/encryption';
+import { decryptPassword } from '../utils/encryption';
 
 interface Pessoal {
   id: string;
@@ -66,7 +67,7 @@ const PessoalForm: React.FC<PessoalFormProps> = ({ pessoal, onSuccess, onCancel 
           para_que_serve: pessoal.para_que_serve || '',
           ip_url: pessoal.ip_url || '',
           usuario_login: pessoal.usuario_login || '',
-          senha: pessoal.senha || '',
+          senha: pessoal.senha ? decryptPassword(pessoal.senha) : '',
           observacao: pessoal.observacao || '',
           suporte_contato: pessoal.suporte_contato || '',
           email: pessoal.email || '',

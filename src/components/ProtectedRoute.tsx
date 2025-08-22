@@ -35,6 +35,20 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return null;
   }
 
+  // Special handling for dashboard - redirect usuarios to pessoal
+  const isDashboardRoute = window.location.pathname === '/dashboard';
+  if (isDashboardRoute && userProfile?.role === 'usuario') {
+    window.location.href = '/pessoal';
+    return null;
+  }
+
+  // Special handling for root route - redirect usuarios to pessoal
+  const isRootRoute = window.location.pathname === '/';
+  if (isRootRoute && userProfile?.role === 'usuario') {
+    window.location.href = '/pessoal';
+    return null;
+  }
+
   // Show loading while fetching user profile
   if (loadingProfile) {
     return (
