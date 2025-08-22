@@ -5,6 +5,8 @@ import TeamFileUpload from '../components/TeamFileUpload';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx';
 
 interface Team {
@@ -34,6 +36,33 @@ const Teams: React.FC = () => {
   const [showViewPasswordModal, setShowViewPasswordModal] = useState(false);
   const [pendingViewTeam, setPendingViewTeam] = useState<Team | null>(null);
   const itemsPerPage = 10;
+  const { user } = useAuth();
+  const { getState, setState } = usePersistence();
+
+  const persistenceKey = 'teams-page-state';
+
+  // Load persisted state
+  useEffect(() => {
+    const savedState = getState(persistenceKey);
+    if (savedState) {
+      setSearchTerm(savedState.searchTerm || '');
+      setSelectedDepartment(savedState.selectedDepartment || '');
+      setSortOrder(savedState.sortOrder || null);
+      setCurrentPage(savedState.currentPage || 1);
+      setVisiblePasswords(new Set(savedState.visiblePasswords || []));
+    }
+  }, [getState]);
+
+  // Save state to persistence
+  useEffect(() => {
+    setState(persistenceKey, {
+      searchTerm,
+      selectedDepartment,
+      sortOrder,
+      currentPage,
+      visiblePasswords: Array.from(visiblePasswords)
+    });
+  }, [searchTerm, selectedDepartment, sortOrder, currentPage, visiblePasswords, setState]);
 
   useEffect(() => {
     fetchTeams();

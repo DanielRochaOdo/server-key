@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { hashPassword, isPasswordHashed } from '../utils/encryption';
 
-interface Access {
+interface Pessoal {
   id: string;
   descricao: string;
   para_que_serve?: string;
@@ -17,13 +17,13 @@ interface Access {
   dia_pagamento?: number;
 }
 
-interface AccessFormProps {
-  access?: Access | null;
+interface PessoalFormProps {
+  pessoal?: Pessoal | null;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) => {
+const PessoalForm: React.FC<PessoalFormProps> = ({ pessoal, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState({
     descricao: '',
     para_que_serve: '',
@@ -40,17 +40,17 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
   const { user } = useAuth();
 
   useEffect(() => {
-    if (access) {
+    if (pessoal) {
       setFormData({
-        descricao: access.descricao || '',
-        para_que_serve: access.para_que_serve || '',
-        ip_url: access.ip_url || '',
-        usuario_login: access.usuario_login || '',
-        senha: access.senha || '',
-        observacao: access.observacao || '',
-        suporte_contato: access.suporte_contato || '',
-        email: access.email || '',
-        dia_pagamento: access.dia_pagamento || 0,
+        descricao: pessoal.descricao || '',
+        para_que_serve: pessoal.para_que_serve || '',
+        ip_url: pessoal.ip_url || '',
+        usuario_login: pessoal.usuario_login || '',
+        senha: pessoal.senha || '',
+        observacao: pessoal.observacao || '',
+        suporte_contato: pessoal.suporte_contato || '',
+        email: pessoal.email || '',
+        dia_pagamento: pessoal.dia_pagamento || 0,
       });
     } else {
       setFormData({
@@ -66,7 +66,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
       });
     }
     setError('');
-  }, [access]);
+  }, [pessoal]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -86,12 +86,16 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) {
+      setError('Usuário não autenticado');
+      return;
+    }
 
     setLoading(true);
     setError('');
 
     try {
+      console.log('💾 Saving pessoal data for user:', user.id);
       let processedPassword = formData.senha;
       
       // Hash password if it's not empty and not already hashed
@@ -107,35 +111,27 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
         updated_at: new Date().toISOString(),
       };
 
-      if (access) {
-        console.log('Updating access with ID:', access.id);
-        console.log('Data to save:', dataToSave);
+      if (pessoal) {
+        console.log('📝 Updating existing pessoal record');
         const { error } = await supabase
-          .from('acessos')
+          .from('pessoal')
           .update(dataToSave)
-          .eq('id', access.id);
-        if (error) {
-          console.error('Update error:', error);
-          throw error;
-        }
-        console.log('Update successful');
+          .eq('id', pessoal.id)
+          .eq('user_id', user.id); // Garantir que só atualiza próprios dados
+        if (error) throw error;
       } else {
-        console.log('Creating new access');
-        console.log('Data to save:', dataToSave);
+        console.log('➕ Creating new pessoal record');
         const { error } = await supabase
-          .from('acessos')
+          .from('pessoal')
           .insert([{ ...dataToSave, created_at: new Date().toISOString() }]);
-        if (error) {
-          console.error('Insert error:', error);
-          throw error;
-        }
-        console.log('Insert successful');
+        if (error) throw error;
       }
 
+      console.log('✅ Pessoal data saved successfully');
       onSuccess();
     } catch (err: any) {
-      console.error('Error saving access:', err);
-      setError(err.message || 'Erro ao salvar acesso');
+      console.error('Error saving pessoal:', err);
+      setError(err.message || 'Erro ao salvar item pessoal');
     } finally {
       setLoading(false);
     }
@@ -151,7 +147,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">
-            {access ? 'Editar Acesso' : 'Novo Acesso'}
+            {pessoal ? 'Editar Item Pessoal' : 'Novo Item Pessoal'}
           </h2>
           <button
             onClick={handleCancel}
@@ -343,4 +339,4 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
   );
 };
 
-export default AccessForm;
+export default PessoalForm;
