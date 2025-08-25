@@ -67,7 +67,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
           para_que_serve: access.para_que_serve || '',
           ip_url: access.ip_url || '',
           usuario_login: access.usuario_login || '',
-          senha: access.senha ? decryptPassword(access.senha) : '',
+          senha: access.senha || '',
           observacao: access.observacao || '',
           suporte_contato: access.suporte_contato || '',
           email: access.email || '',

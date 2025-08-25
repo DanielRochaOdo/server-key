@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { encryptPassword } from '../utils/encryption';
 import * as XLSX from 'xlsx';
 
 interface TeamFileUploadProps {
@@ -194,9 +195,12 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
 
           if (!login || !senha || !usuario) return null;
 
+          // Encrypt password for storage
+          const encryptedPassword = encryptPassword(senha);
+
           return {
             login,
-            senha,
+            senha: encryptedPassword,
             usuario,
             observacao: observacao || null,
             departamento,

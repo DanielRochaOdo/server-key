@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { encryptPassword } from '../utils/encryption';
 
 interface WinUserFileUploadProps {
   onSuccess: () => void;
@@ -16,6 +18,7 @@ interface ParsedRow {
 const WinUserFileUpload: React.FC<WinUserFileUploadProps> = ({ onSuccess, onCancel }) => {
   const [loading, setLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -33,7 +36,13 @@ const WinUserFileUpload: React.FC<WinUserFileUploadProps> = ({ onSuccess, onCanc
       const jsonData: ParsedRow[] = XLSX.utils.sheet_to_json(worksheet);
 
       // Validação simples
-      const validRows = jsonData.filter(row => row.login && row.senha && row.usuario);
+      const validRows = jsonData
+        .filter(row => row.login && row.senha && row.usuario)
+        .map(row => ({
+          ...row,
+          senha: encryptPassword(row.senha), // Encrypt password for storage
+          user_id: user?.id
+        }));
 
       if (validRows.length === 0) {
         setFileError('Arquivo inválido ou sem dados válidos');
@@ -44,7 +53,6 @@ const WinUserFileUpload: React.FC<WinUserFileUploadProps> = ({ onSuccess, onCanc
       setFileError(null);
 
       try {
-        // Inserir todos os registros de uma vez
         const { error } = await supabase.from('win_users').insert(validRows);
         if (error) throw error;
         onSuccess();

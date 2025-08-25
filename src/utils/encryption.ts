@@ -28,9 +28,16 @@ export const isPasswordHashed = (password: string): boolean => {
   return /^\$2[abxy]\$\d+\$/.test(password);
 };
 
-// Função simples de encriptação reversível para visualização no frontend
+// ========================================
+// CRIPTOGRAFIA REVERSÍVEL PARA MÓDULOS
+// ========================================
+// Usar APENAS para senhas dos módulos (Pessoal, Acessos, Teams, etc.)
+// NÃO usar para senhas de login/autenticação
+
 export const encryptPassword = (password: string): string => {
   if (!password) return '';
+  
+  console.log('🔐 Criptografando senha:', password);
   
   let encrypted = '';
   for (let i = 0; i < password.length; i++) {
@@ -38,30 +45,46 @@ export const encryptPassword = (password: string): string => {
     const keyChar = ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length);
     encrypted += String.fromCharCode(charCode ^ keyChar);
   }
-  return btoa(encrypted); // Base64 encode
+  const result = btoa(encrypted); // Base64 encode
+  console.log('✅ Senha criptografada:', result);
+  return result;
 };
 
-// Função para desencriptar senhas para visualização
 export const decryptPassword = (encryptedPassword: string): string => {
+  console.log('🔍 Tentando descriptografar:', encryptedPassword);
+  
   if (!encryptedPassword) return '';
   
+  // Se é string vazia ou null, retorna vazio
+  if (!encryptedPassword.trim()) return '';
+  
+  // Se é hash bcrypt, não pode ser descriptografado
+  if (encryptedPassword.startsWith('$2')) {
+    console.log('⚠️ Senha bcrypt detectada');
+    return '[Senha bcrypt - reinsira a senha]';
+  }
+  
+  // Verificar se é uma senha em texto plano (não criptografada)
+  // Base64 válido deve ter apenas caracteres A-Z, a-z, 0-9, +, /, =
+  const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+  if (!base64Regex.test(encryptedPassword)) {
+    console.log('⚠️ Senha em texto plano detectada:', encryptedPassword);
+    // Se é texto plano, criptografar e retornar descriptografado
+    return encryptedPassword;
+  }
+  
   try {
-    // Validate Base64 format before attempting to decode
-    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
-    if (!base64Regex.test(encryptedPassword)) {
-      return encryptedPassword;
-    }
-    
-    const encrypted = atob(encryptedPassword); // Base64 decode
+    const encrypted = atob(encryptedPassword);
     let decrypted = '';
     for (let i = 0; i < encrypted.length; i++) {
       const charCode = encrypted.charCodeAt(i);
       const keyChar = ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length);
       decrypted += String.fromCharCode(charCode ^ keyChar);
     }
+    console.log('✅ Senha descriptografada:', decrypted);
     return decrypted;
   } catch (error) {
-    console.error('Error decrypting password:', error);
-    return '';
+    console.log('❌ Erro ao descriptografar, retornando original:', error);
+    return encryptedPassword;
   }
 };

@@ -393,11 +393,15 @@ const Pessoal: React.FC = () => {
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[100px] sm:max-w-none">{pessoal.usuario_login || '-'}</td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
-                    {pessoal.senha && (
+                    {pessoal.senha ? (
                       <div className="flex items-center space-x-1 sm:space-x-2">
-                        <span className="font-mono text-xs sm:text-sm">
-                          {visiblePasswords.has(pessoal.id) ? decryptPassword(pessoal.senha) : '••••••••'}
-                        </span>
+                        {visiblePasswords.has(pessoal.id) ? (
+                          <span className="font-mono text-xs sm:text-sm text-green-600">
+                            {decryptPassword(pessoal.senha || '')}
+                          </span>
+                        ) : (
+                          <span className="font-mono text-xs sm:text-sm">••••••••</span>
+                        )}
                         <button 
                           onClick={() => togglePasswordVisibility(pessoal.id)} 
                           className="text-neutral-400 hover:text-neutral-600"
@@ -409,6 +413,8 @@ const Pessoal: React.FC = () => {
                           )}
                         </button>
                       </div>
+                    ) : (
+                      <span className="text-xs text-neutral-400 italic">Sem senha</span>
                     )}
                   </td>
                   <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[150px]">{pessoal.email || '-'}</td>
@@ -509,7 +515,7 @@ const Pessoal: React.FC = () => {
               <div><strong>Para que serve:</strong> {viewingPessoal.para_que_serve || '-'}</div>
               <div><strong>IP/URL:</strong> {viewingPessoal.ip_url || '-'}</div>
               <div><strong>Usuário:</strong> {viewingPessoal.usuario_login || '-'}</div>
-              <div><strong>Senha:</strong> {viewingPessoal.senha ? decryptPassword(viewingPessoal.senha) : '-'}</div>
+              <div><strong>Senha:</strong> {viewingPessoal.senha ? decryptPassword(viewingPessoal.senha || '') : '-'}</div>
               <div><strong>Email:</strong> {viewingPessoal.email || '-'}</div>
               <div><strong>Dia de Pagamento:</strong> {viewingPessoal.dia_pagamento ? `Dia ${viewingPessoal.dia_pagamento}` : '-'}</div>
               <div><strong>Observação:</strong> {viewingPessoal.observacao || '-'}</div>
