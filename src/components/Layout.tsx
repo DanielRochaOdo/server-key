@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User, UserLock, Wallpaper, Mail } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User, UserLock, Wallpaper, Mail, UserRoundPen } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
@@ -32,7 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     // Admin can see user management
     if (isAdmin()) {
-      items.push({ name: 'Usuários', href: '/usuarios', icon: Users, module: 'usuarios' });
+      items.push({ name: 'Usuários', href: '/usuarios', icon: UserRoundPen, module: 'usuarios' });
     }
     
     // Pessoal module - only for usuario role
