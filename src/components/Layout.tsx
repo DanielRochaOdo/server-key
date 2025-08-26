@@ -37,7 +37,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     
     // Pessoal module - only for usuario role
     if (hasModuleAccess('pessoal')) {
-      items.push({ name: 'Pessoal', href: '/pessoal', icon: User, module: 'pessoal' });
+      items.push({ name: 'Pessoal', href: '/pessoal', icon: ShieldUser, module: 'pessoal' });
     }
     
     // Admin and specific role modules (not for usuario role)
