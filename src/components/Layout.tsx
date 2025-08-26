@@ -127,7 +127,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               `}
             >
               <item.icon className="h-5 w-5 scale-110" />
-
               {!sidebarCollapsed && <span className="ml-3">{item.name}</span>}
             </Link>
           ))}
