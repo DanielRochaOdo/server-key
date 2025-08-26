@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User, ShiledUser } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
