@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User, Lock, Wallpaper } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User, UserLock, Wallpaper } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
@@ -37,7 +37,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     
     // Pessoal module - only for usuario role
     if (hasModuleAccess('pessoal')) {
-      items.push({ name: 'Pessoal', href: '/pessoal', icon: Lock, module: 'pessoal' });
+      items.push({ name: 'Pessoal', href: '/pessoal', icon: UserLock, module: 'pessoal' });
     }
     
     // Admin and specific role modules (not for usuario role)
