@@ -126,11 +126,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}
               `}
             >
-              <item.icon 
-                className={`${
-                  item.name === 'Pessoal' ? 'h-6 w-6' : 'h-5 w-5'
-                }`} 
-              />
+              <item.icon className="h-5 w-5 scale-110" />
+
               {!sidebarCollapsed && <span className="ml-3">{item.name}</span>}
             </Link>
           ))}
