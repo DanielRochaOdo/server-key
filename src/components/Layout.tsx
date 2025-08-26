@@ -46,7 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
     
     if (hasModuleAccess('teams') && !isUsuario()) {
-      items.push({ name: 'Teams', href: '/teams', icon: UserCheck, module: 'teams' });
+      items.push({ name: 'Teams', href: '/teams', icon: Users, module: 'teams' });
     }
     
     if (hasModuleAccess('win_users') && !isUsuario()) {
