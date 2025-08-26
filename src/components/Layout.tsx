@@ -50,7 +50,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
     
     if (hasModuleAccess('win_users') && !isUsuario()) {
-      items.push({ name: 'Win Users', href: '/win-users', icon: Database, module: 'win_users' });
+      items.push({ name: 'Win Users', href: '/win-users', icon: Wallpaper, module: 'win_users' });
     }
     
     // Financeiro role modules
