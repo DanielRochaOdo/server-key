@@ -30,10 +30,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       items.push({ name: 'Dashboard', href: '/dashboard', icon: BarChart3, module: null });
     }
 
-    if (isAdmin()) {
-      items.push({ name: 'Cadastro', href: '/cadastro', icon: BarChart3, module: null });
-    }
-
     // Admin can see user management
     if (isAdmin()) {
       items.push({ name: 'Usuários', href: '/usuarios', icon: Users, module: 'usuarios' });
