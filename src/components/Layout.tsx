@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User, UserLock, Wallpaper } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User, UserLock, Wallpaper, Mail } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
@@ -59,7 +59,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
     
     if (hasModuleAccess('rateio_google')) {
-      items.push({ name: 'Rateio Google', href: '/rateio-google', icon: Globe, module: 'rateio_google' });
+      items.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail, module: 'rateio_google' });
     }
 
     return items;
