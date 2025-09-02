@@ -12,6 +12,7 @@ import Teams from './pages/Teams';
 import WinUsers from './pages/WinUsers';
 import RateioClaro from './pages/RateioClaro';
 import RateioGoogle from './pages/RateioGoogle';
+import DadosPessoais from './pages/DadosPessoais';
 
 function App() {
   return (
@@ -95,6 +96,16 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="rateio_google">
                   <RateioGoogle />
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* Dados Pessoais - available to all users */}
+            <Route
+              path="/dados-pessoais"
+              element={
+                <ProtectedRoute requiredModule="dados_pessoais">
+                  <DadosPessoais />
                 </ProtectedRoute>
               }
             />

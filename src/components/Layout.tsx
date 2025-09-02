@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User, UserLock, Wallpaper, Mail, UserRoundPen } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User, UserLock, Wallpaper, Mail, UserRoundPen, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
@@ -60,6 +60,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     
     if (hasModuleAccess('rateio_google')) {
       items.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail, module: 'rateio_google' });
+    }
+
+    // Dados Pessoais - available to all users
+    if (hasModuleAccess('dados_pessoais')) {
+      items.push({ name: 'Dados Pessoais', href: '/dados-pessoais', icon: Settings, module: 'dados_pessoais' });
     }
 
     return items;
@@ -138,11 +143,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className="flex items-center mb-3">
               <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
                 <span className="text-sm font-medium text-primary-600">
-                  {userProfile.name?.charAt(0).toUpperCase()}
+                  {(userProfile.nome || userProfile.name)?.charAt(0).toUpperCase()}
                 </span>
               </div>
               <div className="ml-2 flex-1 min-w-0">
-                <p className="text-sm font-medium text-neutral-900 truncate">{userProfile.name}</p>
+                <p className="text-sm font-medium text-neutral-900 truncate">
+                  {userProfile.nome || userProfile.name}
+                </p>
                 <div className="flex items-center space-x-1">
                   <span className={`px-2 py-0.5 text-xs rounded-full ${getRoleBadge(userProfile.role).color}`}>
                     {getRoleBadge(userProfile.role).label}

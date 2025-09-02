@@ -88,9 +88,14 @@ const RateioClaro: React.FC = () => {
     if (!confirm('Tem certeza que deseja excluir este rateio?')) return;
 
     try {
+      console.log('🗑️ Attempting to delete rateio with ID:', id);
+      console.log('🔍 Current user:', user?.id);
+      console.log('🔍 User profile:', userProfile?.role);
+      
       const { error } = await supabase.from('rateio_claro').delete().eq('id', id);
       if (error) throw error;
       setRateios(prev => prev.filter((rateio) => rateio.id !== id));
+      console.log('✅ Rateio deleted successfully');
     } catch (error) {
       console.error('Error deleting rateio:', error);
       alert('Erro ao excluir rateio');
@@ -180,6 +185,9 @@ const RateioClaro: React.FC = () => {
   }, [fetchRateios]);
 
   const handleEdit = useCallback((rateio: RateioClaro) => {
+    console.log('✏️ Attempting to edit rateio:', rateio.id);
+    console.log('🔍 Current user:', user?.id);
+    console.log('🔍 User profile:', userProfile?.role);
     setEditingRateio(rateio);
     setShowForm(true);
   }, []);
