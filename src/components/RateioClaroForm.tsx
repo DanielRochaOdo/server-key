@@ -90,10 +90,6 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
     setError('');
 
     try {
-      console.log('💾 Saving rateio claro data:', formData);
-      console.log('🔍 Current user:', user.id);
-      console.log('🔍 Is editing:', !!rateio);
-      
       const dataToSave = {
         ...formData,
         user_id: user.id,
@@ -101,20 +97,16 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
       };
 
       if (rateio) {
-        console.log('📝 Updating existing rateio:', rateio.id);
         const { error } = await supabase
           .from('rateio_claro')
           .update(dataToSave)
           .eq('id', rateio.id);
         if (error) throw error;
-        console.log('✅ Rateio updated successfully');
       } else {
-        console.log('➕ Creating new rateio');
         const { error } = await supabase
           .from('rateio_claro')
           .insert([{ ...dataToSave, created_at: new Date().toISOString() }]);
         if (error) throw error;
-        console.log('✅ Rateio created successfully');
       }
 
       // Limpar dados persistidos após sucesso

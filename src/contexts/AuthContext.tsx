@@ -5,8 +5,6 @@ import type { User } from '@supabase/supabase-js';
 interface UserProfile {
   id: string;
   name: string;
-  nome?: string;
-  telefone?: string;
   email: string;
   role: 'admin' | 'financeiro' | 'usuario';
   modules: string[];
@@ -112,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const { data: profile, error } = await supabase
           .from('users')
-          .select('id, email, name, nome, telefone, role, modules, is_active, auth_uid')
+          .select('id, email, name, role, modules, is_active, auth_uid')
           .eq('auth_uid', user.id)
           .single();
 

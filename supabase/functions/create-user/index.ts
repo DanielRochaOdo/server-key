@@ -162,13 +162,13 @@ Deno.serve(async (req) => {
     let modules: string[] = []
     switch (role) {
       case 'admin':
-        modules = ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'dados_pessoais']
+        modules = ['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google']
         break
       case 'financeiro':
-        modules = ['rateio_claro', 'rateio_google', 'dados_pessoais']
+        modules = ['rateio_claro', 'rateio_google']
         break
       case 'usuario':
-        modules = ['pessoal', 'dados_pessoais']
+        modules = ['acessos', 'teams', 'win_users']
         break
     }
 

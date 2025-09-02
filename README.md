@@ -11,7 +11,6 @@ Sistema completo de gerenciamento de acessos, usuários e rateios com controle d
 - **Win Users**: Usuários Windows
 - **Rateio Claro**: Controle de linhas telefônicas
 - **Rateio Google**: Usuários Google Workspace
-- **Pessoal**: Controle de credenciais pessoal
 
 ### Controle de Acesso (RBAC)
 - **Admin**: Acesso total a todos os módulos
