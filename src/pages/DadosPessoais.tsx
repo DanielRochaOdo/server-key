@@ -244,6 +244,7 @@ const DadosPessoais: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-2">
                 Nome Completo
+                <span className="text-neutral-500 font-normal ml-1">(opcional)</span>
               </label>
               <input
                 type="text"
@@ -264,6 +265,7 @@ const DadosPessoais: React.FC = () => {
               <label className="block text-sm font-medium text-neutral-700 mb-2">
                 <Phone className="h-4 w-4 inline mr-1" />
                 Telefone
+                <span className="text-neutral-500 font-normal ml-1">(opcional)</span>
               </label>
               <input
                 type="tel"

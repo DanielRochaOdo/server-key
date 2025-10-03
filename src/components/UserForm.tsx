@@ -194,7 +194,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             {user ? 'Editar Usuário' : 'Novo Usuário'}
           </h2>
           <button
-            onClick={onCancel}
             onClick={handleCancel}
             className="text-neutral-400 hover:text-neutral-600"
             disabled={loading}

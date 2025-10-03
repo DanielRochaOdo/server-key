@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+
+interface UserProfileExtended {
+  nome?: string;
+  telefone?: string;
+}
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,6 +17,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { userProfile, signOut, hasModuleAccess, isAdmin, isUsuario } = useAuth();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [extendedProfile, setExtendedProfile] = useState<UserProfileExtended | null>(null);
+
+  // Fetch extended profile data to get 'nome' field
+  React.useEffect(() => {
+    const fetchExtendedProfile = async () => {
+      if (!userProfile?.auth_uid) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('nome, telefone')
+          .eq('auth_uid', userProfile.auth_uid)
+          .single();
+
+        if (!error && data) {
+          setExtendedProfile(data);
+        }
+      } catch (error) {
+        console.error('Error fetching extended profile:', error);
+      }
+    };
+
+    fetchExtendedProfile();
+  }, [userProfile?.auth_uid]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -18,6 +48,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const isActive = (path: string) => {
     return location.pathname === path;
+  };
+
+  // Get display name - use 'nome' if available, otherwise fallback to 'name'
+  const getDisplayName = () => {
+    return extendedProfile?.nome || userProfile?.name || '';
   };
 
   // Define navigation items based on user permissions
@@ -138,11 +173,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className="flex items-center mb-3">
               <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
                 <span className="text-sm font-medium text-primary-600">
-                  {userProfile.name?.charAt(0).toUpperCase()}
+                  {getDisplayName()?.charAt(0).toUpperCase() || 'U'}
                 </span>
               </div>
               <div className="ml-2 flex-1 min-w-0">
-                <p className="text-sm font-medium text-neutral-900 truncate">{userProfile.name}</p>
+                <p className="text-sm font-medium text-neutral-900 truncate">{getDisplayName()}</p>
                 <div className="flex items-center space-x-1">
                   <span className={`px-2 py-0.5 text-xs rounded-full ${getRoleBadge(userProfile.role).color}`}>
                     {getRoleBadge(userProfile.role).label}
