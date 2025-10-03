@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User, CircleUser as UserCircle } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Database, Phone, Globe, Menu, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface UserProfileExtended {
@@ -96,9 +96,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (hasModuleAccess('rateio_google')) {
       items.push({ name: 'Rateio Google', href: '/rateio-google', icon: Globe, module: 'rateio_google' });
     }
-
-    // Dados Pessoais - available to all authenticated users
-    items.push({ name: 'Dados Pessoais', href: '/dados-pessoais', icon: UserCircle, module: null });
 
     return items;
   };
