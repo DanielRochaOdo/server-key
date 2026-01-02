@@ -1,3 +1,66 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  .dark {
+    color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  .dark .bg-white {
+    @apply bg-neutral-900;
+  }
+  .dark .bg-neutral-50 {
+    @apply bg-neutral-800;
+  }
+  .dark .bg-neutral-100 {
+    @apply bg-neutral-800;
+  }
+  .dark .bg-neutral-200 {
+    @apply bg-neutral-700;
+  }
+  .dark .border-neutral-100 {
+    @apply border-neutral-800;
+  }
+  .dark .border-neutral-200 {
+    @apply border-neutral-800;
+  }
+  .dark .border-neutral-300 {
+    @apply border-neutral-700;
+  }
+  .dark .text-neutral-900 {
+    @apply text-neutral-100;
+  }
+  .dark .text-neutral-800 {
+    @apply text-neutral-200;
+  }
+  .dark .text-neutral-700 {
+    @apply text-neutral-300;
+  }
+  .dark .text-neutral-600 {
+    @apply text-neutral-300;
+  }
+  .dark .text-neutral-500 {
+    @apply text-neutral-400;
+  }
+  .dark .text-primary-900 {
+    @apply text-primary-200;
+  }
+  .dark .text-primary-800 {
+    @apply text-primary-200;
+  }
+  .dark .text-primary-700 {
+    @apply text-primary-300;
+  }
+  .dark .text-primary-600 {
+    @apply text-primary-300;
+  }
+  .dark .hover\:bg-neutral-50:hover {
+    @apply bg-neutral-800;
+  }
+  .dark .hover\:bg-neutral-100:hover {
+    @apply bg-neutral-800;
+  }
+}

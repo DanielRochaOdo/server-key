@@ -25,15 +25,16 @@ const WinUsers: React.FC = () => {
   const [showForm, setShowForm] = useState(() => getState('winusers_showForm') || false);
   const [showUpload, setShowUpload] = useState(() => getState('winusers_showUpload') || false);
   const [editingUser, setEditingUser] = useState<WinUser | null>(() => getState('winusers_editingUser') || null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => getState('winusers_searchTerm') || '');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingUser, setViewingUser] = useState<WinUser | null>(() => getState('winusers_viewingUser') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
-  const [showViewPasswordModal, setShowViewPasswordModal] = useState(false);
-  const [pendingViewUser, setPendingViewUser] = useState<WinUser | null>(null);
+  const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
+  const [pendingActionUser, setPendingActionUser] = useState<WinUser | null>(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -56,6 +57,11 @@ const WinUsers: React.FC = () => {
   useEffect(() => {
     setState('winusers_viewingUser', viewingUser);
   }, [viewingUser, setState]);
+
+  useEffect(() => {
+    setState('winusers_searchTerm', searchTerm);
+  }, [searchTerm, setState]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
@@ -111,16 +117,33 @@ const WinUsers: React.FC = () => {
     }
   };
 
-  const handleViewPasswordVerified = () => {
-    if (pendingViewUser) {
-      setViewingUser(pendingViewUser);
-      setPendingViewUser(null);
-    }
+  const requestActionVerification = (action: 'view' | 'edit' | 'delete', user: WinUser) => {
+    setPendingAction(action);
+    setPendingActionUser(user);
+    setShowActionPasswordModal(true);
   };
 
-  const handleViewWithVerification = (user: WinUser) => {
-    setPendingViewUser(user);
-    setShowViewPasswordModal(true);
+  const handleActionPasswordVerified = async () => {
+    if (!pendingAction || !pendingActionUser) return;
+    const action = pendingAction;
+    const targetUser = pendingActionUser;
+
+    setShowActionPasswordModal(false);
+    setPendingAction(null);
+    setPendingActionUser(null);
+
+    if (action === 'view') {
+      setViewingUser(targetUser);
+      return;
+    }
+
+    if (action === 'edit') {
+      setEditingUser(targetUser);
+      setShowForm(true);
+      return;
+    }
+
+    await handleDelete(targetUser.id);
   };
   const filteredUsers = React.useMemo(() => {
     return winUsers.filter(
@@ -345,22 +368,21 @@ const WinUsers: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button
-                        onClick={() => handleViewWithVerification(user)}
+                        onClick={() => requestActionVerification('view', user)}
                         className="text-neutral-600 hover:text-neutral-900"
                       >
                         <Search className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button
                         onClick={() => {
-                          setEditingUser(user);
-                          setShowForm(true);
+                          requestActionVerification('edit', user);
                         }}
                         className="text-primary-600 hover:text-primary-900"
                       >
                         <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(user.id)}
+                        onClick={() => requestActionVerification('delete', user)}
                         className="text-red-600 hover:text-red-900"
                       >
                         <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -440,14 +462,21 @@ const WinUsers: React.FC = () => {
       />
 
       <PasswordVerificationModal
-        isOpen={showViewPasswordModal}
+        isOpen={showActionPasswordModal}
         onClose={() => {
-          setShowViewPasswordModal(false);
-          setPendingViewUser(null);
+          setShowActionPasswordModal(false);
+          setPendingAction(null);
+          setPendingActionUser(null);
         }}
-        onSuccess={handleViewPasswordVerified}
-        title="Verificação de Senha"
-        message="Digite sua senha para visualizar os detalhes do usuário:"
+        onSuccess={handleActionPasswordVerified}
+        title="Verificacao de Senha"
+        message={
+          pendingAction === 'edit'
+            ? "Digite sua senha para editar este usuario:"
+            : pendingAction === 'delete'
+              ? "Digite sua senha para excluir este usuario:"
+              : "Digite sua senha para visualizar os detalhes do usuario:"
+        }
       />
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (

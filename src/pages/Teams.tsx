@@ -28,16 +28,17 @@ const Teams: React.FC = () => {
   const [showForm, setShowForm] = useState(() => getState('teams_showForm') || false);
   const [showUpload, setShowUpload] = useState(() => getState('teams_showUpload') || false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(() => getState('teams_editingTeam') || null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => getState('teams_searchTerm') || '');
+  const [selectedDepartment, setSelectedDepartment] = useState(() => getState('teams_selectedDepartment') || '');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingTeam, setViewingTeam] = useState<Team | null>(() => getState('teams_viewingTeam') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
-  const [showViewPasswordModal, setShowViewPasswordModal] = useState(false);
-  const [pendingViewTeam, setPendingViewTeam] = useState<Team | null>(null);
+  const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
+  const [pendingActionTeam, setPendingActionTeam] = useState<Team | null>(null);
   const [sortOrder, setSortOrder] = useState<string | null>(null);
   const itemsPerPage = 10;
   const { user } = useAuth();
@@ -62,6 +63,15 @@ const Teams: React.FC = () => {
   useEffect(() => {
     setState('teams_viewingTeam', viewingTeam);
   }, [viewingTeam, setState]);
+
+  useEffect(() => {
+    setState('teams_searchTerm', searchTerm);
+  }, [searchTerm, setState]);
+
+  useEffect(() => {
+    setState('teams_selectedDepartment', selectedDepartment);
+  }, [selectedDepartment, setState]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedDepartment]);
@@ -117,16 +127,33 @@ const Teams: React.FC = () => {
     }
   };
 
-  const handleViewWithVerification = (team: Team) => {
-    setPendingViewTeam(team);
-    setShowViewPasswordModal(true);
+  const requestActionVerification = (action: 'view' | 'edit' | 'delete', team: Team) => {
+    setPendingAction(action);
+    setPendingActionTeam(team);
+    setShowActionPasswordModal(true);
   };
 
-  const handleViewPasswordVerified = () => {
-    if (pendingViewTeam) {
-      setViewingTeam(pendingViewTeam);
-      setPendingViewTeam(null);
+  const handleActionPasswordVerified = async () => {
+    if (!pendingAction || !pendingActionTeam) return;
+    const action = pendingAction;
+    const team = pendingActionTeam;
+
+    setShowActionPasswordModal(false);
+    setPendingAction(null);
+    setPendingActionTeam(null);
+
+    if (action === 'view') {
+      setViewingTeam(team);
+      return;
     }
+
+    if (action === 'edit') {
+      setEditingTeam(team);
+      setShowForm(true);
+      return;
+    }
+
+    await handleDelete(team.id);
   };
 
   const departments = React.useMemo(() => {
@@ -396,22 +423,21 @@ const Teams: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button
-                        onClick={() => handleViewWithVerification(team)}
+                        onClick={() => requestActionVerification('view', team)}
                         className="text-neutral-600 hover:text-neutral-900"
                       >
                         <Search className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button
                         onClick={() => {
-                          setEditingTeam(team);
-                          setShowForm(true);
+                          requestActionVerification('edit', team);
                         }}
                         className="text-primary-600 hover:text-primary-900"
                       >
                         <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(team.id)}
+                        onClick={() => requestActionVerification('delete', team)}
                         className="text-red-600 hover:text-red-900"
                       >
                         <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -497,16 +523,22 @@ const Teams: React.FC = () => {
       />
 
       <PasswordVerificationModal
-        isOpen={showViewPasswordModal}
+        isOpen={showActionPasswordModal}
         onClose={() => {
-          setShowViewPasswordModal(false);
-          setPendingViewTeam(null);
+          setShowActionPasswordModal(false);
+          setPendingAction(null);
+          setPendingActionTeam(null);
         }}
-        onSuccess={handleViewPasswordVerified}
-        title="Verificação de Senha"
-        message="Digite sua senha para visualizar os detalhes do team:"
+        onSuccess={handleActionPasswordVerified}
+        title="Verificacao de Senha"
+        message={
+          pendingAction === 'edit'
+            ? "Digite sua senha para editar este team:"
+            : pendingAction === 'delete'
+              ? "Digite sua senha para excluir este team:"
+              : "Digite sua senha para visualizar os detalhes do team:"
+        }
       />
-
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (
         <div 

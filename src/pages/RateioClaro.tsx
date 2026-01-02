@@ -3,6 +3,7 @@ import { Phone, Plus, Upload, Download, Search, Edit, Trash2, Eye, Building } fr
 import RateioClaroForm from '../components/RateioClaroForm';
 import RateioClaroFileUpload from '../components/RateioClaroFileUpload';
 import DashboardStats from '../components/DashboardStats';
+import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
@@ -25,12 +26,15 @@ const RateioClaro: React.FC = () => {
   const [showForm, setShowForm] = useState(() => getState('rateioClaro_showForm') || false);
   const [showUpload, setShowUpload] = useState(() => getState('rateioClaro_showUpload') || false);
   const [editingRateio, setEditingRateio] = useState<RateioClaro | null>(() => getState('rateioClaro_editingRateio') || null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSetor, setSelectedSetor] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => getState('rateioClaro_searchTerm') || '');
+  const [selectedSetor, setSelectedSetor] = useState(() => getState('rateioClaro_selectedSetor') || '');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingRateio, setViewingRateio] = useState<RateioClaro | null>(() => getState('rateioClaro_viewingRateio') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
+  const [pendingActionRateio, setPendingActionRateio] = useState<RateioClaro | null>(null);
   const { user } = useAuth();
 
   const itemsPerPage = 10;
@@ -72,6 +76,15 @@ const RateioClaro: React.FC = () => {
   useEffect(() => {
     setState('rateioClaro_viewingRateio', viewingRateio);
   }, [viewingRateio, setState]);
+
+  useEffect(() => {
+    setState('rateioClaro_searchTerm', searchTerm);
+  }, [searchTerm, setState]);
+
+  useEffect(() => {
+    setState('rateioClaro_selectedSetor', selectedSetor);
+  }, [selectedSetor, setState]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedSetor]);
@@ -96,6 +109,35 @@ const RateioClaro: React.FC = () => {
       alert('Erro ao excluir rateio');
     }
   }, []);
+
+  const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', rateio: RateioClaro) => {
+    setPendingAction(action);
+    setPendingActionRateio(rateio);
+    setShowActionPasswordModal(true);
+  }, []);
+
+  const handleActionPasswordVerified = useCallback(async () => {
+    if (!pendingAction || !pendingActionRateio) return;
+    const action = pendingAction;
+    const rateio = pendingActionRateio;
+
+    setShowActionPasswordModal(false);
+    setPendingAction(null);
+    setPendingActionRateio(null);
+
+    if (action === 'view') {
+      setViewingRateio(rateio);
+      return;
+    }
+
+    if (action === 'edit') {
+      setEditingRateio(rateio);
+      setShowForm(true);
+      return;
+    }
+
+    await handleDelete(rateio.id);
+  }, [pendingAction, pendingActionRateio, handleDelete]);
 
   const setores = useMemo(() => {
     const setorList = rateios
@@ -179,11 +221,6 @@ const RateioClaro: React.FC = () => {
     clearState('rateioClaro_showUpload');
   }, [fetchRateios]);
 
-  const handleEdit = useCallback((rateio: RateioClaro) => {
-    setEditingRateio(rateio);
-    setShowForm(true);
-  }, []);
-
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingRateio(null);
@@ -194,10 +231,6 @@ const RateioClaro: React.FC = () => {
   const handleCancelUpload = useCallback(() => {
     setShowUpload(false);
     clearState('rateioClaro_showUpload');
-  }, []);
-
-  const handleView = useCallback((rateio: RateioClaro) => {
-    setViewingRateio(rateio);
   }, []);
 
   const handleCloseView = useCallback(() => {
@@ -372,21 +405,21 @@ const RateioClaro: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button 
-                        onClick={() => handleView(rateio)}
+                        onClick={() => requestActionVerification('view', rateio)}
                         className="text-neutral-600 hover:text-neutral-900"
                         title="Visualizar"
                       >
                         <Search className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button 
-                        onClick={() => handleEdit(rateio)} 
+                        onClick={() => requestActionVerification('edit', rateio)} 
                         className="text-primary-600 hover:text-primary-900"
                         title="Editar"
                       >
                         <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button 
-                        onClick={() => handleDelete(rateio.id)} 
+                        onClick={() => requestActionVerification('delete', rateio)} 
                         className="text-red-600 hover:text-red-900"
                         title="Excluir"
                       >
@@ -478,6 +511,24 @@ const RateioClaro: React.FC = () => {
           </div>
         </div>
       )}
+
+      <PasswordVerificationModal
+        isOpen={showActionPasswordModal}
+        onClose={() => {
+          setShowActionPasswordModal(false);
+          setPendingAction(null);
+          setPendingActionRateio(null);
+        }}
+        onSuccess={handleActionPasswordVerified}
+        title="Verificacao de Senha"
+        message={
+          pendingAction === 'edit'
+            ? "Digite sua senha para editar este rateio:"
+            : pendingAction === 'delete'
+              ? "Digite sua senha para excluir este rateio:"
+              : "Digite sua senha para visualizar os detalhes do rateio:"
+        }
+      />
 
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (

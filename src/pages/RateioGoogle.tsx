@@ -3,6 +3,7 @@ import { Globe, Plus, Upload, Download, Search, Edit, Trash2, DollarSign, Users,
 import RateioGoogleForm from '../components/RateioGoogleForm';
 import RateioGoogleFileUpload from '../components/RateioGoogleFileUpload';
 import DashboardStats from '../components/DashboardStats';
+import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
@@ -27,14 +28,17 @@ const RateioGoogle: React.FC = () => {
   const [showForm, setShowForm] = useState(() => getState('rateioGoogle_showForm') || false);
   const [showUpload, setShowUpload] = useState(() => getState('rateioGoogle_showUpload') || false);
   const [editingRateio, setEditingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_editingRateio') || null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedSituacao, setSelectedSituacao] = useState('');
-  const [selectedDominio, setSelectedDominio] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => getState('rateioGoogle_searchTerm') || '');
+  const [selectedStatus, setSelectedStatus] = useState(() => getState('rateioGoogle_selectedStatus') || '');
+  const [selectedSituacao, setSelectedSituacao] = useState(() => getState('rateioGoogle_selectedSituacao') || '');
+  const [selectedDominio, setSelectedDominio] = useState(() => getState('rateioGoogle_selectedDominio') || '');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_viewingRateio') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
+  const [pendingActionRateio, setPendingActionRateio] = useState<RateioGoogle | null>(null);
   const { user } = useAuth();
 
   const itemsPerPage = 10;
@@ -76,6 +80,23 @@ const RateioGoogle: React.FC = () => {
   useEffect(() => {
     setState('rateioGoogle_viewingRateio', viewingRateio);
   }, [viewingRateio, setState]);
+
+  useEffect(() => {
+    setState('rateioGoogle_searchTerm', searchTerm);
+  }, [searchTerm, setState]);
+
+  useEffect(() => {
+    setState('rateioGoogle_selectedStatus', selectedStatus);
+  }, [selectedStatus, setState]);
+
+  useEffect(() => {
+    setState('rateioGoogle_selectedSituacao', selectedSituacao);
+  }, [selectedSituacao, setState]);
+
+  useEffect(() => {
+    setState('rateioGoogle_selectedDominio', selectedDominio);
+  }, [selectedDominio, setState]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedStatus, selectedSituacao, selectedDominio]);
@@ -100,6 +121,35 @@ const RateioGoogle: React.FC = () => {
       alert('Erro ao excluir rateio');
     }
   }, []);
+
+  const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', rateio: RateioGoogle) => {
+    setPendingAction(action);
+    setPendingActionRateio(rateio);
+    setShowActionPasswordModal(true);
+  }, []);
+
+  const handleActionPasswordVerified = useCallback(async () => {
+    if (!pendingAction || !pendingActionRateio) return;
+    const action = pendingAction;
+    const rateio = pendingActionRateio;
+
+    setShowActionPasswordModal(false);
+    setPendingAction(null);
+    setPendingActionRateio(null);
+
+    if (action === 'view') {
+      setViewingRateio(rateio);
+      return;
+    }
+
+    if (action === 'edit') {
+      setEditingRateio(rateio);
+      setShowForm(true);
+      return;
+    }
+
+    await handleDelete(rateio.id);
+  }, [pendingAction, pendingActionRateio, handleDelete]);
 
   const statusOptions = useMemo(() => {
     const statusList = rateios
@@ -206,11 +256,6 @@ const RateioGoogle: React.FC = () => {
     clearState('rateioGoogle_showUpload');
   }, [fetchRateios]);
 
-  const handleEdit = useCallback((rateio: RateioGoogle) => {
-    setEditingRateio(rateio);
-    setShowForm(true);
-  }, []);
-
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingRateio(null);
@@ -221,10 +266,6 @@ const RateioGoogle: React.FC = () => {
   const handleCancelUpload = useCallback(() => {
     setShowUpload(false);
     clearState('rateioGoogle_showUpload');
-  }, []);
-
-  const handleView = useCallback((rateio: RateioGoogle) => {
-    setViewingRateio(rateio);
   }, []);
 
   const handleCloseView = useCallback(() => {
@@ -502,21 +543,21 @@ const RateioGoogle: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button 
-                        onClick={() => handleView(rateio)}
+                        onClick={() => requestActionVerification('view', rateio)}
                         className="text-neutral-600 hover:text-neutral-900"
                         title="Visualizar"
                       >
                         <Search className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button 
-                        onClick={() => handleEdit(rateio)} 
+                        onClick={() => requestActionVerification('edit', rateio)} 
                         className="text-primary-600 hover:text-primary-900"
                         title="Editar"
                       >
                         <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button 
-                        onClick={() => handleDelete(rateio.id)} 
+                        onClick={() => requestActionVerification('delete', rateio)} 
                         className="text-red-600 hover:text-red-900"
                         title="Excluir"
                       >
@@ -610,6 +651,24 @@ const RateioGoogle: React.FC = () => {
           </div>
         </div>
       )}
+
+      <PasswordVerificationModal
+        isOpen={showActionPasswordModal}
+        onClose={() => {
+          setShowActionPasswordModal(false);
+          setPendingAction(null);
+          setPendingActionRateio(null);
+        }}
+        onSuccess={handleActionPasswordVerified}
+        title="Verificacao de Senha"
+        message={
+          pendingAction === 'edit'
+            ? "Digite sua senha para editar este usuario:"
+            : pendingAction === 'delete'
+              ? "Digite sua senha para excluir este usuario:"
+              : "Digite sua senha para visualizar os detalhes do usuario:"
+        }
+      />
 
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (

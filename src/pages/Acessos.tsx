@@ -32,7 +32,7 @@ const Acessos: React.FC = () => {
   const [showForm, setShowForm] = useState(() => getState('acessos_showForm') || false);
   const [showUpload, setShowUpload] = useState(() => getState('acessos_showUpload') || false);
   const [editingAccess, setEditingAccess] = useState<Access | null>(() => getState('acessos_editingAccess') || null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => getState('acessos_searchTerm') || '');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -40,8 +40,9 @@ const Acessos: React.FC = () => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
-  const [showViewPasswordModal, setShowViewPasswordModal] = useState(false);
-  const [pendingViewAccess, setPendingViewAccess] = useState<Access | null>(null);
+  const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
+  const [pendingActionAccess, setPendingActionAccess] = useState<Access | null>(null);
   const { user } = useAuth();
 
   const itemsPerPage = 10;
@@ -83,6 +84,11 @@ const Acessos: React.FC = () => {
   useEffect(() => {
     setState('acessos_viewingAccess', viewingAccess);
   }, [viewingAccess, setState]);
+
+  useEffect(() => {
+    setState('acessos_searchTerm', searchTerm);
+  }, [searchTerm, setState]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
@@ -130,17 +136,34 @@ const Acessos: React.FC = () => {
     }
   };
 
-  const handleViewWithVerification = useCallback((acesso: Access) => {
-    setPendingViewAccess(acesso);
-    setShowViewPasswordModal(true);
+  const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', acesso: Access) => {
+    setPendingAction(action);
+    setPendingActionAccess(acesso);
+    setShowActionPasswordModal(true);
   }, []);
 
-  const handleViewPasswordVerified = () => {
-    if (pendingViewAccess) {
-      setViewingAccess(pendingViewAccess);
-      setPendingViewAccess(null);
+  const handleActionPasswordVerified = useCallback(async () => {
+    if (!pendingAction || !pendingActionAccess) return;
+    const action = pendingAction;
+    const acesso = pendingActionAccess;
+
+    setShowActionPasswordModal(false);
+    setPendingAction(null);
+    setPendingActionAccess(null);
+
+    if (action === 'view') {
+      setViewingAccess(acesso);
+      return;
     }
-  };
+
+    if (action === 'edit') {
+      setEditingAccess(acesso);
+      setShowForm(true);
+      return;
+    }
+
+    await handleDelete(acesso.id);
+  }, [pendingAction, pendingActionAccess, handleDelete]);
 
   const filteredAcessosSorted = useMemo(() => {
     let filtered = acessos.filter((acesso) =>
@@ -217,11 +240,6 @@ const Acessos: React.FC = () => {
     clearState('acessos_showUpload');
   }, [fetchAcessos]);
 
-  const handleEdit = useCallback((acesso: Access) => {
-    setEditingAccess(acesso);
-    setShowForm(true);
-  }, []);
-
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingAccess(null);
@@ -232,10 +250,6 @@ const Acessos: React.FC = () => {
   const handleCancelUpload = useCallback(() => {
     setShowUpload(false);
     clearState('acessos_showUpload');
-  }, []);
-
-  const handleView = useCallback((acesso: Access) => {
-    handleViewWithVerification(acesso);
   }, []);
 
   const handleCloseView = useCallback(() => {
@@ -419,21 +433,21 @@ const Acessos: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button
-                        onClick={() => handleViewWithVerification(acesso)}
+                        onClick={() => requestActionVerification('view', acesso)}
                         className="text-neutral-600 hover:text-neutral-900"
                         title="Visualizar"
                       >
                         <Search className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button 
-                        onClick={() => handleEdit(acesso)} 
+                        onClick={() => requestActionVerification('edit', acesso)} 
                         className="text-primary-600 hover:text-primary-900"
                         title="Editar"
                       >
                         <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button 
-                        onClick={() => handleDelete(acesso.id)} 
+                        onClick={() => requestActionVerification('delete', acesso)} 
                         className="text-red-600 hover:text-red-900"
                         title="Excluir"
                       >
@@ -543,16 +557,22 @@ const Acessos: React.FC = () => {
       />
 
       <PasswordVerificationModal
-        isOpen={showViewPasswordModal}
+        isOpen={showActionPasswordModal}
         onClose={() => {
-          setShowViewPasswordModal(false);
-          setPendingViewAccess(null);
+          setShowActionPasswordModal(false);
+          setPendingAction(null);
+          setPendingActionAccess(null);
         }}
-        onSuccess={handleViewPasswordVerified}
-        title="Verificação de Senha"
-        message="Digite sua senha para visualizar os detalhes do acesso:"
+        onSuccess={handleActionPasswordVerified}
+        title="Verificacao de Senha"
+        message={
+          pendingAction === 'edit'
+            ? "Digite sua senha para editar este acesso:"
+            : pendingAction === 'delete'
+              ? "Digite sua senha para excluir este acesso:"
+              : "Digite sua senha para visualizar os detalhes do acesso:"
+        }
       />
-
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (
         <div 

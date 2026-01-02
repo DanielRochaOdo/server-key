@@ -32,7 +32,7 @@ const Pessoal: React.FC = () => {
   const [showForm, setShowForm] = useState(() => getState('pessoal_showForm') || false);
   const [showUpload, setShowUpload] = useState(() => getState('pessoal_showUpload') || false);
   const [editingPessoal, setEditingPessoal] = useState<Pessoal | null>(() => getState('pessoal_editingPessoal') || null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => getState('pessoal_searchTerm') || '');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -40,8 +40,9 @@ const Pessoal: React.FC = () => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
-  const [showViewPasswordModal, setShowViewPasswordModal] = useState(false);
-  const [pendingViewPessoal, setPendingViewPessoal] = useState<Pessoal | null>(null);
+  const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
+  const [pendingActionPessoal, setPendingActionPessoal] = useState<Pessoal | null>(null);
   const { user } = useAuth();
 
   const itemsPerPage = 10;
@@ -86,6 +87,11 @@ const Pessoal: React.FC = () => {
   useEffect(() => {
     setState('pessoal_viewingPessoal', viewingPessoal);
   }, [viewingPessoal, setState]);
+
+  useEffect(() => {
+    setState('pessoal_searchTerm', searchTerm);
+  }, [searchTerm, setState]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
@@ -133,17 +139,34 @@ const Pessoal: React.FC = () => {
     }
   };
 
-  const handleViewWithVerification = useCallback((pessoal: Pessoal) => {
-    setPendingViewPessoal(pessoal);
-    setShowViewPasswordModal(true);
+  const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', pessoal: Pessoal) => {
+    setPendingAction(action);
+    setPendingActionPessoal(pessoal);
+    setShowActionPasswordModal(true);
   }, []);
 
-  const handleViewPasswordVerified = () => {
-    if (pendingViewPessoal) {
-      setViewingPessoal(pendingViewPessoal);
-      setPendingViewPessoal(null);
+  const handleActionPasswordVerified = useCallback(async () => {
+    if (!pendingAction || !pendingActionPessoal) return;
+    const action = pendingAction;
+    const pessoal = pendingActionPessoal;
+
+    setShowActionPasswordModal(false);
+    setPendingAction(null);
+    setPendingActionPessoal(null);
+
+    if (action === 'view') {
+      setViewingPessoal(pessoal);
+      return;
     }
-  };
+
+    if (action === 'edit') {
+      setEditingPessoal(pessoal);
+      setShowForm(true);
+      return;
+    }
+
+    await handleDelete(pessoal.id);
+  }, [pendingAction, pendingActionPessoal, handleDelete]);
 
   const filteredPessoaisSorted = useMemo(() => {
     let filtered = pessoais.filter((pessoal) =>
@@ -216,11 +239,6 @@ const Pessoal: React.FC = () => {
     setShowUpload(false);
     clearState('pessoal_showUpload');
   }, [fetchPessoais]);
-
-  const handleEdit = useCallback((pessoal: Pessoal) => {
-    setEditingPessoal(pessoal);
-    setShowForm(true);
-  }, []);
 
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
@@ -421,21 +439,21 @@ const Pessoal: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button
-                        onClick={() => handleViewWithVerification(pessoal)}
+                        onClick={() => requestActionVerification('view', pessoal)}
                         className="text-neutral-600 hover:text-neutral-900"
                         title="Visualizar"
                       >
                         <Search className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button 
-                        onClick={() => handleEdit(pessoal)} 
+                        onClick={() => requestActionVerification('edit', pessoal)} 
                         className="text-primary-600 hover:text-primary-900"
                         title="Editar"
                       >
                         <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button 
-                        onClick={() => handleDelete(pessoal.id)} 
+                        onClick={() => requestActionVerification('delete', pessoal)} 
                         className="text-red-600 hover:text-red-900"
                         title="Excluir"
                       >
@@ -545,16 +563,22 @@ const Pessoal: React.FC = () => {
       />
 
       <PasswordVerificationModal
-        isOpen={showViewPasswordModal}
+        isOpen={showActionPasswordModal}
         onClose={() => {
-          setShowViewPasswordModal(false);
-          setPendingViewPessoal(null);
+          setShowActionPasswordModal(false);
+          setPendingAction(null);
+          setPendingActionPessoal(null);
         }}
-        onSuccess={handleViewPasswordVerified}
-        title="Verificação de Senha"
-        message="Digite sua senha para visualizar os detalhes do item:"
+        onSuccess={handleActionPasswordVerified}
+        title="Verificacao de Senha"
+        message={
+          pendingAction === 'edit'
+            ? "Digite sua senha para editar este item pessoal:"
+            : pendingAction === 'delete'
+              ? "Digite sua senha para excluir este item pessoal:"
+              : "Digite sua senha para visualizar os detalhes do item:"
+        }
       />
-
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (
         <div 
