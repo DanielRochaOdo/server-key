@@ -9,10 +9,14 @@ interface StatCardProps {
   bgColor: string;
   description?: string;
   onClick?: () => void;
+  className?: string;
 }
 
 interface DashboardStatsProps {
   stats: StatCardProps[];
+  className?: string;
+  cardClassName?: string;
+  layout?: 'grid' | 'row';
 }
 
 const StatCard: React.FC<StatCardProps> = ({ 
@@ -22,12 +26,13 @@ const StatCard: React.FC<StatCardProps> = ({
   color, 
   bgColor, 
   description,
-  onClick 
+  onClick,
+  className
 }) => (
   <div 
     className={`bg-white rounded-xl shadow-md p-4 sm:p-6 transition-all duration-200 hover:scale-105 ${
       onClick ? 'cursor-pointer hover:shadow-lg' : ''
-    }`}
+    } ${className || ''}`}
     onClick={onClick}
   >
     <div className="flex items-center">
@@ -45,11 +50,16 @@ const StatCard: React.FC<StatCardProps> = ({
   </div>
 );
 
-const DashboardStats: React.FC<DashboardStatsProps> = ({ stats }) => {
+const DashboardStats: React.FC<DashboardStatsProps> = ({ stats, className, cardClassName, layout = 'grid' }) => {
+  const containerClass =
+    layout === 'row'
+      ? 'flex flex-nowrap gap-4 overflow-x-auto pb-2 mb-6'
+      : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 mb-6';
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 mb-6">
+    <div className={`${containerClass} ${className || ''}`}>
       {stats.map((stat, index) => (
-        <StatCard key={index} {...stat} />
+        <StatCard key={index} {...stat} className={cardClassName} />
       ))}
     </div>
   );
