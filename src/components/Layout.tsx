@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -97,6 +97,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     
     if (hasModuleAccess('rateio_google')) {
       items.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail, module: 'rateio_google' });
+    }
+
+    if (hasModuleAccess('contas_a_pagar')) {
+      items.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText, module: 'contas_a_pagar' });
     }
 
     items.push({ name: 'Configuracoes', href: '/configuracoes', icon: Settings, module: null });

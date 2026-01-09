@@ -14,6 +14,7 @@ import WinUsers from './pages/WinUsers';
 import RateioClaro from './pages/RateioClaro';
 import RateioGoogle from './pages/RateioGoogle';
 import Configuracoes from './pages/Configuracoes';
+import ContasAPagar from './pages/ContasAPagar';
 
 function App() {
   return (
@@ -93,23 +94,31 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-            <Route
-              path="/rateio-google"
-              element={
-                <ProtectedRoute requiredModule="rateio_google">
-                  <RateioGoogle />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/contas-a-pagar"
+                element={
+                  <ProtectedRoute requiredModule="contas_a_pagar">
+                    <ContasAPagar />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rateio-google"
+                element={
+                  <ProtectedRoute requiredModule="rateio_google">
+                    <RateioGoogle />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/configuracoes"
-              element={
-                <ProtectedRoute adminOnly={false} requiredModule={null}>
-                  <Configuracoes />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/configuracoes"
+                element={
+                  <ProtectedRoute adminOnly={false} requiredModule={null}>
+                    <Configuracoes />
+                  </ProtectedRoute>
+                }
+              />
               
               {/* Default redirects */}
               <Route path="*" element={<Navigate to="/pessoal" replace />} />

@@ -115,7 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .single();
 
         if (error) {
-          console.error('❌ Error fetching user profile:', error);
+          console.error('Error fetching user profile:', error);
           
           if (error.code === 'PGRST116') {
             // User doesn't exist in public.users
@@ -131,7 +131,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return;
           }
         } else if (profile && mounted) {
-          console.log('✅ User profile loaded:', {
+          const modules = profile.modules || [];
+          const needsContasModule =
+            (profile.role === 'admin' || profile.role === 'financeiro') &&
+            !modules.includes('contas_a_pagar');
+
+          if (needsContasModule) {
+            const updatedModules = Array.from(new Set([...modules, 'contas_a_pagar']));
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({
+                modules: updatedModules,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', profile.id);
+
+            if (updateError) {
+              console.error('Error updating user modules:', updateError);
+            } else {
+              profile.modules = updatedModules;
+            }
+          }
+
+          console.log('User profile loaded:', {
             email: profile.email,
             role: profile.role,
             modules: profile.modules,

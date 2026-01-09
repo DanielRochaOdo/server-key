@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 
 interface PersistenceState {
   [key: string]: any;
@@ -33,34 +33,36 @@ export const PersistenceProvider: React.FC<{ children: ReactNode }> = ({ childre
     localStorage.setItem('app-persistence-state', JSON.stringify(state));
   }, [state]);
 
-  const getState = (key: string) => {
+  const getState = useCallback((key: string) => {
     return state[key];
-  };
+  }, [state]);
 
-  const setStateValue = (key: string, value: any) => {
+  const setStateValue = useCallback((key: string, value: any) => {
     setState(prev => ({ ...prev, [key]: value }));
-  };
+  }, []);
 
-  const clearState = (key: string) => {
+  const clearState = useCallback((key: string) => {
     setState(prev => {
       const newState = { ...prev };
       delete newState[key];
       return newState;
     });
-  };
+  }, []);
 
-  const clearAllStates = () => {
+  const clearAllStates = useCallback(() => {
     setState({});
     localStorage.removeItem('app-persistence-state');
-  };
+  }, []);
+
+  const contextValue = useMemo(() => ({
+    getState,
+    setState: setStateValue,
+    clearState,
+    clearAllStates
+  }), [getState, setStateValue, clearState, clearAllStates]);
 
   return (
-    <PersistenceContext.Provider value={{
-      getState,
-      setState: setStateValue,
-      clearState,
-      clearAllStates
-    }}>
+    <PersistenceContext.Provider value={contextValue}>
       {children}
     </PersistenceContext.Provider>
   );

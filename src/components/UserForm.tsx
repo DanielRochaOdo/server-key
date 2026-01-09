@@ -81,9 +81,9 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   const getModulesByRole = (role: string): string[] => {
     switch (role) {
       case 'admin':
-        return ['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google'];
+        return ['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'contas_a_pagar'];
       case 'financeiro':
-        return ['rateio_claro', 'rateio_google'];
+        return ['rateio_claro', 'rateio_google', 'contas_a_pagar'];
       case 'usuario':
         return ['pessoal'];
       default:

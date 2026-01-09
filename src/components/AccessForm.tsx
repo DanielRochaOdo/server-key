@@ -15,7 +15,6 @@ interface Access {
   observacao?: string;
   suporte_contato?: string;
   email?: string;
-  dia_pagamento?: number;
 }
 
 interface AccessFormProps {
@@ -34,7 +33,6 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
     observacao: '',
     suporte_contato: '',
     email: '',
-    dia_pagamento: 0,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -71,7 +69,6 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
           observacao: access.observacao || '',
           suporte_contato: access.suporte_contato || '',
           email: access.email || '',
-          dia_pagamento: access.dia_pagamento || 0,
         };
       } else {
         return {
@@ -83,7 +80,6 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
           observacao: '',
           suporte_contato: '',
           email: '',
-          dia_pagamento: 0,
         };
       }
     });
@@ -107,14 +103,6 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
     }));
   };
 
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ 
-      ...prev, 
-      [name]: parseInt(value) || 0 
-    }));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -129,7 +117,6 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
       const dataToSave = {
         ...formData,
         senha: processedPassword,
-        dia_pagamento: formData.dia_pagamento || null,
         user_id: user.id,
         updated_at: new Date().toISOString(),
       };
@@ -307,27 +294,6 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
               />
-            </div>
-
-            <div>
-              <label htmlFor="dia_pagamento" className="block text-sm font-medium text-neutral-700 mb-2">
-                Dia de Pagamento
-              </label>
-              <select
-                id="dia_pagamento"
-                name="dia_pagamento"
-                value={formData.dia_pagamento}
-                onChange={handleSelectChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
-              >
-                <option value={0}>Selecione o dia</option>
-                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                  <option key={day} value={day}>
-                    Dia {day}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div className="md:col-span-2">
