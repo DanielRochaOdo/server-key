@@ -57,7 +57,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
     if (norm.includes('nao') && norm.includes('emitido')) return STATUS_OPTIONS[0];
     if (norm.includes('emitido') && norm.includes('pendente')) return STATUS_OPTIONS[1];
     if (norm.includes('enviado') && norm.includes('financeiro')) return STATUS_OPTIONS[2];
-    return null;
+    return STATUS_OPTIONS[0];
   };
 
   const normalizeDay = (value: any): number | null => {
@@ -133,7 +133,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
           const key = mapHeader(headers[idx]);
           if (key === 'status_documento') {
             const raw = val?.toString().trim() || '';
-            row.status_documento = raw ? normalizeStatus(raw) : null;
+            row.status_documento = raw ? normalizeStatus(raw) : STATUS_OPTIONS[0];
           } else if (key === 'valor') {
             row.valor = normalizeValor(val);
           } else if (key === 'vencimento') {
@@ -184,7 +184,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
           const key = mapHeader(headers[idx]);
           if (key === 'status_documento') {
             const raw = val?.toString().trim() || '';
-            row.status_documento = raw ? normalizeStatus(raw) : null;
+            row.status_documento = raw ? normalizeStatus(raw) : STATUS_OPTIONS[0];
           } else if (key === 'valor') {
             row.valor = normalizeValor(val);
           } else if (key === 'vencimento') {
@@ -203,7 +203,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
         if (hasAnyValue) {
           const parsedValor = row.valor ? Number(row.valor) : Number.NaN;
           rows.push({
-            status_documento: row.status_documento || null,
+            status_documento: row.status_documento || STATUS_OPTIONS[0],
             fornecedor: row.fornecedor || null,
             descricao: row.descricao || null,
             valor: Number.isFinite(parsedValor) ? parsedValor : null,
