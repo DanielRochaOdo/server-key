@@ -6,11 +6,23 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+const normalizeRole = (role: string) => {
+  const value = (role || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+  if (value === 'administrador') return 'admin'
+  if (value === 'admin') return 'admin'
+  if (value === 'financeiro') return 'financeiro'
+  if (value === 'usuario') return 'usuario'
+  return ''
+}
+
 interface CreateUserRequest {
   email: string
   password: string
   name: string
-  role: 'admin' | 'financeiro' | 'usuario'
+  role: string
   is_active: boolean
 }
 
@@ -61,8 +73,9 @@ Deno.serve(async (req) => {
 
     // Get request body
     const { email, password, name, role, is_active }: CreateUserRequest = await req.json()
+    const normalizedRole = normalizeRole(role)
 
-    console.log('📝 Request received:', { email, name, role, is_active })
+    console.log('📝 Request received:', { email, name, role: normalizedRole || role, is_active })
 
     // Validate required fields
     if (!email || !password || !name || !role) {
@@ -77,7 +90,7 @@ Deno.serve(async (req) => {
     }
 
     // Validate role
-    if (!['admin', 'financeiro', 'usuario'].includes(role)) {
+    if (!['admin', 'financeiro', 'usuario'].includes(normalizedRole)) {
       console.log('❌ Invalid role:', role)
       return new Response(
         JSON.stringify({ error: 'Invalid role. Must be admin, financeiro, or usuario' }),
@@ -101,32 +114,6 @@ Deno.serve(async (req) => {
     )
 
     console.log('🔍 Checking for existing users with email:', email)
-
-    // Check if user already exists in auth.users
-    const { data: existingAuthUser, error: authCheckError } = await supabaseAdmin.auth.admin.getUserByEmail(email)
-    
-    if (authCheckError) {
-      console.error('❌ Error checking existing auth user:', authCheckError)
-      return new Response(
-        JSON.stringify({ error: `Database error: ${authCheckError.message}` }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
-    }
-
-    if (existingAuthUser.user) {
-      console.log('❌ User already exists in auth.users')
-      return new Response(
-        JSON.stringify({ error: 'User with this email already exists' }),
-        { 
-          status: 409, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
-    }
-
     // Check if user already exists in public.users
     const { data: existingPublicUser, error: publicCheckError } = await supabaseAdmin
       .from('users')
@@ -160,19 +147,19 @@ Deno.serve(async (req) => {
 
     // Define modules based on role
     let modules: string[] = []
-    switch (role) {
+    switch (normalizedRole) {
       case 'admin':
-        modules = ['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google']
+        modules = ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'contas_a_pagar']
         break
       case 'financeiro':
         modules = ['rateio_claro', 'rateio_google']
         break
       case 'usuario':
-        modules = ['acessos', 'teams', 'win_users']
+        modules = ['acessos', 'pessoal', 'teams', 'win_users']
         break
     }
 
-    console.log('📝 Creating auth user with role:', role, 'and modules:', modules)
+    console.log('📝 Creating auth user with role:', normalizedRole, 'and modules:', modules)
 
     // Create user in auth.users
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -181,17 +168,27 @@ Deno.serve(async (req) => {
       email_confirm: true, // Auto-confirm email
       user_metadata: {
         name,
-        role
+        role: normalizedRole
       }
     })
 
     if (authError) {
-      console.error('❌ Auth error:', authError)
+      console.error('??O Auth error:', authError)
+      const message = authError.message?.toLowerCase() || ''
+      if (message.includes('already') || message.includes('exists')) {
+        return new Response(
+          JSON.stringify({ error: 'User with this email already exists' }),
+          {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
       return new Response(
         JSON.stringify({ error: `Failed to create auth user: ${authError.message}` }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
     }
@@ -215,7 +212,7 @@ Deno.serve(async (req) => {
       .insert({
         email,
         name,
-        role,
+        role: normalizedRole,
         modules,
         is_active: is_active ?? true,
         auth_uid: authUser.user.id,
@@ -262,7 +259,7 @@ Deno.serve(async (req) => {
       authUserId: authUser.user.id,
       publicUserId: publicUser.id,
       email,
-      role,
+      role: normalizedRole,
       modules
     })
 

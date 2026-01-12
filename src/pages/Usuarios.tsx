@@ -3,6 +3,7 @@ import { Plus, Pencil, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import UserForm from '../components/UserForm';
 import { usePersistence } from '../contexts/PersistenceContext';
+import { getRoleLabel, normalizeRole } from '../utils/roles';
 
 interface User {
   id: string;
@@ -116,7 +117,7 @@ const Usuarios: React.FC = () => {
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-900">{user.name}</td>
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-700">{user.email}</td>
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-700">
-                      {user.role === 'admin' ? 'Administrador' : user.role === 'financeiro' ? 'Financeiro' : 'Usuario'}
+                      {getRoleLabel(normalizeRole(user.role))}
                     </td>
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm">
                       <span

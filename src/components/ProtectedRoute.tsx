@@ -16,7 +16,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   adminOnly = false 
 }) => {
   const { user, loading: authLoading } = useRequireAuth();
-  const { userProfile, hasModuleAccess, isAdmin, loadingProfile } = useAuth();
+  const { userProfile, hasModuleAccess, isAdmin, isUsuario, loadingProfile } = useAuth();
 
   // Show loading while checking authentication
   if (authLoading) {
@@ -37,14 +37,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Special handling for dashboard - redirect usuarios to pessoal
   const isDashboardRoute = window.location.pathname === '/dashboard';
-  if (isDashboardRoute && userProfile?.role === 'usuario') {
+  if (isDashboardRoute && isUsuario()) {
     window.location.href = '/pessoal';
     return null;
   }
 
   // Special handling for root route - redirect usuarios to pessoal
   const isRootRoute = window.location.pathname === '/';
-  if (isRootRoute && userProfile?.role === 'usuario') {
+  if (isRootRoute && isUsuario()) {
     window.location.href = '/pessoal';
     return null;
   }

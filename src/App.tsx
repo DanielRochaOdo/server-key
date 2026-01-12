@@ -97,7 +97,7 @@ function App() {
               <Route
                 path="/contas-a-pagar"
                 element={
-                  <ProtectedRoute requiredModule="contas_a_pagar">
+                  <ProtectedRoute requiredModule="contas_a_pagar" adminOnly={true}>
                     <ContasAPagar />
                   </ProtectedRoute>
                 }

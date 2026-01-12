@@ -7,6 +7,7 @@ interface ContaAPagar {
   id: string;
   status_documento: string;
   fornecedor: string;
+  link?: string | null;
   descricao: string;
   valor: string | number;
   vencimento?: number | null;
@@ -29,6 +30,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
   const [formData, setFormData] = useState({
     status_documento: STATUS_OPTIONS[0],
     fornecedor: '',
+    link: '',
     descricao: '',
     valor: '',
     vencimento: '',
@@ -92,6 +94,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
       setFormData({
         status_documento: conta.status_documento || STATUS_OPTIONS[0],
         fornecedor: conta.fornecedor || '',
+        link: conta.link || '',
         descricao: conta.descricao || '',
         valor: Number.isFinite(parsedValor) ? formatBRL(parsedValor) : '',
         vencimento: conta.vencimento !== null && conta.vencimento !== undefined ? String(conta.vencimento) : '',
@@ -101,6 +104,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
       setFormData({
         status_documento: STATUS_OPTIONS[0],
         fornecedor: '',
+        link: '',
         descricao: '',
         valor: '',
         vencimento: '',
@@ -150,10 +154,12 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
         normalizedVencimento = Math.trunc(parsedDay);
       }
 
+      const normalizedLink = formData.link ? formData.link.trim() : '';
       const dataToSave = {
         ...formData,
         valor: parsedValor,
         vencimento: normalizedVencimento,
+        link: normalizedLink ? normalizedLink : null,
         observacoes: formData.observacoes || null,
         user_id: user.id,
         updated_at: new Date().toISOString()
@@ -264,6 +270,22 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
                 disabled={loading}
                 inputMode="numeric"
                 placeholder="R$ 0,00"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label htmlFor="link" className="block text-sm font-medium text-neutral-700 mb-2">
+                Link
+              </label>
+              <input
+                type="text"
+                id="link"
+                name="link"
+                value={formData.link}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={loading}
+                placeholder="https://..."
               />
             </div>
 

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
+import { normalizeRole, getRoleLabel } from '../utils/roles';
 
 interface UserProfileExtended {
   nome?: string;
@@ -99,7 +100,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       items.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail, module: 'rateio_google' });
     }
 
-    if (hasModuleAccess('contas_a_pagar')) {
+    if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
       items.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText, module: 'contas_a_pagar' });
     }
 
@@ -109,13 +110,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const getRoleBadge = (role: string) => {
+    const normalized = normalizeRole(role);
     const badges = {
-      admin: { label: 'Admin', color: 'bg-red-100 text-red-800' },
+      admin: { label: 'Administrador', color: 'bg-red-100 text-red-800' },
       financeiro: { label: 'Financeiro', color: 'bg-blue-100 text-blue-800' },
-      usuario: { label: 'Usuário', color: 'bg-green-100 text-green-800' },
+      usuario: { label: 'Usuario', color: 'bg-green-100 text-green-800' },
     };
-    
-    return badges[role as keyof typeof badges] || badges.usuario;
+
+    return badges[normalized as keyof typeof badges] || {
+      label: getRoleLabel(role) || 'Usuario',
+      color: 'bg-green-100 text-green-800',
+    };
   };
 
   if (!userProfile) {

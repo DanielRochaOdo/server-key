@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, Eye, EyeOff, Lock, Mail, Phone, Save, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { normalizeRole, getRoleLabel as getRoleLabelText } from '../utils/roles';
 
 interface UserProfileData {
   id: string;
@@ -72,15 +73,12 @@ const Configuracoes: React.FC = () => {
     setSuccess('');
   };
 
-  const getRoleLabel = (role: string) => {
-    if (role === 'admin') return 'Administrador';
-    if (role === 'financeiro') return 'Financeiro';
-    return 'Usuario';
-  };
+  const getRoleLabel = (role: string) => getRoleLabelText(role);
 
   const getRoleBadgeClass = (role: string) => {
-    if (role === 'admin') return 'bg-red-100 text-red-800';
-    if (role === 'financeiro') return 'bg-blue-100 text-blue-800';
+    const normalized = normalizeRole(role);
+    if (normalized === 'admin') return 'bg-red-100 text-red-800';
+    if (normalized === 'financeiro') return 'bg-blue-100 text-blue-800';
     return 'bg-green-100 text-green-800';
   };
 
