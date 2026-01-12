@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle } from 'lucide-react';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
 import DashboardStats from '../components/DashboardStats';
@@ -37,8 +37,7 @@ const ContasAPagar: React.FC = () => {
   const [sortConfig, setSortConfig] = useState<{
     key: 'fornecedor' | 'status_documento' | 'valor' | 'vencimento' | null;
     direction: 'asc' | 'desc';
-  }>({ key: null, direction: 'asc' });
-  const [currentPage, setCurrentPage] = useState(1);
+  }>({ key: 'vencimento', direction: 'asc' });
   const [viewingConta, setViewingConta] = useState<ContaAPagar | null>(() => getState('contasAPagar_viewingConta') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
@@ -47,8 +46,6 @@ const ContasAPagar: React.FC = () => {
   const [updatingStatusIds, setUpdatingStatusIds] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showNextWeekModal, setShowNextWeekModal] = useState(false);
-
-  const itemsPerPage = 10;
 
   const fetchContas = useCallback(async () => {
     try {
@@ -91,9 +88,6 @@ const ContasAPagar: React.FC = () => {
     setState('contasAPagar_searchTerm', searchTerm);
   }, [searchTerm, setState]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
 
   const getDayValue = (value: number | null | undefined) => {
     if (value === null || value === undefined) return null;
@@ -213,8 +207,14 @@ const ContasAPagar: React.FC = () => {
       id: conta.id,
       fornecedor: conta.fornecedor || 'Fornecedor nao informado',
       vencimento: conta.vencimento ?? null,
+      status: conta.status_documento || '',
     }));
-    return entries.sort((a, b) => a.fornecedor.localeCompare(b.fornecedor));
+    return entries.sort((a, b) => {
+      const aDay = a.vencimento ?? 0;
+      const bDay = b.vencimento ?? 0;
+      if (aDay !== bDay) return aDay - bDay;
+      return a.fornecedor.localeCompare(b.fornecedor);
+    });
   }, [nextWeekEntries]);
 
   const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', conta: ContaAPagar) => {
@@ -338,12 +338,7 @@ const ContasAPagar: React.FC = () => {
     setShowExportMenu(false);
   }, [filteredContasSorted, searchTerm]);
 
-  const currentItems = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredContasSorted.slice(start, start + itemsPerPage);
-  }, [filteredContasSorted, currentPage, itemsPerPage]);
-
-  const totalPages = Math.ceil(filteredContasSorted.length / itemsPerPage);
+  const currentItems = filteredContasSorted;
 
   const handleFormSuccess = useCallback(() => {
     fetchContas();
@@ -574,12 +569,12 @@ const ContasAPagar: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-neutral-200">
+          <table className="min-w-full divide-y divide-neutral-200 text-[11px]">
             <thead className="bg-neutral-50">
               <tr>
                 <th
                   onClick={() => toggleSort('fornecedor')}
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
+                  className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
                 >
                   <div className="flex items-center">
                     Fornecedor
@@ -588,17 +583,17 @@ const ContasAPagar: React.FC = () => {
                 </th>
                 <th
                   onClick={() => toggleSort('status_documento')}
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
+                  className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-28"
                 >
                   <div className="flex items-center">
-                    Status do Documento
+                    Status
                     {getSortIcon('status_documento')}
                   </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Descricao</th>
+                <th className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider">Descricao</th>
                 <th
                   onClick={() => toggleSort('valor')}
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
+                  className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
                 >
                   <div className="flex items-center">
                     Valor
@@ -607,31 +602,32 @@ const ContasAPagar: React.FC = () => {
                 </th>
                 <th
                   onClick={() => toggleSort('vencimento')}
-                  className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
+                  className="hidden sm:table-cell px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-20"
                 >
                   <div className="flex items-center">
                     Vencimento
                     {getSortIcon('vencimento')}
                   </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Acoes</th>
+                <th className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider w-28">
+                  Acoes
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
               {currentItems.map((conta) => (
-                <tr key={conta.id} className="hover:bg-neutral-50 transition-colors duration-150">
-                  <td className="px-3 sm:px-6 py-4">
-                    <div className="text-xs sm:text-sm font-medium text-neutral-900 truncate max-w-[160px] sm:max-w-none">{conta.fornecedor || '-'}</div>
+                <tr key={conta.id} className="group hover:bg-neutral-50 transition-colors duration-150">
+                  <td className="px-2 py-2">
+                    <div className="font-medium text-neutral-900 truncate max-w-[140px] sm:max-w-none">{conta.fornecedor || '-'}</div>
                   </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
+                  <td className="px-2 py-2 whitespace-nowrap text-neutral-600">
                     <select
-                      value={conta.status_documento || ''}
+                      value={conta.status_documento || 'Nao emitido'}
                       onChange={(e) => handleStatusChange(conta.id, e.target.value)}
                       disabled={updatingStatusIds.has(conta.id)}
-                      className={`border rounded-lg px-2 py-1 text-xs sm:text-sm disabled:opacity-60 ${getStatusColorClasses(conta.status_documento)}`}
+                      className={`border rounded-lg px-2 py-1 w-28 disabled:opacity-60 ${getStatusColorClasses(conta.status_documento || 'Nao emitido')}`}
                       aria-label="Status do documento"
                     >
-                      <option value="">Sem status</option>
                       {STATUS_OPTIONS.map((status) => (
                         <option key={status} value={status}>
                           {status}
@@ -639,14 +635,14 @@ const ContasAPagar: React.FC = () => {
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 sm:px-6 py-4">
-                    <div className="text-xs sm:text-sm text-neutral-600 truncate max-w-[180px] sm:max-w-none">{conta.descricao || '-'}</div>
+                  <td className="px-2 py-2">
+                    <div className="text-neutral-600 truncate max-w-[160px] sm:max-w-none">{conta.descricao || '-'}</div>
                   </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">{formatCurrency(conta.valor)}</td>
-                  <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
+                  <td className="px-2 py-2 whitespace-nowrap text-neutral-600">{formatCurrency(conta.valor)}</td>
+                  <td className="hidden sm:table-cell px-2 py-2 whitespace-nowrap text-neutral-600 w-20">
                     {formatDay(conta.vencimento)}
                   </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
+                  <td className="px-2 py-2 whitespace-nowrap font-medium w-28">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button
                         onClick={() => requestActionVerification('view', conta)}
@@ -687,35 +683,6 @@ const ContasAPagar: React.FC = () => {
           )}
         </div>
 
-        {totalPages > 1 && (
-          <div className="flex justify-between items-center p-3 sm:p-4 border-t border-neutral-200">
-            <button
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
-                currentPage === 1
-                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                  : 'bg-primary-600 text-white hover:bg-primary-700'
-              }`}
-            >
-              Anterior
-            </button>
-            <span className="text-xs sm:text-sm text-neutral-600">
-              Pagina {currentPage} de {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
-                currentPage === totalPages
-                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                  : 'bg-primary-600 text-white hover:bg-primary-700'
-              }`}
-            >
-              Proxima
-            </button>
-          </div>
-        )}
       </div>
 
       {showForm && (
@@ -800,7 +767,12 @@ const ContasAPagar: React.FC = () => {
                 {nextWeekSuppliers.map((item) => (
                   <li key={item.id} className="border border-neutral-200 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
                     <span>{item.fornecedor}</span>
-                    <span className="text-neutral-500">Dia {formatDay(item.vencimento)}</span>
+                    <div className="flex items-center gap-2 text-neutral-500">
+                      <span>Dia {formatDay(item.vencimento)}</span>
+                      {item.status === 'Enviado financeiro' && (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
