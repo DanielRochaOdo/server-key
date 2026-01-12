@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { normalizeRole } from '../utils/roles';
 
 interface User {
   id: string;
@@ -53,7 +54,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
         return {
           email: user.email || '',
           name: user.name || '',
-          role: user.role || 'usuario',
+          role: (normalizeRole(user.role) || 'usuario') as 'admin' | 'financeiro' | 'usuario',
           is_active: user.is_active ?? true,
           password: '', // Never pre-fill password for security
         };
@@ -79,11 +80,11 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   }, [formData, persistenceKey]);
 
   const getModulesByRole = (role: string): string[] => {
-    switch (role) {
+    switch (normalizeRole(role)) {
       case 'admin':
         return ['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'contas_a_pagar'];
       case 'financeiro':
-        return ['rateio_claro', 'rateio_google', 'contas_a_pagar'];
+        return ['rateio_claro', 'rateio_google'];
       case 'usuario':
         return ['pessoal'];
       default:
@@ -94,7 +95,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   const roleLabels = {
     admin: 'Administrador',
     financeiro: 'Financeiro',
-    usuario: 'Usuário',
+    usuario: 'Usuario',
   };
 
 
@@ -112,6 +113,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     setLoading(true);
     setError('');
 
+    const normalizedRole = normalizeRole(formData.role);
+
     try {
       if (user) {
         // For updates, use direct Supabase call to update public.users only
@@ -120,8 +123,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           .update({
             email: formData.email,
             name: formData.name,
-            role: formData.role,
-            modules: getModulesByRole(formData.role),
+            role: normalizedRole || 'usuario',
+            modules: getModulesByRole(normalizedRole || 'usuario'),
             is_active: formData.is_active,
             updated_at: new Date().toISOString(),
           })
@@ -144,7 +147,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             email: formData.email,
             password: formData.password,
             name: formData.name,
-            role: formData.role,
+            role: normalizedRole || 'usuario',
             is_active: formData.is_active,
           }),
         });
@@ -158,7 +161,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           } else if (response.status === 400) {
             throw new Error(responseData.error || 'Dados inválidos fornecidos');
           } else {
-            throw new Error(responseData.error || 'Erro interno do servidor');
+            const details = responseData?.details ? ` (${responseData.details})` : '';
+            throw new Error(`${responseData.error || 'Erro interno do servidor'}${details}`);
           }
         }
         

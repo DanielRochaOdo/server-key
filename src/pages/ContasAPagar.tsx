@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle } from 'lucide-react';
+import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, ExternalLink } from 'lucide-react';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
 import DashboardStats from '../components/DashboardStats';
@@ -12,6 +12,7 @@ interface ContaAPagar {
   id: string;
   status_documento: string | null;
   fornecedor: string | null;
+  link?: string | null;
   descricao: string | null;
   valor: string | number | null;
   vencimento?: number | null;
@@ -52,7 +53,7 @@ const ContasAPagar: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('contas_a_pagar')
-        .select('id, status_documento, fornecedor, descricao, valor, vencimento, observacoes, created_at')
+        .select('id, status_documento, fornecedor, link, descricao, valor, vencimento, observacoes, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -250,6 +251,7 @@ const ContasAPagar: React.FC = () => {
     const term = searchTerm.toLowerCase();
     let filtered = contas.filter((conta) =>
       (conta.fornecedor || '').toLowerCase().includes(term) ||
+      (conta.link || '').toLowerCase().includes(term) ||
       (conta.descricao || '').toLowerCase().includes(term) ||
       (conta.status_documento || '').toLowerCase().includes(term) ||
       (conta.observacoes || '').toLowerCase().includes(term)
@@ -304,6 +306,7 @@ const ContasAPagar: React.FC = () => {
       const templateData = [{
         'STATUS DO DOCUMENTO': STATUS_OPTIONS[0],
         'FORNECEDOR': '',
+        'LINK': '',
         'Descricao': '',
         'Valor': '',
         'Vencimento': '',
@@ -317,6 +320,7 @@ const ContasAPagar: React.FC = () => {
       const dataToExport = filteredContasSorted.map((conta) => ({
         'STATUS DO DOCUMENTO': conta.status_documento || '',
         'FORNECEDOR': conta.fornecedor || '',
+        'LINK': conta.link || '',
         'Descricao': conta.descricao || '',
         'Valor': conta.valor ?? '',
         'Vencimento': conta.vencimento ?? '',
@@ -581,16 +585,19 @@ const ContasAPagar: React.FC = () => {
                     {getSortIcon('fornecedor')}
                   </div>
                 </th>
+                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-12">
+                  Link
+                </th>
                 <th
                   onClick={() => toggleSort('status_documento')}
-                  className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-28"
+                  className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-36"
                 >
                   <div className="flex items-center">
                     Status
                     {getSortIcon('status_documento')}
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider">Descricao</th>
+                <th className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider w-32">Descricao</th>
                 <th
                   onClick={() => toggleSort('valor')}
                   className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
@@ -620,12 +627,33 @@ const ContasAPagar: React.FC = () => {
                   <td className="px-2 py-2">
                     <div className="font-medium text-neutral-900 truncate max-w-[140px] sm:max-w-none">{conta.fornecedor || '-'}</div>
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-neutral-600">
+                  <td className="px-2 py-2 text-center w-12">
+                    {conta.link ? (
+                      <a
+                        href={conta.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center text-primary-600 hover:text-primary-900"
+                        title="Abrir link"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    ) : (
+                      <span
+                        className="inline-flex items-center justify-center text-neutral-300"
+                        title="Sem link"
+                        aria-hidden="true"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-36">
                     <select
                       value={conta.status_documento || 'Nao emitido'}
                       onChange={(e) => handleStatusChange(conta.id, e.target.value)}
                       disabled={updatingStatusIds.has(conta.id)}
-                      className={`border rounded-lg px-2 py-1 w-28 disabled:opacity-60 ${getStatusColorClasses(conta.status_documento || 'Nao emitido')}`}
+                      className={`border rounded-lg px-2 py-1 w-36 disabled:opacity-60 ${getStatusColorClasses(conta.status_documento || 'Nao emitido')}`}
                       aria-label="Status do documento"
                     >
                       {STATUS_OPTIONS.map((status) => (
@@ -635,8 +663,8 @@ const ContasAPagar: React.FC = () => {
                       ))}
                     </select>
                   </td>
-                  <td className="px-2 py-2">
-                    <div className="text-neutral-600 truncate max-w-[160px] sm:max-w-none">{conta.descricao || '-'}</div>
+                  <td className="px-2 py-2 w-32">
+                    <div className="text-neutral-600 truncate max-w-[120px] sm:max-w-none">{conta.descricao || '-'}</div>
                   </td>
                   <td className="px-2 py-2 whitespace-nowrap text-neutral-600">{formatCurrency(conta.valor)}</td>
                   <td className="hidden sm:table-cell px-2 py-2 whitespace-nowrap text-neutral-600 w-20">
@@ -707,6 +735,22 @@ const ContasAPagar: React.FC = () => {
             <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700">
               <div><strong>Status do Documento:</strong> {viewingConta.status_documento || '-'}</div>
               <div><strong>Fornecedor:</strong> {viewingConta.fornecedor || '-'}</div>
+              <div>
+                <strong>Link:</strong>{' '}
+                {viewingConta.link ? (
+                  <a
+                    href={viewingConta.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-900"
+                  >
+                    Abrir
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  '-'
+                )}
+              </div>
               <div><strong>Descricao:</strong> {viewingConta.descricao || '-'}</div>
               <div><strong>Valor:</strong> {formatCurrency(viewingConta.valor)}</div>
               <div><strong>Vencimento:</strong> {formatDay(viewingConta.vencimento)}</div>

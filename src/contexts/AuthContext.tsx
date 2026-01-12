@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
+import { normalizeRole } from '../utils/roles';
 
 interface UserProfile {
   id: string;
@@ -131,10 +132,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return;
           }
         } else if (profile && mounted) {
+          const normalizedRole = normalizeRole(profile.role);
           const modules = profile.modules || [];
           const needsContasModule =
-            (profile.role === 'admin' || profile.role === 'financeiro') &&
-            !modules.includes('contas_a_pagar');
+            normalizedRole === 'admin' && !modules.includes('contas_a_pagar');
 
           if (needsContasModule) {
             const updatedModules = Array.from(new Set([...modules, 'contas_a_pagar']));
@@ -153,13 +154,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
 
+          const normalizedProfile = {
+            ...profile,
+            role: normalizedRole || profile.role,
+          };
+
           console.log('User profile loaded:', {
             email: profile.email,
-            role: profile.role,
+            role: normalizedProfile.role,
             modules: profile.modules,
             active: profile.is_active
           });
-          setUserProfile(profile);
+          setUserProfile(normalizedProfile);
         }
       } catch (error) {
         console.error('❌ Unexpected error fetching user profile:', error);
@@ -257,15 +263,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isAdmin = (): boolean => {
-    return userProfile?.role === 'admin' && userProfile?.is_active === true;
+    return normalizeRole(userProfile?.role) === 'admin' && userProfile?.is_active === true;
   };
 
   const isFinanceiro = (): boolean => {
-    return userProfile?.role === 'financeiro' && userProfile?.is_active === true;
+    return normalizeRole(userProfile?.role) === 'financeiro' && userProfile?.is_active === true;
   };
 
   const isUsuario = (): boolean => {
-    return userProfile?.role === 'usuario' && userProfile?.is_active === true;
+    return normalizeRole(userProfile?.role) === 'usuario' && userProfile?.is_active === true;
   };
 
   const contextValue: AuthContextData = {

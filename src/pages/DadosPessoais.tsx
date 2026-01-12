@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Save, AlertCircle, Lock, Phone, Mail, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { normalizeRole, getRoleLabel } from '../utils/roles';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 
 interface UserProfileData {
@@ -159,13 +160,17 @@ const DadosPessoais: React.FC = () => {
   };
 
   const getRoleBadge = (role: string) => {
+    const normalized = normalizeRole(role);
     const badges = {
       admin: { label: 'Administrador', color: 'bg-red-100 text-red-800' },
       financeiro: { label: 'Financeiro', color: 'bg-blue-100 text-blue-800' },
-      usuario: { label: 'Usuário', color: 'bg-green-100 text-green-800' },
+      usuario: { label: 'Usuario', color: 'bg-green-100 text-green-800' },
     };
-    
-    return badges[role as keyof typeof badges] || badges.usuario;
+
+    return badges[normalized as keyof typeof badges] || {
+      label: getRoleLabel(role) || 'Usuario',
+      color: 'bg-green-100 text-green-800',
+    };
   };
 
   if (loading) {

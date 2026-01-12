@@ -12,6 +12,7 @@ interface ContasAPagarFileUploadProps {
 interface ParsedRow {
   status_documento?: string | null;
   fornecedor?: string | null;
+  link?: string | null;
   descricao?: string | null;
   valor?: string | null;
   vencimento?: number | null;
@@ -44,6 +45,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
 
     if (norm.includes('status') && norm.includes('documento')) return 'status_documento';
     if (norm.includes('fornecedor') || norm.includes('supplier')) return 'fornecedor';
+    if (norm.includes('link') || norm.includes('url')) return 'link';
     if (norm.includes('descricao') || norm.includes('description')) return 'descricao';
     if (norm.includes('valor') || norm.includes('value') || norm.includes('amount')) return 'valor';
     if (norm.includes('vencimento') || norm.includes('due')) return 'vencimento';
@@ -205,6 +207,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
           rows.push({
             status_documento: row.status_documento || STATUS_OPTIONS[0],
             fornecedor: row.fornecedor || null,
+            link: row.link || null,
             descricao: row.descricao || null,
             valor: Number.isFinite(parsedValor) ? parsedValor : null,
             vencimento: row.vencimento ?? null,
