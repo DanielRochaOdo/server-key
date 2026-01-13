@@ -6,11 +6,12 @@ import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
 import { usePersistence } from '../contexts/PersistenceContext';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 interface ContaAPagar {
   id: string;
   status_documento: string | null;
+  tipo_pagto: string | null;
   fornecedor: string | null;
   link?: string | null;
   descricao: string | null;
@@ -24,6 +25,11 @@ const STATUS_OPTIONS = [
   'Nao emitido',
   'Emitido pendente assinatura',
   'Enviado financeiro'
+];
+
+const PAGTO_OPTIONS = [
+  'Boleto',
+  'CARTAO',
 ];
 
 const ContasAPagar: React.FC = () => {
@@ -53,7 +59,7 @@ const ContasAPagar: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('contas_a_pagar')
-        .select('id, status_documento, fornecedor, link, descricao, valor, vencimento, observacoes, created_at')
+        .select('id, status_documento, fornecedor, tipo_pagto, link, descricao, valor, vencimento, observacoes, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -251,6 +257,7 @@ const ContasAPagar: React.FC = () => {
     const term = searchTerm.toLowerCase();
     let filtered = contas.filter((conta) =>
       (conta.fornecedor || '').toLowerCase().includes(term) ||
+      (conta.tipo_pagto || '').toLowerCase().includes(term) ||
       (conta.link || '').toLowerCase().includes(term) ||
       (conta.descricao || '').toLowerCase().includes(term) ||
       (conta.status_documento || '').toLowerCase().includes(term) ||
@@ -301,46 +308,382 @@ const ContasAPagar: React.FC = () => {
     return filtered;
   }, [contas, searchTerm, sortConfig, statusFilter]);
 
-  const exportData = useCallback((format: 'csv' | 'xlsx' | 'template') => {
+  type ExportFormat = 'csv' | 'xlsx' | 'template' | 'xlsx_resumido';
+
+  const exportData = useCallback((format: ExportFormat) => {
+    const now = new Date();
+    const parseValor = (value: string | number | null) => {
+      if (value === null || value === undefined || value === '') return null;
+      if (typeof value === 'number') return value;
+      const cleaned = value.toString().replace(/[^\d,.-]/g, '');
+      if (!cleaned) return null;
+      const hasComma = cleaned.includes(',');
+      const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+      const numeric = Number(normalized);
+      return Number.isFinite(numeric) ? numeric : null;
+    };
+
+    const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+
+    const getDayValue = (value: number | null | undefined) => {
+      if (value === null || value === undefined) return null;
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return null;
+      const day = Math.trunc(parsed);
+      if (day < 1 || day > 31) return null;
+      return day;
+    };
+
+    const getNextDueDate = (day: number, baseDate: Date) => {
+      let year = baseDate.getFullYear();
+      let month = baseDate.getMonth();
+      const todayStart = startOfDay(baseDate);
+
+      const monthDays = getDaysInMonth(year, month);
+      let due = new Date(year, month, Math.min(day, monthDays));
+
+      if (due < todayStart) {
+        month += 1;
+        if (month > 11) {
+          month = 0;
+          year += 1;
+        }
+        const nextMonthDays = getDaysInMonth(year, month);
+        due = new Date(year, month, Math.min(day, nextMonthDays));
+      }
+      return due;
+    };
+
+    // ===== base do arquivo (igual ao anexo) =====
+    const TITLE = 'PROTOCOLO FINANCEIRO';
+    const HEADERS = [
+      'FORNECEDOR',
+      'VALOR',
+      'VENCIMENTO',
+      'PAGAMENTO',
+      'EMPRESA',
+      'DESCRIÇÃO',
+      // 'NOTA FISCAL',
+      'SETOR',
+      'DATA INCLUSÃO',
+      'PROTOCOLO',
+      'N° PASTA',
+      'RESPONSÁVEL',
+      'CPF/CNPJ',
+      'Anexos (Sim/Não)',
+    ];
+
+    // larguras (igual ao arquivo anexado)
+    const COL_WIDTHS = [34.71, 15.0, 19.855, 20.425, 13.0, 62.57, 27.285, 19.855, 16.855, 13.0, 10.71, 14.71, 18.71, 17.425];
+
+    const thin = { style: 'thin', color: { rgb: 'FFBFBFBF' } };
+
+    const styleTitle = {
+      font: { bold: true, sz: 22 },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: { left: thin, right: thin, top: thin, bottom: thin },
+    };
+
+    const styleHeader = {
+      font: { bold: true, sz: 11 },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      fill: { patternType: 'solid', fgColor: { rgb: 'FFE7E6E6' } }, // cinza claro (bem próximo do Excel do anexo)
+      border: { left: thin, right: thin, top: thin, bottom: thin },
+    };
+
+    const styleCell = {
+      font: { sz: 11 },
+      alignment: { vertical: 'center' },
+      border: { left: thin, right: thin, top: thin, bottom: thin },
+    };
+
+    const styleDate = {
+      ...styleCell,
+      alignment: { horizontal: 'center', vertical: 'center' },
+      numFmt: 'mm-dd-yy', // no anexo está assim
+    };
+
+    const styleMoney = {
+      ...styleCell,
+      alignment: { horizontal: 'right', vertical: 'center' },
+      numFmt: '_-"R$"* #,##0.00_-;_-"R$"* -#,##0.00_-;_-"R$"* "-"??_-;_-@_-',
+    };
+
+    const brlFinanceiroFmt =
+      '_-"R$"\\ * #,##0.00_-;\\-"R$"\\ * #,##0.00_-;_-"R$"\\ * "-"??_-;_-@_-';
+
+    // ===== monta linhas =====
+    const rows: any[][] = [];
+    rows.push([TITLE, ...Array(13).fill(null)]);       // linha 1 (A1:N1)
+    rows.push([null, ...Array(13).fill(null)]);        // linha 2 (A2:N2) - para manter o merge 2 linhas
+    rows.push(HEADERS);                                // linha 3 (cabeçalho)
+
+    if (format === 'xlsx_resumido') {
+      const TITLE = 'PROTOCOLO FINANCEIRO';
+
+      const HEADERS = ['FORNECEDOR', 'VALOR', 'VENCIMENTO', 'DESCRIÇÃO', null]; // F fica oculto
+
+      // larguras iguais ao anexo (A..F)
+      const COL_WIDTHS = [31.71, 18.285, 19.855, 62.57, 30.141, 0];
+
+      const thin = { style: 'thin', color: { rgb: 'FFBFBFBF' } };
+
+      const styleTitle = {
+        font: { bold: true, sz: 22 },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: { left: thin, right: thin, top: thin, bottom: thin },
+      };
+
+      const styleHeader = {
+        font: { bold: true, sz: 11 },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        fill: { patternType: 'solid', fgColor: { rgb: 'FFE7E6E6' } }, // aproxima o "theme 9"
+        border: { left: thin, right: thin, top: thin, bottom: thin },
+      };
+
+      const styleCell = {
+        font: { sz: 11 },
+        alignment: { vertical: 'center' },
+        border: { left: thin, right: thin, top: thin, bottom: thin },
+      };
+
+      const styleMoney = {
+        ...styleCell,
+        alignment: { horizontal: 'right', vertical: 'center' },
+        numFmt: brlFinanceiroFmt,
+      };
+
+      const styleDate = {
+        ...styleCell,
+        alignment: { horizontal: 'center', vertical: 'center' },
+        numFmt: 'mm-dd-yy',
+      };
+
+      // helpers (use os seus se já existirem no escopo)
+      const parseValorLocal = (value: string | number | null) => {
+        if (value === null || value === undefined || value === '') return null;
+        if (typeof value === 'number') return value;
+        const cleaned = value.toString().replace(/[^\d,.-]/g, '');
+        if (!cleaned) return null;
+        const hasComma = cleaned.includes(',');
+        const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+        const n = Number(normalized);
+        return Number.isFinite(n) ? n : null;
+      };
+
+      const now = new Date();
+      const startOfDayLocal = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const getDaysInMonthLocal = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
+
+      const getDayValueLocal = (value: number | null | undefined) => {
+        if (value === null || value === undefined) return null;
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return null;
+        const day = Math.trunc(parsed);
+        if (day < 1 || day > 31) return null;
+        return day;
+      };
+
+      const getNextDueDateLocal = (day: number, baseDate: Date) => {
+        let year = baseDate.getFullYear();
+        let month = baseDate.getMonth();
+        const todayStart = startOfDayLocal(baseDate);
+
+        const monthDays = getDaysInMonthLocal(year, month);
+        let due = new Date(year, month, Math.min(day, monthDays));
+
+        if (due < todayStart) {
+          month += 1;
+          if (month > 11) {
+            month = 0;
+            year += 1;
+          }
+          const nextMonthDays = getDaysInMonthLocal(year, month);
+          due = new Date(year, month, Math.min(day, nextMonthDays));
+        }
+        return due;
+      };
+
+      // monta AOA (1..)
+      const rows: any[][] = [];
+      rows.push([TITLE, null, null, null, null, null]);      // linha 1
+      rows.push([null, null, null, null, null, null]);       // linha 2
+      rows.push(HEADERS);                                    // linha 3
+
+      // dados (linha 4+)
+      filteredContasSorted.forEach((conta) => {
+        const valorNum = parseValorLocal(conta.valor);
+        const day = getDayValueLocal(conta.vencimento ?? null);
+        const vencDate = day ? getNextDueDateLocal(day, now) : '-';
+
+        rows.push([
+          conta.fornecedor || '',
+          valorNum ?? null,
+          vencDate,
+          conta.descricao || '',
+          '*',            // NOTA FISCAL (ajuste se tiver no banco)
+          null,           // coluna F oculta
+        ]);
+      });
+
+      // TOTAL (igual ao anexo) – soma de B4 até última linha de dados
+      const firstDataRow = 4;
+      const lastDataRow = rows.length; // antes de adicionar total
+      rows.push(['TOTAL', { f: `SUM(B${firstDataRow}:B${lastDataRow})` }, null, null, null, null]);
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+
+      const totalRowIndex = rows.length - 1; // índice 0-based dentro do AOA
+      const totalCellAddr = XLSX.utils.encode_cell({ r: totalRowIndex, c: 1 }); // coluna B
+      if (ws[totalCellAddr]) ws[totalCellAddr].s = styleMoney;
+
+      // merge título: A1:E2 (não inclui F)
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 1, c: 4 } }];
+
+      // larguras
+      ws['!cols'] = COL_WIDTHS.map((w) => ({ wch: w }));
+
+      // estilo título (A1)
+      if (ws['A1']) ws['A1'].s = styleTitle;
+
+      // header linha 3 (r=2) col A..E
+      for (let c = 0; c <= 4; c++) {
+        const addr = XLSX.utils.encode_cell({ r: 2, c });
+        if (ws[addr]) ws[addr].s = styleHeader;
+      }
+
+      // corpo: da linha 4 em diante (r=3..)
+      for (let r = 3; r < rows.length; r++) {
+        for (let c = 0; c < 6; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          if (!ws[addr]) continue;
+
+          // col B (VALOR)
+          if (c === 1) {
+            ws[addr].s = styleMoney;
+            continue;
+          }
+
+          // col C (VENCIMENTO) – só aplica date se for Date
+          if (c === 2) {
+            if (ws[addr].v instanceof Date) ws[addr].s = styleDate;
+            else ws[addr].s = styleCell;
+            continue;
+          }
+
+          // TOTAL (linha final) – deixa A em bold
+          if (r === rows.length - 1 && c === 0) {
+            ws[addr].s = { ...styleCell, font: { bold: true, sz: 11 } };
+            continue;
+          }
+
+          ws[addr].s = styleCell;
+        }
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Planilha 3'); // igual ao anexo
+      XLSX.writeFile(wb, `PROTOCOLO_FINANCEIRO_RESUMIDO_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+      setShowExportMenu(false);
+      return;
+    }
+
     if (format === 'template') {
-      const templateData = [{
-        'STATUS DO DOCUMENTO': STATUS_OPTIONS[0],
-        'FORNECEDOR': '',
-        'LINK': '',
-        'Descricao': '',
-        'Valor': '',
-        'Vencimento': '',
-        'Observacoes': ''
-      }];
-      const ws = XLSX.utils.json_to_sheet(templateData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Template');
-      XLSX.writeFile(wb, 'template_contas_a_pagar.xlsx', { bookType: 'xlsx' });
+      // uma linha vazia igual ao modelo (começa na linha 4)
+      rows.push([
+        '',     // FORNECEDOR
+        null,   // VALOR
+        null,   // VENCIMENTO
+        'Boleto', // PAGAMENTO
+        '',     // EMPRESA
+        '',     // DESCRIÇÃO
+        '',     // SETOR
+        '',     // DATA INCLUSÃO
+        '',     // PROTOCOLO
+        '',     // N° PASTA
+        '',     // RESPONSÁVEL
+        '',     // CPF/CNPJ
+        'Não',  // Anexos (Sim/Não)
+      ]);
     } else {
-      const dataToExport = filteredContasSorted.map((conta) => ({
-        'STATUS DO DOCUMENTO': conta.status_documento || '',
-        'FORNECEDOR': conta.fornecedor || '',
-        'LINK': conta.link || '',
-        'Descricao': conta.descricao || '',
-        'Valor': conta.valor ?? '',
-        'Vencimento': conta.vencimento ?? '',
-        'Observacoes': conta.observacoes ?? ''
-      }));
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'ContasAPagar');
+      // export real (usa o filtro atual da tela)
+      filteredContasSorted.forEach((conta) => {
+        const valorNum = parseValor(conta.valor);
+        const day = getDayValue(conta.vencimento ?? null);
+        const vencDate = day ? getNextDueDate(day, now) : null;
 
-      const filterInfo = searchTerm ? '_filtrado' : '';
-      const filename = `contas_a_pagar${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
+        rows.push([
+          conta.fornecedor || '',
+          valorNum ?? null,
+          vencDate ?? null,
+          conta.tipo_pagto || 'Boleto',                      // se você quiser puxar do banco depois, é aqui
+          'ODONTOART',                   // idem
+          conta.descricao || '',
+          '*',
+          '*',
+          new Date(conta.created_at),    // “DATA INCLUSÃO”
+          '*',
+          '*',
+          '*',
+          '*',
+          'Não',
+        ]);
+      });
+    }
 
-      if (format === 'csv') {
-        XLSX.writeFile(wb, filename, { bookType: 'csv' });
-      } else {
-        XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+    // ===== cria planilha =====
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // merge A1:N2
+    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 1, c: 13 } }];
+
+    // larguras
+    ws['!cols'] = COL_WIDTHS.map((w) => ({ wch: w }));
+
+    // estilos: título (aplica em A1)
+    ws['A1'].s = styleTitle;
+
+    // estilos: cabeçalho linha 3 (r=2)
+    for (let c = 0; c < 14; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 2, c });
+      if (ws[addr]) ws[addr].s = styleHeader;
+    }
+
+    // estilos: corpo (a partir da linha 4 => r=3)
+    for (let r = 3; r < rows.length; r++) {
+      for (let c = 0; c < 14; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        if (!ws[addr]) continue;
+
+        // VALOR (col B)
+        if (c === 1) {
+          ws[addr].s = styleMoney;
+          continue;
+        }
+
+        // VENCIMENTO (col C) e DATA INCLUSÃO (col I)
+        if (c === 2 || c === 8) {
+          ws[addr].s = styleDate;
+          continue;
+        }
+
+        ws[addr].s = styleCell;
       }
     }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Planilha1');
+
+    const filenameBase = format === 'template'
+      ? 'PROTOCOLO_FINANCEIRO_MODELO'
+      : `PROTOCOLO_FINANCEIRO_${new Date().toISOString().slice(0, 10)}`;
+
+    XLSX.writeFile(wb, `${filenameBase}.xlsx`);
     setShowExportMenu(false);
-  }, [filteredContasSorted, searchTerm]);
+  }, [filteredContasSorted, setShowExportMenu]);
+
 
   const currentItems = filteredContasSorted;
 
@@ -491,7 +834,7 @@ const ContasAPagar: React.FC = () => {
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             <button
               onClick={() => setShowUpload(true)}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50 hidden"
             >
               <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               Importar
@@ -523,8 +866,14 @@ const ContasAPagar: React.FC = () => {
                       Exportar como XLSX
                     </button>
                     <button
+                      onClick={() => exportData('xlsx_resumido')}
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                    >
+                      Exportar Resumido (XLSX)
+                    </button>
+                    <button
                       onClick={() => exportData('template')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 border-t border-neutral-200"
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 border-t border-neutral-200 hidden"
                     >
                       Baixar Modelo
                     </button>
@@ -585,6 +934,9 @@ const ContasAPagar: React.FC = () => {
                     {getSortIcon('fornecedor')}
                   </div>
                 </th>
+                <th className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider w-24">
+                  Pagamento
+                </th>
                 <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-12">
                   Link
                 </th>
@@ -626,6 +978,9 @@ const ContasAPagar: React.FC = () => {
                 <tr key={conta.id} className="group hover:bg-neutral-50 transition-colors duration-150">
                   <td className="px-2 py-2">
                     <div className="font-medium text-neutral-900 truncate max-w-[140px] sm:max-w-none">{conta.fornecedor || '-'}</div>
+                  </td>
+                  <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-24">
+                    {conta.tipo_pagto || '-'}
                   </td>
                   <td className="px-2 py-2 text-center w-12">
                     {conta.link ? (
@@ -734,6 +1089,7 @@ const ContasAPagar: React.FC = () => {
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes da Conta</h2>
             <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700">
               <div><strong>Status do Documento:</strong> {viewingConta.status_documento || '-'}</div>
+              <div><strong>Pagamento:</strong> {viewingConta.tipo_pagto || '-'}</div>
               <div><strong>Fornecedor:</strong> {viewingConta.fornecedor || '-'}</div>
               <div>
                 <strong>Link:</strong>{' '}
