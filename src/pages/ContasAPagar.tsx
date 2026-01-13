@@ -364,7 +364,7 @@ const ContasAPagar: React.FC = () => {
       'PAGAMENTO',
       'EMPRESA',
       'DESCRIÇÃO',
-      // 'NOTA FISCAL',
+      'NOTA FISCAL',
       'SETOR',
       'DATA INCLUSÃO',
       'PROTOCOLO',
@@ -422,10 +422,10 @@ const ContasAPagar: React.FC = () => {
     if (format === 'xlsx_resumido') {
       const TITLE = 'PROTOCOLO FINANCEIRO';
 
-      const HEADERS = ['FORNECEDOR', 'VALOR', 'VENCIMENTO', 'DESCRIÇÃO', null]; // F fica oculto
+      const HEADERS = ['FORNECEDOR', 'VALOR', 'VENCIMENTO', 'DESCRIÇÃO', 'NF', null]; // F fica oculto
 
       // larguras iguais ao anexo (A..F)
-      const COL_WIDTHS = [31.71, 18.285, 19.855, 62.57, 30.141, 0];
+      const COL_WIDTHS = [31.71, 18.285, 19.855, 62.57, 18.285, 0];
 
       const thin = { style: 'thin', color: { rgb: 'FFBFBFBF' } };
 
@@ -522,7 +522,7 @@ const ContasAPagar: React.FC = () => {
           valorNum ?? null,
           vencDate,
           conta.descricao || '',
-          '*',            // NOTA FISCAL (ajuste se tiver no banco)
+          null,            // NOTA FISCAL (ajuste se tiver no banco)
           null,           // coluna F oculta
         ]);
       });
