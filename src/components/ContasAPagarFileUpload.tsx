@@ -11,6 +11,7 @@ interface ContasAPagarFileUploadProps {
 
 interface ParsedRow {
   status_documento?: string | null;
+  tipo_pagto?: string | null;
   fornecedor?: string | null;
   link?: string | null;
   descricao?: string | null;
@@ -24,6 +25,16 @@ const STATUS_OPTIONS = [
   'Emitido pendente assinatura',
   'Enviado financeiro'
 ];
+
+const PAGTO_OPTIONS = ['Boleto', 'CARTAO'] as const;
+
+const normalizePagto = (value: string): (typeof PAGTO_OPTIONS)[number] => {
+  const norm = normalize(value);
+  if (norm.includes('cart')) return 'CARTAO';
+  if (norm.includes('boleto') || norm.includes('bol')) return 'Boleto';
+  return 'Boleto';
+};
+
 
 const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSuccess, onCancel }) => {
   const [file, setFile] = useState<File | null>(null);
@@ -44,6 +55,8 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
     const norm = normalize(header);
 
     if (norm.includes('status') && norm.includes('documento')) return 'status_documento';
+    if (norm.includes('pagamento') || norm.includes('tipo') && norm.includes('pag')) return 'tipo_pagto';
+    if (norm.includes('tipo_pagto')) return 'tipo_pagto';
     if (norm.includes('fornecedor') || norm.includes('supplier')) return 'fornecedor';
     if (norm.includes('link') || norm.includes('url')) return 'link';
     if (norm.includes('descricao') || norm.includes('description')) return 'descricao';
@@ -142,6 +155,9 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
             row.vencimento = normalizeDay(val);
           } else if (key) {
             row[key as keyof ParsedRow] = val?.toString().trim() || '';
+          } else if (key === 'tipo_pagto') {
+            const raw = val?.toString().trim() || '';
+            row.tipo_pagto = raw ? normalizePagto(raw) : 'Boleto';
           }
         });
 
@@ -193,6 +209,9 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
             row.vencimento = normalizeDay(val);
           } else if (key) {
             row[key as keyof ParsedRow] = val?.toString().trim() || '';
+          } else if (key === 'tipo_pagto') {
+            const raw = val?.toString().trim() || '';
+            row.tipo_pagto = raw ? normalizePagto(raw) : 'Boleto';
           }
         });
 
@@ -207,6 +226,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
           rows.push({
             status_documento: row.status_documento || STATUS_OPTIONS[0],
             fornecedor: row.fornecedor || null,
+            tipo_pagto: row.tipo_pagto || 'Boleto',
             link: row.link || null,
             descricao: row.descricao || null,
             valor: Number.isFinite(parsedValor) ? parsedValor : null,
@@ -310,6 +330,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
                   <thead className="bg-neutral-50">
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Status do Documento</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Pagamento</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Fornecedor</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Descricao</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Valor</th>
@@ -320,6 +341,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
                     {preview.map((row, index) => (
                       <tr key={index}>
                         <td className="px-4 py-2 text-sm text-neutral-900">{row.status_documento || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{row.tipo_pagto || 'Boleto'}</td>
                         <td className="px-4 py-2 text-sm text-neutral-600">{row.fornecedor || '-'}</td>
                         <td className="px-4 py-2 text-sm text-neutral-600">{row.descricao || '-'}</td>
                         <td className="px-4 py-2 text-sm text-neutral-600">{row.valor || '-'}</td>

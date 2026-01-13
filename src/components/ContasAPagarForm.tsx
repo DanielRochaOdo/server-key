@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface ContaAPagar {
   id: string;
+  tipo_pagto: string;
   status_documento: string;
   fornecedor: string;
   link?: string | null;
@@ -13,7 +14,6 @@ interface ContaAPagar {
   vencimento?: number | null;
   observacoes?: string | null;
 }
-
 interface ContasAPagarFormProps {
   conta?: ContaAPagar | null;
   onSuccess: () => void;
@@ -26,16 +26,23 @@ const STATUS_OPTIONS = [
   'Enviado financeiro'
 ];
 
+const PAGTO_OPTIONS = [
+  'Boleto',
+  'CARTAO',
+];
+
 const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState({
     status_documento: STATUS_OPTIONS[0],
     fornecedor: '',
+    tipo_pagto: PAGTO_OPTIONS[0],
     link: '',
     descricao: '',
     valor: '',
     vencimento: '',
     observacoes: ''
   });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
@@ -94,6 +101,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
       setFormData({
         status_documento: conta.status_documento || STATUS_OPTIONS[0],
         fornecedor: conta.fornecedor || '',
+        tipo_pagto: conta.tipo_pagto || PAGTO_OPTIONS[0],
         link: conta.link || '',
         descricao: conta.descricao || '',
         valor: Number.isFinite(parsedValor) ? formatBRL(parsedValor) : '',
@@ -104,6 +112,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
       setFormData({
         status_documento: STATUS_OPTIONS[0],
         fornecedor: '',
+        tipo_pagto: PAGTO_OPTIONS[0],
         link: '',
         descricao: '',
         valor: '',
@@ -155,9 +164,17 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
       }
 
       const normalizedLink = formData.link ? formData.link.trim() : '';
+
+      const tipoPagto = (formData.tipo_pagto || '').trim();
+        if (!PAGTO_OPTIONS.includes(tipoPagto as any)) {
+          setError('Tipo de pagamento inválido');
+          return;
+        }
+
       const dataToSave = {
         ...formData,
         valor: parsedValor,
+        tipo_pagto: tipoPagto,
         vencimento: normalizedVencimento,
         link: normalizedLink ? normalizedLink : null,
         observacoes: formData.observacoes || null,
@@ -217,7 +234,24 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
               <span className="text-sm text-red-700">{error}</span>
             </div>
           )}
-
+          <div>
+            <label htmlFor="tipo_pagto" className="block text-sm font-medium text-neutral-700 mb-2">
+              Tipo de Pagamento *
+            </label>
+            <select
+              id="tipo_pagto"
+              name="tipo_pagto"
+              value={formData.tipo_pagto}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              disabled={loading}
+              required
+            >
+              {PAGTO_OPTIONS.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <label htmlFor="status_documento" className="block text-sm font-medium text-neutral-700 mb-2">
