@@ -365,11 +365,11 @@ const ContasAPagar: React.FC = () => {
       'EMPRESA',
       'DESCRIÇÃO',
       'NOTA FISCAL',
-      'SETOR',
-      'DATA INCLUSÃO',
-      'PROTOCOLO',
-      'N° PASTA',
-      'RESPONSÁVEL',
+      'SETOR RESPONSÁVEL',
+      'NOME DO BANCO',
+      'AGÊNCIA',
+      'CONTA',
+      'TIPO DE CONTA',
       'CPF/CNPJ',
       'Anexos (Sim/Não)',
     ];
@@ -522,7 +522,7 @@ const ContasAPagar: React.FC = () => {
           valorNum ?? null,
           vencDate,
           conta.descricao || '',
-          null,            // NOTA FISCAL (ajuste se tiver no banco)
+          '*',            // NOTA FISCAL (ajuste se tiver no banco)
           null,           // coluna F oculta
         ]);
       });
@@ -599,11 +599,12 @@ const ContasAPagar: React.FC = () => {
         'Boleto', // PAGAMENTO
         '',     // EMPRESA
         '',     // DESCRIÇÃO
-        '',     // SETOR
-        '',     // DATA INCLUSÃO
-        '',     // PROTOCOLO
-        '',     // N° PASTA
-        '',     // RESPONSÁVEL
+        '',     // nota fiscal
+        'T.I',     // SETOR
+        '',     // BANCO
+        '',     // AGENCIA
+        '',     // CONTA
+        '',     // TIPO DE CONTA
         '',     // CPF/CNPJ
         'Não',  // Anexos (Sim/Não)
       ]);
@@ -622,8 +623,8 @@ const ContasAPagar: React.FC = () => {
           'ODONTOART',                   // idem
           conta.descricao || '',
           '*',
+          'T.I',
           '*',
-          new Date(conta.created_at),    // “DATA INCLUSÃO”
           '*',
           '*',
           '*',
