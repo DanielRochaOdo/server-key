@@ -144,9 +144,14 @@ export default function PedidosDeCompra() {
     }, [itens]);
 
     const saldo = useMemo(() => {
-        const totalEntregue = totais?.total_entregue ?? 0;
-        return 2500 - totalEntregue;
-    }, [totais]);
+        const totalConsiderados = mensal.reduce((acc, item) => {
+            if (item.status === 'ENTREGUE' || item.status === 'PEDIDO_FEITO') {
+                return acc + Number(item.valor_total_frete || 0);
+            }
+            return acc;
+        }, 0);
+        return 2500 - totalConsiderados;
+    }, [mensal]);
 
     // =============================
     // LOADERS
@@ -476,14 +481,14 @@ export default function PedidosDeCompra() {
                         </div>
                         <div className="mt-4 grid gap-3 sm:grid-cols-3">
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                                <p className="text-xs uppercase tracking-widest text-neutral-400">Total Entregue</p>
-                                <p className="text-2xl font-semibold text-white">{currency(totais?.total_entregue ?? 0)}</p>
-                                <p className="text-xs text-neutral-400">Atualizado automaticamente</p>
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                                 <p className="text-xs uppercase tracking-widest text-neutral-400">Total Aprovado</p>
                                 <p className="text-2xl font-semibold text-white">{currency(totais?.total_aprovado ?? 0)}</p>
                                 <p className="text-xs text-neutral-400">Aprovações do mês corrente</p>
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                                <p className="text-xs uppercase tracking-widest text-neutral-400">Total Entregue</p>
+                                <p className="text-2xl font-semibold text-white">{currency(totais?.total_entregue ?? 0)}</p>
+                                <p className="text-xs text-neutral-400">Atualizado automaticamente</p>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                                 <p className="text-xs uppercase tracking-widest text-neutral-400">Saldo Restante</p>
