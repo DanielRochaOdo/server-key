@@ -53,7 +53,7 @@ const StatCard: React.FC<StatCardProps> = ({
 const DashboardStats: React.FC<DashboardStatsProps> = ({ stats, className, cardClassName, layout = 'grid' }) => {
   const containerClass =
     layout === 'row'
-      ? 'flex flex-nowrap gap-4 overflow-x-auto pb-2 mb-6'
+    ? 'flex flex-nowrap gap-4 overflow-x-auto pb-2 mb-6'
       : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 mb-6';
 
   return (

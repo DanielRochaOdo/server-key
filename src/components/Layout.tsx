@@ -233,9 +233,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col">
-        <main className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto py-4 px-4">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0">
+        <main className="flex-1 min-h-0 min-w-0 overflow-auto">
+          <div className="w-full max-w-full py-4 px-4 sm:px-6 lg:px-8">
             {children}
           </div>
         </main>
