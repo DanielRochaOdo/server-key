@@ -26,7 +26,9 @@ begin
     return;
   end if;
 
-  delete from public.pc_mensal_itens where protocolo_id = v_proto.id;
+  delete from public.pc_mensal_itens
+  where protocolo_id = v_proto.id
+    and status <> 'ENTREGUE';
 
   insert into public.pc_mensal_itens (
     ano, mes, item, quantidade, valor_unit, valor_total_frete,
@@ -44,7 +46,21 @@ begin
     v_proto.id,
     i.id
   from public.pc_protocolo_itens i
-  where i.protocolo_id = v_proto.id;
+  where i.protocolo_id = v_proto.id
+  on conflict (protocolo_item_id) do update
+  set
+    ano              = excluded.ano,
+    mes              = excluded.mes,
+    item             = excluded.item,
+    quantidade       = excluded.quantidade,
+    valor_unit       = excluded.valor_unit,
+    valor_total_frete= excluded.valor_total_frete,
+    setor            = excluded.setor,
+    protocolo_id     = excluded.protocolo_id,
+    status           = case
+                         when public.pc_mensal_itens.status = 'ENTREGUE' then 'ENTREGUE'
+                         else excluded.status
+                       end;
 end;
 $$;
 
