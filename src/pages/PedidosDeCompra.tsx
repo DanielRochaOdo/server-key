@@ -621,7 +621,7 @@ export default function PedidosDeCompra() {
                                         Salvar
                                     </button>
 
-                                    <button
+                                    {/* <button
                                         onClick={excluirProtocolo}
                                         className="flex-1 inline-flex items-center justify-center px-4 py-2 rounded-xl
                    border border-red-300 dark:border-red-800
@@ -630,7 +630,7 @@ export default function PedidosDeCompra() {
                                         title="Excluir protocolo"
                                     >
                                         <Trash2 className="h-4 w-4" />
-                                    </button>
+                                    </button> */}
                                 </div>
                             </div>
                         )}
