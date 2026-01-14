@@ -404,15 +404,15 @@ export default function PedidosDeCompra() {
     return (
         <div className="space-y-6 sm:space-y-8">
             {/* Header (Server-Key feel) */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Pedidos de Compra</h1>
-                    <p className="mt-1 sm:mt-2 text-x1 text-primary-400">MENSAL (controle do mês) e PROTOCOLO (pedidos por título)</p>
+        <div className="relative rounded-2xl border border-neutral-800 bg-neutral-950/60 p-6 shadow-xl overflow-hidden">
+            <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1 text-white">
+                    <h1 className="text-2xl sm:text-3xl font-bold">Pedidos de Compra</h1>
+                    <p className="text-sm text-neutral-300">MENSAL (controle do mês) e PROTOCOLO (pedidos por título)</p>
                 </div>
-
-                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+                <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
                     <select
-                        className="border rounded-xl px-3 py-2 text-sm"
+                        className="w-full min-w-[110px] rounded-2xl border border-neutral-800 bg-black/40 px-3 py-2 text-sm text-white shadow-sm focus:border-primary-500"
                         value={ano}
                         onChange={(e) => setAno(Number(e.target.value))}
                     >
@@ -427,7 +427,7 @@ export default function PedidosDeCompra() {
                     </select>
 
                     <select
-                        className="border rounded-xl px-3 py-2 text-sm"
+                        className="w-full min-w-[110px] rounded-2xl border border-neutral-800 bg-black/40 px-3 py-2 text-sm text-white shadow-sm focus:border-primary-500"
                         value={mes}
                         onChange={(e) => setMes(Number(e.target.value))}
                     >
@@ -439,93 +439,92 @@ export default function PedidosDeCompra() {
                     </select>
                 </div>
             </div>
+        </div>
 
             {/* Tabs */}
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-                <button
-                    onClick={() => setTab("MENSAL")}
-                    className={`inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border text-xs sm:text-sm font-medium rounded-lg
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-1 flex gap-2 overflow-hidden">
+            <button
+                onClick={() => setTab("MENSAL")}
+                className={`flex-1 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold transition-colors duration-150
                     ${tab === "MENSAL"
-                            ? "border-transparent text-white bg-button hover:bg-button-hover"
-                            : "border border-button text-button bg-white hover:bg-button-50"
-                        }`}
-                >
-                    Mensal
-                </button>
+                        ? "bg-button text-white shadow-lg"
+                        : "bg-neutral-950/90 text-neutral-300 hover:bg-neutral-900/80"
+                    }`}
+            >
+                Mensal
+            </button>
 
-                <button
-                    onClick={() => setTab("PROTOCOLO")}
-                    className={`inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border text-xs sm:text-sm font-medium rounded-lg
+            <button
+                onClick={() => setTab("PROTOCOLO")}
+                className={`flex-1 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold transition-colors duration-150
                     ${tab === "PROTOCOLO"
-                            ? "border-transparent text-white bg-button hover:bg-button-hover"
-                            : "border border-button text-button bg-white hover:bg-button-50"
-                        }`}
-                >
-                    Protocolo
-                </button>
-            </div>
+                        ? "bg-button text-white shadow-lg"
+                        : "bg-neutral-950/90 text-neutral-300 hover:bg-neutral-900/80"
+                    }`}
+            >
+                Protocolo
+            </button>
+        </div>
 
             {/* ================= MENSAL ================= */}
             {tab === "MENSAL" && (
-                <div className="mt-4 bg-white rounded-xl shadow-md overflow-hidden hide-scrollbar">
-                    <div className="flex items-center justify-between gap-4 px-3 py-3 border-b">
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white px-3">Compras do mês</h2>
-
-                        <div className="flex items-center gap-3 text-sm">
-                            <div className="px-3 py-2 rounded-xl bg-gray-50 border">
-                                <span className="text-gray-500 dark:text-black">Total Entregue:</span>{" "}
-                                <span className="font-semibold dark:text-black">{currency(totais?.total_entregue ?? 0)}</span>
+                <div className="mt-4 overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/70 shadow-xl text-white">
+                    <div className="border-b border-neutral-800 px-4 py-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <h2 className="text-lg font-bold">Compras do mês</h2>
+                            <p className="text-sm text-neutral-400">Dados mensais consultados com base no mês selecionado.</p>
+                        </div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                                <p className="text-xs uppercase tracking-widest text-neutral-400">Total Entregue</p>
+                                <p className="text-2xl font-semibold text-white">{currency(totais?.total_entregue ?? 0)}</p>
+                                <p className="text-xs text-neutral-400">Atualizado automaticamente</p>
                             </div>
-                            <div className="px-3 py-2 rounded-xl bg-gray-50 border">
-                                <span className="text-gray-500 dark:text-black">Total Aprovado:</span>{" "}
-                                <span className="font-semibold dark:text-black">{currency(totais?.total_aprovado ?? 0)}</span>
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                                <p className="text-xs uppercase tracking-widest text-neutral-400">Total Aprovado</p>
+                                <p className="text-2xl font-semibold text-white">{currency(totais?.total_aprovado ?? 0)}</p>
+                                <p className="text-xs text-neutral-400">Aprovações do mês corrente</p>
                             </div>
-                            <div className="px-3 py-2 rounded-xl bg-gray-50 border">
-                                <span className="text-gray-500 dark:text-black">Saldo (R$ 2500 - Entregue):</span>{" "}
-                                <span className={`font-semibold ${saldo < 0 ? "text-red-600" : "text-green-700"}`}>
-                                    {currency(saldo)}
-                                </span>
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                                <p className="text-xs uppercase tracking-widest text-neutral-400">Saldo Restante</p>
+                                <p className={`text-2xl font-semibold ${saldo < 0 ? "text-red-500" : "text-emerald-400"}`}>{currency(saldo)}</p>
+                                <p className="text-xs text-neutral-400">Base R$ 2.500,00</p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-neutral-200 text-[11px]">
-                            <thead className="bg-neutral-50">
-                                <tr className="group hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition-colors duration-150">
-                                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Item</th>
-                                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Quantidade</th>
-                                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Valor Unit.</th>
-                                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Valor Total + Frete</th>
-                                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Setor</th>
-                                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Status</th>
+                    <div className="overflow-x-auto p-4">
+                        <table className="min-w-full divide-y divide-white/5 text-[11px] text-white">
+                            <thead>
+                                <tr className="text-[10px] uppercase tracking-wider text-neutral-400">
+                                    <th className="px-2 py-2 text-left font-semibold">Item</th>
+                                    <th className="px-2 py-2 text-right font-semibold">Quantidade</th>
+                                    <th className="px-2 py-2 text-right font-semibold">Valor Unit.</th>
+                                    <th className="px-2 py-2 text-right font-semibold">Valor Total + Frete</th>
+                                    <th className="px-2 py-2 text-center font-semibold">Setor</th>
+                                    <th className="px-2 py-2 text-center font-semibold">Status</th>
                                 </tr>
                             </thead>
-                            <tbody className="text-center bg-white divide-y divide-neutral-200 dark:bg-neutral-950 dark:divide-neutral-800">
+                            <tbody className="divide-y divide-white/5">
                                 {mensal.map((m) => (
-                                    <tr key={m.id} className="hover:bg-gray-50 dark:hover:bg-neutral-900/60">
-                                        <td className="px-3 py-2 border-b text-center text-neutral-900 dark:text-neutral-100">{m.item}</td>
-                                        <td className="px-3 py-2 border-b text-center text-neutral-900 dark:text-neutral-100">{Number(m.quantidade || 0)}</td>
-                                        <td className="px-3 py-2 border-b text-center text-neutral-900 dark:text-neutral-100">{currency(Number(m.valor_unit || 0))}</td>
-                                        <td className="px-3 py-2 border-b text-center text-neutral-900 dark:text-neutral-100">{currency(Number(m.valor_total_frete || 0))}</td>
-
-                                        <td className="px-3 py-2 border-b">
+                                    <tr key={m.id} className="bg-white/5 transition-colors duration-150 hover:bg-white/10">
+                                        <td className="px-3 py-2 border-b border-white/5 text-left font-semibold">{m.item}</td>
+                                        <td className="px-3 py-2 border-b border-white/5 text-right">{Number(m.quantidade || 0)}</td>
+                                        <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(m.valor_unit || 0))}</td>
+                                        <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(m.valor_total_frete || 0))}</td>
+                                        <td className="px-3 py-2 border-b border-white/5">
                                             <input
-                                                className="w-full border rounded-lg px-2 py-1"
+                                                className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white"
                                                 value={m.setor ?? ""}
-                                                onChange={(e) => updateMensalItem(m.id, { setor: e.target.value })}
+                                                onChange={(e) => updateMensalItem(m.id, { setor: e.target.value.toUpperCase() })}
+                                                placeholder="Setor"
                                             />
                                         </td>
-
-                                        <td className="px-3 py-2 border-b text-center">
+                                        <td className="px-3 py-2 border-b border-white/5">
                                             <select
+                                                className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white"
                                                 value={m.status}
                                                 onChange={(e) => updateMensalItem(m.id, { status: e.target.value as PcStatusMensal })}
-                                                className={`border rounded-lg px-1 py-1 w-32 disabled:opacity-60
-                                                    ${m.status === "ENTREGUE"
-                                                        ? "bg-green-50 text-green-700 border-green-200"
-                                                        : "bg-yellow-50 text-yellow-800 border-yellow-200"
-                                                    }`}
                                                 aria-label="Status"
                                             >
                                                 <option value="PEDIDO_FEITO">PEDIDO FEITO</option>
@@ -537,7 +536,7 @@ export default function PedidosDeCompra() {
 
                                 {!mensal.length && (
                                     <tr>
-                                        <td className="px-3 py-6 text-center text-gray-500 dark:text-neutral-400 dark:text-neutral-400" colSpan={6}>
+                                        <td className="px-3 py-6 text-center text-neutral-400" colSpan={6}>
                                             Nenhum item no mensal para {String(mes).padStart(2, "0")}/{ano}.
                                         </td>
                                     </tr>
@@ -550,28 +549,29 @@ export default function PedidosDeCompra() {
 
             {/* ================= PROTOCOLO ================= */}
             {tab === "PROTOCOLO" && (
-                <div className="grid grid-cols-12 gap-6 mt-4 ">
-                    <div className="col-span-12 lg:col-span-4 bg-white border rounded-2xl shadow-sm p-4dark:bg-neutral-950 border border-neutral-200 dark:border-white rounded-2xl shadow-sm overflow-hidden">
+                <div className="grid grid-cols-12 gap-6 mt-4">
+                <div className="col-span-12 lg:col-span-4 rounded-2xl border border-neutral-800 bg-neutral-900/70 text-white shadow-xl overflow-hidden">
                         <div className="px-4 py-3">
-                            <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">Protocolos</h2>
+                            <h2 className="text-base font-bold text-white">Protocolos</h2>
+                            <p className="mt-1 text-xs text-neutral-400">Gerencie títulos e envie itens para o mensal.</p>
                         </div>
 
-                        <div className="p-4 flex items-center gap-2">
+                        <div className="p-4 space-y-2">
                             <input
-                                className="flex-1 border rounded-xl px-3 py-2 text-sm"
+                                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                 placeholder="Título do protocolo..."
                                 value={novoTitulo}
-                                onChange={(e) => setNovoTitulo(e.target.value)}
+                                onChange={(e) => setNovoTitulo(e.target.value.toUpperCase())}
                             />
                             <button
                                 onClick={criarProtocolo}
-                                className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
+                                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-button px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-button-hover"
                             >
-                                <Plus size={16} /> Criar
+                                <Plus size={16} /> Criar protocolo
                             </button>
                         </div>
 
-                        <div className="p-4 flex items-center gap-2 flex-col space-y-2 max-h-[400px] overflow-y-auto">
+                        <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
                             {protocolos.map((p) => (
                                 <button
                                     key={p.id}
@@ -579,14 +579,14 @@ export default function PedidosDeCompra() {
                                         setProtocoloSel(p);
                                         setProtocoloSelId(p.id);
                                     }}
-                                    className={`w-full text-left border rounded-xl px-3 py-2 transition-colors
+                                    className={`w-full rounded-2xl border px-3 py-2 text-left transition-all
                                         ${protocoloSel?.id === p.id
-                                            ? "border-primary-500 bg-primary-50/40 dark:bg-primary-900/15"
-                                            : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900/50"
+                                            ? "border-primary-500 bg-primary-600/20 text-white shadow-inner"
+                                            : "border-neutral-800 bg-white/5 text-neutral-200 hover:bg-white/10"
                                         }`}
                                 >
                                     <div className="flex items-center justify-between gap-2">
-                                        <div className="font-semibold text-neutral-900 dark:text-neutral-100 truncate" title={p.nome}>
+                                        <div className="font-semibold text-white truncate" title={p.nome}>
                                             {p.nome}
                                         </div>
                                         <span
@@ -596,7 +596,7 @@ export default function PedidosDeCompra() {
                                             {p.status}
                                         </span>
                                     </div>
-                                    <div className="text-xs text-gray-500 dark:text-neutral-400 mt-1">
+                                    <div className="text-xs text-neutral-300 mt-1">
                                         Valor final: <span className="font-semibold">{currency(Number(p.valor_final || 0))}</span>
                                     </div>
                                 </button>
@@ -608,83 +608,70 @@ export default function PedidosDeCompra() {
                         </div>
 
                         {protocoloSel && (
-                            <div className="mt-4 px-4 pb-4 pt-2">
-                                <div className="flex gap-3">
+                            <div className="mt-4 space-y-2 px-4 pb-4 pt-2">
+                                <div className="flex flex-col gap-2 sm:flex-row">
                                     <button
                                         onClick={salvarProtocolo}
-                                        className="flex-1 inline-flex items-center justify-center px-4 py-2 rounded-xl
-                   bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold
-                   transition-colors"
+                                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-button px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-button-hover"
                                         title="Salvar e enviar itens para Mensal"
                                     >
-                                        <Save className="h-4 w-4 mr-2" />
+                                        <Save className="h-4 w-4" />
                                         Salvar
                                     </button>
-
-                                    {/* <button
-                                        onClick={excluirProtocolo}
-                                        className="flex-1 inline-flex items-center justify-center px-4 py-2 rounded-xl
-                   border border-red-300 dark:border-red-800
-                   text-red-700 dark:text-red-300 text-sm font-semibold
-                   hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                        title="Excluir protocolo"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </button> */}
                                 </div>
                             </div>
                         )}
                     </div>
 
                     {/* Editor protocolo */}
-                    <div className="col-span-12 lg:col-span-8 bg-white border rounded-2xl shadow-sm p-4">
-                        <div className="flex items-center justify-between gap-3">
+                    <div className="col-span-12 lg:col-span-8 rounded-2xl border border-neutral-800 bg-neutral-900/70 text-white shadow-xl px-4 py-3">
+                        <div className="flex items-center justify-between gap-3 text-sm">
                             <div>
                                 <h2 className="text-lg font-bold text-white">Itens do Protocolo</h2>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                 <button
                                     disabled={!protocoloSel}
                                     onClick={exportarProtocoloSelecionado}
-                                    className={`inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg
+                                    className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-xs font-semibold uppercase tracking-wide transition-colors
                                         ${protocoloSel
-                                            ? "text-button bg-white hover:bg-button-50"
-                                            : "text-neutral-400 bg-neutral-100 border-neutral-200 cursor-not-allowed"
+                                            ? "bg-button text-white shadow-lg hover:bg-button-hover"
+                                            : "bg-white/5 text-white/50 cursor-not-allowed border border-white/10"
                                         }`}
                                 >
                                     <Download size={16} /> Exportar XLSX
                                 </button>
 
-                                <div className="px-3 py-2 rounded-xl bg-gray-50 border text-sm">
-                                    <span className="font-semibold dark:text-black">Valor final:</span>{" "}
-                                    <span className="dark:text-black">{currency(valorFinalProtocolo)}</span>
+                                <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
+                                    <span className="text-neutral-300">Valor final:</span>{" "}
+                                    <span className="font-semibold text-white">{currency(valorFinalProtocolo)}</span>
                                 </div>
                             </div>
                         </div>
 
                         {!protocoloSel ? (
-                            <div className="mt-6 text-sm text-gray-500 dark:text-black text-center py-12 border rounded-xl bg-gray-50">
+                            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-center text-sm text-neutral-300">
                                 Selecione ou crie um protocolo para inserir itens.
                             </div>
                         ) : (
                             <>
                                 {/* Form add */}
-                                <div className="mt-4 grid grid-cols-12 gap-2 w-full">
+                                <div className="mt-4 grid grid-cols-12 gap-2 w-full mb-6">
                                     <input
-                                        className="col-span-12 md:col-span-2 border rounded-xl px-3 py-2 text-sm"
+                                        className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Loja"
                                         value={draft.loja}
-                                        onChange={(e) => setDraft((d) => ({ ...d, loja: e.target.value }))}
+                                        onChange={(e) => setDraft((d) => ({ ...d, loja: e.target.value.toUpperCase() }))}
                                     />
                                     <input
-                                        className="col-span-12 md:col-span-4 border rounded-xl px-3 py-2 text-sm"
+                                        className="col-span-12 md:col-span-4 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Produto"
                                         value={draft.produto}
-                                        onChange={(e) => setDraft((d) => ({ ...d, produto: e.target.value }))}
+                                        onChange={(e) => setDraft((d) => ({ ...d, produto: e.target.value.toUpperCase() }))}
                                     />
                                     <select
-                                        className="col-span-6 md:col-span-2 border rounded-xl px-3 py-2 text-sm"
+                                        className="col-span-6 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         value={draft.prioridade}
                                         onChange={(e) => setDraft((d) => ({ ...d, prioridade: e.target.value as PcPrioridade }))}
                                     >
@@ -694,94 +681,93 @@ export default function PedidosDeCompra() {
                                     </select>
                                     <input
                                         type="number"
-                                        className="px-3 py-2 border border-neutral-300 rounded-lg text-sm w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-center"
+                                        className="rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-center text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                         placeholder="Qtd"
                                         value={draft.quantidade}
                                         onChange={(e) => setDraft((d) => ({ ...d, quantidade: Number(e.target.value) }))}
                                     />
-                                    {/* className="px-3 py-2 border border-neutral-300 rounded-lg text-sm w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" */}
                                     <MoneyInputBRL
                                         value={draft.valor_unit}
                                         onChange={(val) => setDraft((d) => ({ ...d, valor_unit: val }))}
                                         placeholder="Valor"
-                                        className="col-span-12 md:col-span-2 border rounded-xl px-3 py-2 text-sm w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-left"
+                                        className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
                                     <input
-                                        className="col-span-12 md:col-span-1 border rounded-xl px-3 py-2 text-sm"
+                                        className="col-span-12 md:col-span-1 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Link"
                                         value={draft.link || ""}
                                         onChange={(e) => setDraft((d) => ({ ...d, link: e.target.value }))}
                                     />
                                     <button
                                         onClick={addItem}
-                                        className="col-span-12 md:col-span-12 px-3 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors"
+                                        className="col-span-12 rounded-2xl bg-button px-3 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-button-hover"
                                     >
                                         Adicionar item
                                     </button>
                                 </div>
 
                                 {/* Table */}
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-neutral-200 text-[11px]">
-                                        <thead className="bg-neutral-50">
-                                            <tr className="group hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition-colors duration-150">
-                                                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Loja</th>
-                                                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-[32%]">Produto</th>
-                                                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Prioridade</th>
-                                                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Quant</th>
-                                                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Valor</th>
-                                                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Valor Total</th>
-                                                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Link</th>
-                                                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
+                                <div className="overflow-x-auto p-4 rounded-2xl border border-white/10">
+                                    <table className="min-w-full divide-y divide-white/5 text-[11px] text-white">
+                                        <thead>
+                                            <tr className="text-[10px] uppercase tracking-wider text-neutral-400">
+                                                <th className="px-2 py-2 text-left font-semibold">Loja</th>
+                                                <th className="px-2 py-2 text-left font-semibold w-[32%]">Produto</th>
+                                                <th className="px-2 py-2 text-center font-semibold">Prioridade</th>
+                                                <th className="px-2 py-2 text-right font-semibold">Quant</th>
+                                                <th className="px-2 py-2 text-right font-semibold">Valor</th>
+                                                <th className="px-2 py-2 text-right font-semibold">Valor Total</th>
+                                                <th className="px-2 py-2 text-center font-semibold">Link</th>
+                                                <th className="px-2 py-2 text-center font-semibold">Ações</th>
                                             </tr>
                                         </thead>
 
-                                        <tbody className="bg-white divide-y divide-neutral-200">
+                                        <tbody className="divide-y divide-white/5">
                                             {itens.map((i) => (
-                                                <tr key={i.id} className="group hover:bg-neutral-50 transition-colors duration-150">
-                                                    <td className="px-3 py-2 border-b text-center text-neutral-900 dark:text-neutral-100">{i.loja}</td>
-                                                    <td className="px-3 py-2 border-b text-center text-neutral-900 dark:text-neutral-100" title={i.produto}>{i.produto}</td>
-                                                    <td className="px-3 py-2 border-b text-center text-neutral-900 dark:text-neutral-100">
+                                                <tr key={i.id} className="bg-white/5 transition-colors duration-150 hover:bg-white/10">
+                                                    <td className="px-3 py-2 border-b border-white/5 text-left font-semibold">{i.loja}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-left text-sm" title={i.produto}>{i.produto}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-center">
                                                         <span className={prioridadeBadge(i.prioridade)}>{i.prioridade}</span>
                                                     </td>
-                                                    <td className="px-3 py-2 border-b text-center text-neutral-900 dark:text-neutral-100">{Number(i.quantidade || 0)}</td>
-                                                    <td className="px-3 py-2 border-b text-center text-neutral-900 dark:text-neutral-100">{currency(Number(i.valor_unit || 0))}</td>
-                                                    <td className="px-3 py-2 border-b text-center text-neutral-900 dark:text-neutral-100">{currency(Number(i.valor_total || 0))}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-right">{Number(i.quantidade || 0)}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(i.valor_unit || 0))}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(i.valor_total || 0))}</td>
 
-                                                    <td className="px-2 py-2 text-center w-12 ">
+                                                    <td className="px-2 py-2 text-center w-12">
                                                         {i.link ? (
                                                             <a
                                                                 href={i.link}
                                                                 target="_blank"
                                                                 rel="noreferrer"
-                                                                className="inline-flex items-center justify-center text-primary-600 hover:text-primary-900"
+                                                                className="inline-flex items-center justify-center text-white/70 transition hover:text-white"
                                                                 title="Abrir link"
                                                             >
                                                                 <ExternalLink className="h-4 w-4" />
                                                             </a>
                                                         ) : (
-                                                            <span className="inline-flex items-center justify-center text-neutral-300" title="Sem link" aria-hidden="true">
+                                                            <span className="inline-flex items-center justify-center text-white/30" title="Sem link" aria-hidden="true">
                                                                 <ExternalLink className="h-4 w-4" />
                                                             </span>
                                                         )}
                                                     </td>
 
                                                     <td className="px-2 py-2 whitespace-nowrap font-medium w-20">
-                                                        <div className="flex items-center space-x-1 sm:space-x-2 justify-center">
+                                                        <div className="flex items-center justify-center gap-2">
                                                             <button
                                                                 onClick={() => startEdit(i)}
-                                                                className="text-primary-600 hover:text-primary-900"
+                                                                className="text-button hover:text-button-hover"
                                                                 title="Editar"
                                                             >
-                                                                <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
+                                                                <Pencil className="h-4 w-4" />
                                                             </button>
 
                                                             <button
                                                                 onClick={() => deleteItem(i.id)}
-                                                                className="text-red-600 hover:text-red-900"
+                                                                className="text-red-500 hover:text-red-400"
                                                                 title="Excluir"
                                                             >
-                                                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                                                                <Trash2 className="h-4 w-4" />
                                                             </button>
                                                         </div>
                                                     </td>
@@ -790,7 +776,7 @@ export default function PedidosDeCompra() {
 
                                             {!itens.length && (
                                                 <tr>
-                                                    <td className="px-3 py-6 text-center text-gray-500 dark:text-neutral-400" colSpan={8}>
+                                                    <td className="px-3 py-6 text-center text-neutral-400" colSpan={8}>
                                                         Sem itens neste protocolo.
                                                     </td>
                                                 </tr>
@@ -798,13 +784,13 @@ export default function PedidosDeCompra() {
                                         </tbody>
                                     </table>
                                     {editItem && (
-                                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                                            <div className="w-full max-w-5xl bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl p-4">
+                                        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                                            <div className="w-full max-w-4xl rounded-3xl border border-neutral-800 bg-neutral-950/90 text-white shadow-2xl p-5">
                                                 <div className="flex items-center justify-between">
-                                                    <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Editar item</h3>
+                                                    <h3 className="text-lg font-bold text-white">Editar item</h3>
                                                     <button
                                                         onClick={() => setEditItem(null)}
-                                                        className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                                                        className="rounded-2xl border border-neutral-800 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-neutral-600 hover:bg-white/10 transition"
                                                     >
                                                         Fechar
                                                     </button>
@@ -812,19 +798,19 @@ export default function PedidosDeCompra() {
 
                                                 <div className="mt-4 grid grid-cols-12 gap-2">
                                                     <input
-                                                        className="col-span-12 md:col-span-3 border rounded-xl px-3 py-2 text-sm bg-white dark:bg-neutral-950 dark:text-neutral-100 dark:border-neutral-800"
+                                                        className="col-span-12 md:col-span-3 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                                         value={editDraft.loja}
-                                                        onChange={(e) => setEditDraft((d) => ({ ...d, loja: e.target.value }))}
+                                                        onChange={(e) => setEditDraft((d) => ({ ...d, loja: e.target.value.toUpperCase() }))}
                                                         placeholder="Loja"
                                                     />
                                                     <input
-                                                        className="col-span-12 md:col-span-4 border rounded-xl px-3 py-2 text-sm bg-white dark:bg-neutral-950 dark:text-neutral-100 dark:border-neutral-800"
+                                                        className="col-span-12 md:col-span-4 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                                         value={editDraft.produto}
-                                                        onChange={(e) => setEditDraft((d) => ({ ...d, produto: e.target.value }))}
+                                                        onChange={(e) => setEditDraft((d) => ({ ...d, produto: e.target.value.toUpperCase() }))}
                                                         placeholder="Produto"
                                                     />
                                                     <select
-                                                        className="col-span-5 md:col-span-2 border rounded-xl px-3 py-2 text-sm bg-white dark:bg-neutral-950 dark:text-neutral-100 dark:border-neutral-800"
+                                                        className="col-span-5 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                                         value={editDraft.prioridade}
                                                         onChange={(e) => setEditDraft((d) => ({ ...d, prioridade: e.target.value as PcPrioridade }))}
                                                     >
@@ -835,10 +821,7 @@ export default function PedidosDeCompra() {
                                                     <input
                                                         type="number"
                                                         inputMode="decimal"
-                                                        className="col-span-6 md:col-span-1 border rounded-xl px-2 py-2 text-sm text-right
-                                                                    bg-white dark:bg-neutral-950 dark:text-neutral-100 dark:border-neutral-800
-                                                                    max-w-[90px]
-                                                                    appearance-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        className="col-span-6 md:col-span-1 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-2 py-2 text-sm text-right text-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                         value={editDraft.quantidade}
                                                         onChange={(e) => setEditDraft((d) => ({ ...d, quantidade: Number(e.target.value) }))}
                                                         placeholder="Qtd"
@@ -848,27 +831,27 @@ export default function PedidosDeCompra() {
                                                         value={editDraft.valor_unit}
                                                         onChange={(val) => setEditDraft((d) => ({ ...d, valor_unit: val }))}
                                                         placeholder="Valor"
-                                                        className="col-span-12 md:col-span-2 border dark:border-neutral-800 rounded-xl px-3 py-2 text-sm w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-left"
+                                                        className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                     />
 
                                                     <input
-                                                        className="col-span-12 md:col-span-12 border rounded-xl px-3 py-2 text-sm bg-white dark:bg-neutral-950 dark:text-neutral-100 dark:border-neutral-800"
+                                                        className="col-span-12 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                                         value={editDraft.link}
                                                         onChange={(e) => setEditDraft((d) => ({ ...d, link: e.target.value }))}
                                                         placeholder="Link do produto"
                                                     />
                                                 </div>
 
-                                                <div className="mt-4 flex justify-end gap-2">
+                                                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
                                                     <button
                                                         onClick={() => setEditItem(null)}
-                                                        className="px-4 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                                                        className="rounded-2xl border border-neutral-800 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-neutral-600 hover:bg-white/10 transition"
                                                     >
                                                         Cancelar
                                                     </button>
                                                     <button
                                                         onClick={saveEdit}
-                                                        className="px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-semibold"
+                                                        className="rounded-2xl bg-button px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-button-hover"
                                                     >
                                                         Salvar
                                                     </button>
