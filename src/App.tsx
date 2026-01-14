@@ -15,6 +15,7 @@ import RateioClaro from './pages/RateioClaro';
 import RateioGoogle from './pages/RateioGoogle';
 import Configuracoes from './pages/Configuracoes';
 import ContasAPagar from './pages/ContasAPagar';
+import PedidosDeCompra from './pages/PedidosDeCompra';  
 
 function App() {
   return (
@@ -116,6 +117,14 @@ function App() {
                 element={
                   <ProtectedRoute adminOnly={false} requiredModule={null}>
                     <Configuracoes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pedidos-de-compra"
+                element={
+                  <ProtectedRoute requiredModule="pedidos_de_compra" adminOnly={true}>
+                    <PedidosDeCompra />
                   </ProtectedRoute>
                 }
               />

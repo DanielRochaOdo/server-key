@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText } from 'lucide-react';
+import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { normalizeRole, getRoleLabel } from '../utils/roles';
@@ -66,42 +66,50 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     // Dashboard - não disponível para usuários nível "usuario"
     if (!isUsuario()) {
       items.push({ name: 'Dashboard', href: '/dashboard', icon: BarChart3, module: null });
-    }
+      
+      // Admin can see user management
+      if (isAdmin()) {
+        items.push({ name: 'Usuários', href: '/usuarios', icon: Users, module: 'usuarios' });
+      }
+      
+      // Pessoal module - only for usuario role
+      if (hasModuleAccess('pessoal')) {
+        items.push({ name: 'Pessoal', href: '/pessoal', icon: Lock, module: 'pessoal' });
+      }
+      
+      // Admin and specific role modules (not for usuario role)
+      if (hasModuleAccess('acessos') && !isUsuario()) {
+        items.push({ name: 'Acessos', href: '/acessos', icon: Key, module: 'acessos' });
+      }
+      
+      if (hasModuleAccess('teams') && !isUsuario()) {
+        items.push({ name: 'Teams', href: '/teams', icon: UserCheck, module: 'teams' });
+      }
+      
+      if (hasModuleAccess('win_users') && !isUsuario()) {
+        items.push({ name: 'Win Users', href: '/win-users', icon: Monitor, module: 'win_users' });
+      }
+      
+      // Financeiro role modules
+      if (hasModuleAccess('rateio_claro')) {
+        items.push({ name: 'Rateio Claro', href: '/rateio-claro', icon: Phone, module: 'rateio_claro' });
+      }
+      
+      if (hasModuleAccess('rateio_google')) {
+        items.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail, module: 'rateio_google' });
+      }
+      
+      if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
+        items.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText, module: 'contas_a_pagar' });
+      }
+      
+      }
+      if (!isUsuario()) {
+        items.push({ name: 'Pedidos de Compra', href: '/pedidos-de-compra', icon: ShoppingCart, module: 'pedidos_de_compra' });
+      }
 
-    // Admin can see user management
-    if (isAdmin()) {
-      items.push({ name: 'Usuários', href: '/usuarios', icon: Users, module: 'usuarios' });
-    }
-    
-    // Pessoal module - only for usuario role
-    if (hasModuleAccess('pessoal')) {
-      items.push({ name: 'Pessoal', href: '/pessoal', icon: Lock, module: 'pessoal' });
-    }
-    
-    // Admin and specific role modules (not for usuario role)
-    if (hasModuleAccess('acessos') && !isUsuario()) {
-      items.push({ name: 'Acessos', href: '/acessos', icon: Key, module: 'acessos' });
-    }
-    
-    if (hasModuleAccess('teams') && !isUsuario()) {
-      items.push({ name: 'Teams', href: '/teams', icon: UserCheck, module: 'teams' });
-    }
-    
-    if (hasModuleAccess('win_users') && !isUsuario()) {
-      items.push({ name: 'Win Users', href: '/win-users', icon: Monitor, module: 'win_users' });
-    }
-    
-    // Financeiro role modules
-    if (hasModuleAccess('rateio_claro')) {
-      items.push({ name: 'Rateio Claro', href: '/rateio-claro', icon: Phone, module: 'rateio_claro' });
-    }
-    
-    if (hasModuleAccess('rateio_google')) {
-      items.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail, module: 'rateio_google' });
-    }
-
-    if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
-      items.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText, module: 'contas_a_pagar' });
+    if (isAdmin() && hasModuleAccess('pedidos_de_compra')) {
+      items.push({ name: 'Pedidos de Compra', href: '/pedidos-de-compra', icon: ShoppingCart, module: 'pedidos_de_compra' });
     }
 
     items.push({ name: 'Configuracoes', href: '/configuracoes', icon: Settings, module: null });
