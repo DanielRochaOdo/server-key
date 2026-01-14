@@ -1073,7 +1073,7 @@ const ContasAPagar: React.FC = () => {
                     {getSortIcon('fornecedor')}
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider w-24">
+                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-24">
                   Pagamento
                 </th>
                 <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-12">
@@ -1088,7 +1088,7 @@ const ContasAPagar: React.FC = () => {
                     {getSortIcon('status_documento')}
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider w-32">Descricao</th>
+                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-32">Descricao</th>
                 <th
                   onClick={() => toggleSort('valor')}
                   className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
@@ -1100,14 +1100,14 @@ const ContasAPagar: React.FC = () => {
                 </th>
                 <th
                   onClick={() => toggleSort('vencimento')}
-                  className="hidden sm:table-cell px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-20"
+                  className="hidden sm:table-cell px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-20"
                 >
                   <div className="flex items-center">
                     Vencimento
                     {getSortIcon('vencimento')}
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider w-28">
+                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-28">
                   Acoes
                 </th>
               </tr>
@@ -1118,7 +1118,7 @@ const ContasAPagar: React.FC = () => {
                   <td className="px-2 py-2">
                     <div className="font-medium text-neutral-900 truncate max-w-[140px] sm:max-w-none">{conta.fornecedor || '-'}</div>
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-24">
+                  <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-24 text-center">
                     {conta.tipo_pagto || '-'}
                   </td>
                   <td className="px-2 py-2 text-center w-12">
@@ -1161,7 +1161,7 @@ const ContasAPagar: React.FC = () => {
                     <div className="text-neutral-600 truncate max-w-[120px] sm:max-w-none">{conta.descricao || '-'}</div>
                   </td>
                   <td className="px-2 py-2 whitespace-nowrap text-neutral-600">{formatCurrency(conta.valor)}</td>
-                  <td className="hidden sm:table-cell px-2 py-2 whitespace-nowrap text-neutral-600 w-20">
+                  <td className="hidden sm:table-cell px-2 py-2 whitespace-nowrap text-neutral-600 w-20 text-center">
                     {formatDay(conta.vencimento)}
                   </td>
                   <td className="px-2 py-2 whitespace-nowrap font-medium w-28">
@@ -1171,21 +1171,21 @@ const ContasAPagar: React.FC = () => {
                         className="text-neutral-600 hover:text-neutral-900"
                         title="Visualizar"
                       >
-                        <Search className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <Search className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
                       </button>
                       <button
                         onClick={() => requestActionVerification('edit', conta)}
                         className="text-primary-600 hover:text-primary-900"
                         title="Editar"
                       >
-                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <Edit className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
                       </button>
                       <button
                         onClick={() => requestActionVerification('delete', conta)}
                         className="text-red-600 hover:text-red-900"
                         title="Excluir"
                       >
-                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
                       </button>
                     </div>
                   </td>

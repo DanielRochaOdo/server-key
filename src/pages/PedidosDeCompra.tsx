@@ -502,10 +502,10 @@ export default function PedidosDeCompra() {
                         <table className="min-w-full divide-y divide-white/5 text-[11px] text-white">
                             <thead>
                                 <tr className="text-[10px] uppercase tracking-wider text-neutral-400">
-                                    <th className="px-2 py-2 text-left font-semibold">Item</th>
-                                    <th className="px-2 py-2 text-right font-semibold">Quantidade</th>
-                                    <th className="px-2 py-2 text-right font-semibold">Valor Unit.</th>
-                                    <th className="px-2 py-2 text-right font-semibold">Valor Total + Frete</th>
+                                    <th className="px-2 py-2 text-center font-semibold">Item</th>
+                                    <th className="px-2 py-2 text-center font-semibold">Quantidade</th>
+                                    <th className="px-2 py-2 text-center font-semibold">Valor Unit.</th>
+                                    <th className="px-2 py-2 text-center font-semibold">Valor Total + Frete</th>
                                     <th className="px-2 py-2 text-center font-semibold">Setor</th>
                                     <th className="px-2 py-2 text-center font-semibold">Status</th>
                                 </tr>
@@ -514,12 +514,12 @@ export default function PedidosDeCompra() {
                                 {mensal.map((m) => (
                                     <tr key={m.id} className="bg-white/5 transition-colors duration-150 hover:bg-white/10">
                                         <td className="px-3 py-2 border-b border-white/5 text-left font-semibold">{m.item}</td>
-                                        <td className="px-3 py-2 border-b border-white/5 text-right">{Number(m.quantidade || 0)}</td>
-                                        <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(m.valor_unit || 0))}</td>
-                                        <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(m.valor_total_frete || 0))}</td>
+                                        <td className="px-3 py-2 border-b border-white/5 text-center">{Number(m.quantidade || 0)}</td>
+                                        <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(m.valor_unit || 0))}</td>
+                                        <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(m.valor_total_frete || 0))}</td>
                                         <td className="px-3 py-2 border-b border-white/5">
                                             <input
-                                                className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white"
+                                                className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
                                                 value={m.setor ?? ""}
                                                 onChange={(e) => updateMensalItem(m.id, { setor: e.target.value.toUpperCase() })}
                                                 placeholder="Setor"
@@ -527,7 +527,7 @@ export default function PedidosDeCompra() {
                                         </td>
                                         <td className="px-3 py-2 border-b border-white/5">
                                             <select
-                                                className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white"
+                                                className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
                                                 value={m.status}
                                                 onChange={(e) => updateMensalItem(m.id, { status: e.target.value as PcStatusMensal })}
                                                 aria-label="Status"
