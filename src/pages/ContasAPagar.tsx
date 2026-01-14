@@ -32,6 +32,46 @@ const PAGTO_OPTIONS = [
   'CARTAO',
 ];
 
+type ExportFormat = 'csv' | 'xlsx' | 'template' | 'xlsx_resumido';
+
+const EXPORT_MODAL_STORAGE_KEY = 'serverkey:contas_apagar_export_state';
+
+interface ExportModalState {
+  showExportQuestion: boolean;
+  showExportNfModal: boolean;
+  pendingExportFormat: ExportFormat | null;
+  nfEntries: Record<string, string>;
+  resumidoSyncVisible: boolean;
+}
+
+const DEFAULT_EXPORT_MODAL_STATE: ExportModalState = {
+  showExportQuestion: false,
+  showExportNfModal: false,
+  pendingExportFormat: null,
+  nfEntries: {},
+  resumidoSyncVisible: false,
+};
+
+const loadExportModalState = (): ExportModalState => {
+  if (typeof window === 'undefined') return DEFAULT_EXPORT_MODAL_STATE;
+  try {
+    const raw = localStorage.getItem(EXPORT_MODAL_STORAGE_KEY);
+    if (!raw) return DEFAULT_EXPORT_MODAL_STATE;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return DEFAULT_EXPORT_MODAL_STATE;
+    return {
+      showExportQuestion: parsed.showExportQuestion ?? DEFAULT_EXPORT_MODAL_STATE.showExportQuestion,
+      showExportNfModal: parsed.showExportNfModal ?? DEFAULT_EXPORT_MODAL_STATE.showExportNfModal,
+      pendingExportFormat: parsed.pendingExportFormat ?? DEFAULT_EXPORT_MODAL_STATE.pendingExportFormat,
+      nfEntries: parsed.nfEntries ?? DEFAULT_EXPORT_MODAL_STATE.nfEntries,
+      resumidoSyncVisible: parsed.resumidoSyncVisible ?? DEFAULT_EXPORT_MODAL_STATE.resumidoSyncVisible,
+    };
+  } catch (error) {
+    console.error('Erro ao carregar estado do export modal:', error);
+    return DEFAULT_EXPORT_MODAL_STATE;
+  }
+};
+
 const ContasAPagar: React.FC = () => {
   const [contas, setContas] = useState<ContaAPagar[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +92,30 @@ const ContasAPagar: React.FC = () => {
   const [pendingActionConta, setPendingActionConta] = useState<ContaAPagar | null>(null);
   const [updatingStatusIds, setUpdatingStatusIds] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const savedExportState = useMemo(() => loadExportModalState(), []);
+
   const [showNextWeekModal, setShowNextWeekModal] = useState(false);
+  const [showExportQuestion, setShowExportQuestion] = useState(savedExportState.showExportQuestion);
+  const [showExportNfModal, setShowExportNfModal] = useState(savedExportState.showExportNfModal);
+  const [pendingExportFormat, setPendingExportFormat] = useState<ExportFormat | null>(savedExportState.pendingExportFormat);
+  const [nfEntries, setNfEntries] = useState<Record<string, string>>(savedExportState.nfEntries);
+  const [resumidoSyncVisible, setResumidoSyncVisible] = useState(savedExportState.resumidoSyncVisible);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const payload = {
+      showExportQuestion,
+      showExportNfModal,
+      pendingExportFormat,
+      nfEntries,
+      resumidoSyncVisible,
+    };
+    try {
+      localStorage.setItem(EXPORT_MODAL_STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.error('Erro ao salvar estado do export modal:', error);
+    }
+  }, [showExportQuestion, showExportNfModal, pendingExportFormat, nfEntries, resumidoSyncVisible]);
 
   const fetchContas = useCallback(async () => {
     try {
@@ -308,9 +371,7 @@ const ContasAPagar: React.FC = () => {
     return filtered;
   }, [contas, searchTerm, sortConfig, statusFilter]);
 
-  type ExportFormat = 'csv' | 'xlsx' | 'template' | 'xlsx_resumido';
-
-  const exportData = useCallback((format: ExportFormat) => {
+  const exportData = useCallback((format: ExportFormat, nfMap: Record<string, string> = {}) => {
     const now = new Date();
     const parseValor = (value: string | number | null) => {
       if (value === null || value === undefined || value === '') return null;
@@ -412,6 +473,13 @@ const ContasAPagar: React.FC = () => {
 
     const brlFinanceiroFmt =
       '_-"R$"\\ * #,##0.00_-;\\-"R$"\\ * #,##0.00_-;_-"R$"\\ * "-"??_-;_-@_-';
+
+    const getNfValue = (contaId: string) => {
+      if (!contaId) return '*';
+      const candidate = nfMap[contaId];
+      if (candidate && candidate.trim()) return candidate.trim();
+      return '*';
+    };
 
     // ===== monta linhas =====
     const rows: any[][] = [];
@@ -517,12 +585,13 @@ const ContasAPagar: React.FC = () => {
         const day = getDayValueLocal(conta.vencimento ?? null);
         const vencDate = day ? getNextDueDateLocal(day, now) : '-';
 
+        const nfValue = getNfValue(conta.id);
         rows.push([
           conta.fornecedor || '',
           valorNum ?? null,
           vencDate,
           conta.descricao || '',
-          '*',            // NOTA FISCAL (ajuste se tiver no banco)
+          nfValue,            // NOTA FISCAL / NF
           null,           // coluna F oculta
         ]);
       });
@@ -614,6 +683,7 @@ const ContasAPagar: React.FC = () => {
         const valorNum = parseValor(conta.valor);
         const day = getDayValue(conta.vencimento ?? null);
         const vencDate = day ? getNextDueDate(day, now) : null;
+        const nfValue = getNfValue(conta.id);
 
         rows.push([
           conta.fornecedor || '',
@@ -622,7 +692,7 @@ const ContasAPagar: React.FC = () => {
           conta.tipo_pagto || 'Boleto',                      // se você quiser puxar do banco depois, é aqui
           'ODONTOART',                   // idem
           conta.descricao || '',
-          '*',
+          nfValue,
           'T.I',
           '*',
           '*',
@@ -685,6 +755,69 @@ const ContasAPagar: React.FC = () => {
     setShowExportMenu(false);
   }, [filteredContasSorted, setShowExportMenu]);
 
+  const resetExportFlow = useCallback(() => {
+    setShowExportQuestion(false);
+    setShowExportNfModal(false);
+    setPendingExportFormat(null);
+    setNfEntries({});
+    setResumidoSyncVisible(false);
+  }, []);
+
+  const handleExportSelection = useCallback((format: ExportFormat) => {
+    if (format === 'xlsx' || format === 'xlsx_resumido') {
+      setPendingExportFormat(format);
+      setShowExportMenu(false);
+      setShowExportQuestion(true);
+      return;
+    }
+    exportData(format);
+  }, [exportData]);
+
+  const handleExportQuestionNo = useCallback(() => {
+    if (pendingExportFormat) {
+      exportData(pendingExportFormat);
+    }
+    resetExportFlow();
+  }, [pendingExportFormat, exportData, resetExportFlow]);
+
+  const handleExportQuestionYes = useCallback(() => {
+    setShowExportQuestion(false);
+    setShowExportNfModal(true);
+    setNfEntries((prev) => {
+      const next = { ...prev };
+      filteredContasSorted.forEach((conta) => {
+        if (!(conta.id in next)) {
+          next[conta.id] = '';
+        }
+      });
+      return next;
+    });
+  }, [filteredContasSorted]);
+
+  const handleSyncNotasFiscais = useCallback(() => {
+    setNfEntries((prev) => {
+      const next = { ...prev };
+      filteredContasSorted.forEach((conta) => {
+        const existing = (prev[conta.id] ?? '').trim();
+        next[conta.id] = existing ? existing : getNotaFiscalSource(conta);
+      });
+      return next;
+    });
+    setResumidoSyncVisible(true);
+  }, [filteredContasSorted]);
+
+  const handleExportWithNf = useCallback(() => {
+    if (pendingExportFormat) {
+      exportData(pendingExportFormat, nfEntries);
+    }
+    resetExportFlow();
+  }, [pendingExportFormat, nfEntries, exportData, resetExportFlow]);
+
+  const handleExportResumidoWithNf = useCallback(() => {
+    if (!resumidoSyncVisible) return;
+    exportData('xlsx_resumido', nfEntries);
+  }, [nfEntries, exportData, resumidoSyncVisible]);
+
 
   const currentItems = filteredContasSorted;
 
@@ -745,6 +878,11 @@ const ContasAPagar: React.FC = () => {
       style: 'currency',
       currency: 'BRL'
     }).format(numericValue);
+  };
+
+  const getNotaFiscalSource = (conta: ContaAPagar) => {
+    const value = conta.observacoes?.trim();
+    return value && value !== '' ? value : '*';
   };
 
   const getStatusColorClasses = (status: string | null) => {
@@ -855,25 +993,25 @@ const ContasAPagar: React.FC = () => {
                       {searchTerm ? `Exportando ${filteredContasSorted.length} registros filtrados` : `Exportando todos os ${filteredContasSorted.length} registros`}
                     </div>
                     <button
-                      onClick={() => exportData('csv')}
+                      onClick={() => handleExportSelection('csv')}
                       className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
                     >
                       Exportar como CSV
                     </button>
                     <button
-                      onClick={() => exportData('xlsx')}
+                      onClick={() => handleExportSelection('xlsx')}
                       className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
                     >
                       Exportar como XLSX
                     </button>
                     <button
-                      onClick={() => exportData('xlsx_resumido')}
+                      onClick={() => handleExportSelection('xlsx_resumido')}
                       className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
                     >
                       Exportar Resumido (XLSX)
                     </button>
                     <button
-                      onClick={() => exportData('template')}
+                      onClick={() => handleExportSelection('template')}
                       className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 border-t border-neutral-200 hidden"
                     >
                       Baixar Modelo
@@ -1148,6 +1286,109 @@ const ContasAPagar: React.FC = () => {
           className="fixed inset-0 z-5"
           onClick={() => setShowExportMenu(false)}
         />
+      )}
+
+      {showExportQuestion && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-lg">
+            <h3 className="text-lg font-semibold text-neutral-900">Há NFs para serem inseridas?</h3>
+            <p className="text-sm text-neutral-600 mt-2">
+              {filteredContasSorted.length} {filteredContasSorted.length === 1 ? 'registro será' : 'registros serão'} exportados.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={handleExportQuestionNo}
+                className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Não
+              </button>
+              <button
+                onClick={handleExportQuestionYes}
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExportNfModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-5 w-full max-w-3xl shadow-lg">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-neutral-900">Notas Fiscais</h3>
+                <span className="text-xs text-neutral-500">{filteredContasSorted.length} itens</span>
+              </div>
+              <p className="text-sm text-neutral-600">
+                Preencha ou sincronize a NF para cada fornecedor; se não houver, será usado <code>*</code>.
+              </p>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                onClick={handleSyncNotasFiscais}
+                className="px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 hover:bg-primary-50 transition-colors"
+              >
+                Sincronizar NF
+              </button>
+              {resumidoSyncVisible && (
+                <button
+                  onClick={handleExportResumidoWithNf}
+                  className="px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 hover:bg-primary-50 transition-colors"
+                >
+                  Exportar resumido com NF
+                </button>
+              )}
+            </div>
+            <div className="mt-4 max-h-[55vh] overflow-y-auto space-y-3 pr-2 border-t border-dashed border-neutral-200 pt-4">
+              {filteredContasSorted.length === 0 && (
+                <div className="text-xs text-neutral-500 text-center py-6 border border-dashed rounded-lg">
+                  Nenhum registro selecionado.
+                </div>
+              )}
+              {filteredContasSorted.map((conta) => {
+                const notaFiscalText = getNotaFiscalSource(conta);
+                return (
+                  <div key={conta.id} className="grid gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 shadow-sm sm:grid-cols-[2fr,160px]">
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold text-neutral-900 truncate">{conta.fornecedor || 'Fornecedor não informado'}</div>
+                      <div className="text-xs text-neutral-500 grid gap-1">
+                        <span><span className="font-semibold">Descrição:</span> {conta.descricao || '-'}</span>
+                        <span><span className="font-semibold">Valor:</span> {formatCurrency(conta.valor)}</span>
+                        <span><span className="font-semibold">Nota Fiscal:</span> {notaFiscalText}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs uppercase tracking-wide text-neutral-500">NF</label>
+                      <input
+                        type="text"
+                        placeholder="NF"
+                        value={nfEntries[conta.id] ?? ''}
+                        onChange={(e) => setNfEntries((prev) => ({ ...prev, [conta.id]: e.target.value }))}
+                        className="w-full border border-neutral-300 rounded-lg px-2 py-1 text-sm focus:border-primary-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                onClick={resetExportFlow}
+                className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleExportWithNf}
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+              >
+                Exportar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showNextWeekModal && (
