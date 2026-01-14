@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, ExternalLink } from 'lucide-react';
+import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink } from 'lucide-react';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
 import DashboardStats from '../components/DashboardStats';
@@ -1413,6 +1413,12 @@ const ContasAPagar: React.FC = () => {
                       <span>Dia {formatDay(item.vencimento)}</span>
                       {item.status === 'Enviado financeiro' && (
                         <CheckCircle className="h-4 w-4 text-green-600" />
+                      )}
+                      {item.status === 'Emitido pendente assinatura' && (
+                        <CheckCircle className="h-4 w-4 text-yellow-500" />
+                      )}
+                      {item.status === 'Nao emitido' && (
+                        <Ban className="h-4 w-4 text-red-500" />
                       )}
                     </div>
                   </li>
