@@ -364,12 +364,12 @@ const ContasAPagar: React.FC = () => {
       'PAGAMENTO',
       'EMPRESA',
       'DESCRIÇÃO',
-      // 'NOTA FISCAL',
-      'SETOR',
-      'DATA INCLUSÃO',
-      'PROTOCOLO',
-      'N° PASTA',
-      'RESPONSÁVEL',
+      'NOTA FISCAL',
+      'SETOR RESPONSÁVEL',
+      'NOME DO BANCO',
+      'AGÊNCIA',
+      'CONTA',
+      'TIPO DE CONTA',
       'CPF/CNPJ',
       'Anexos (Sim/Não)',
     ];
@@ -422,10 +422,10 @@ const ContasAPagar: React.FC = () => {
     if (format === 'xlsx_resumido') {
       const TITLE = 'PROTOCOLO FINANCEIRO';
 
-      const HEADERS = ['FORNECEDOR', 'VALOR', 'VENCIMENTO', 'DESCRIÇÃO', null]; // F fica oculto
+      const HEADERS = ['FORNECEDOR', 'VALOR', 'VENCIMENTO', 'DESCRIÇÃO', 'NF', null]; // F fica oculto
 
       // larguras iguais ao anexo (A..F)
-      const COL_WIDTHS = [31.71, 18.285, 19.855, 62.57, 30.141, 0];
+      const COL_WIDTHS = [31.71, 18.285, 19.855, 62.57, 18.285, 0];
 
       const thin = { style: 'thin', color: { rgb: 'FFBFBFBF' } };
 
@@ -599,11 +599,12 @@ const ContasAPagar: React.FC = () => {
         'Boleto', // PAGAMENTO
         '',     // EMPRESA
         '',     // DESCRIÇÃO
-        '',     // SETOR
-        '',     // DATA INCLUSÃO
-        '',     // PROTOCOLO
-        '',     // N° PASTA
-        '',     // RESPONSÁVEL
+        '',     // nota fiscal
+        'T.I',     // SETOR
+        '',     // BANCO
+        '',     // AGENCIA
+        '',     // CONTA
+        '',     // TIPO DE CONTA
         '',     // CPF/CNPJ
         'Não',  // Anexos (Sim/Não)
       ]);
@@ -622,8 +623,8 @@ const ContasAPagar: React.FC = () => {
           'ODONTOART',                   // idem
           conta.descricao || '',
           '*',
+          'T.I',
           '*',
-          new Date(conta.created_at),    // “DATA INCLUSÃO”
           '*',
           '*',
           '*',
