@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Users, Activity, AlertTriangle, Key, UserCheck, Database, TrendingUp, Phone, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import DashboardStats from '../components/DashboardStats';
 
 interface DashboardStats {
   totalAcessos: number;
@@ -177,23 +178,7 @@ const Dashboard: React.FC = () => {
         </p>
       </div>
 
-      {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
-        {dashboardCards.map((card) => (
-          <div key={card.name} className="bg-white rounded-xl shadow-md p-4 sm:p-6 transition-transform duration-200 hover:scale-105">
-            <div className="flex items-center">
-              <div className={`flex-shrink-0 p-2 sm:p-3 rounded-lg ${card.bgColor}`}>
-                <card.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${card.color}`} />
-              </div>
-              <div className="ml-3 sm:ml-4">
-                <p className="text-xs sm:text-sm font-medium text-neutral-600">{card.name}</p>
-                <p className="text-xl sm:text-2xl font-bold text-neutral-900">{card.value}</p>
-                <p className="text-xs text-neutral-500">{card.description}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <DashboardStats stats={dashboardCards} className="xl:grid-cols-6" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         {/* Acessos Recentes */}
