@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Shield, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { Network, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -72,13 +72,13 @@ const Login: React.FC = () => {
       <div className="max-w-md w-full space-y-6 sm:space-y-8">
         <div className="text-center">
           <div className="flex justify-center">
-            <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-primary-600" />
+            <Network className="h-10 w-10 sm:h-12 sm:w-12 text-primary-600" />
           </div>
           <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-bold text-primary-900">
-            ServerKey
+            Odontoart Hub
           </h2>
           <p className="mt-1 sm:mt-2 text-sm text-primary-600">
-            Sistema de Gerenciamento de Segurança
+            Sistema de Gerenciamento
           </p>
         </div>
 
