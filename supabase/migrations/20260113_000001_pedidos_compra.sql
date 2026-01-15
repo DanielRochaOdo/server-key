@@ -45,6 +45,7 @@ create table if not exists public.pc_protocolo_itens (
   valor_unit numeric(12,2) not null default 0,
   valor_total numeric(12,2) generated always as (round((quantidade * valor_unit)::numeric, 2)) stored,
   link text null,
+  diretoria boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -63,6 +64,7 @@ create table if not exists public.pc_mensal_itens (
   valor_total_frete numeric(12,2) not null default 0, -- "VALOR TOTAL + FRETE"
   setor text null,
   status public.pc_status_mensal not null default 'PEDIDO_FEITO',
+  diretoria boolean not null default false,
 
   -- vínculo opcional ao protocolo (pra rastrear origem)
   protocolo_id uuid null references public.pc_protocolos(id) on delete set null,
@@ -183,7 +185,7 @@ begin
   if (old.status is distinct from new.status) and (new.status = 'SALVO') then
     insert into public.pc_mensal_itens (
       ano, mes, item, quantidade, valor_unit, valor_total_frete,
-      setor, status, protocolo_id, protocolo_item_id
+      setor, status, diretoria, protocolo_id, protocolo_item_id
     )
     select
       new.ano,
@@ -194,6 +196,7 @@ begin
       i.valor_total as valor_total_frete, -- frete pode ser ajustado no mensal
       'TI' as setor,
       'PEDIDO_FEITO'::public.pc_status_mensal,
+      i.diretoria as diretoria,
       new.id,
       i.id
     from public.pc_protocolo_itens i
