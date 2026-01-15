@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { Plus, Download, ExternalLink, Save, Trash2, Pencil } from "lucide-react";
+import { Plus, Download, ExternalLink, Save, Trash2, Pencil, Star } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { exportProtocoloXlsx } from "../utils/exportProtocoloXlsx";
 import MoneyInputBRL from "../components/MoneyInputBRL";
@@ -19,6 +19,7 @@ type MensalItem = {
     valor_total_frete: number;
     setor: string | null;
     status: PcStatusMensal;
+    diretoria: boolean;
 };
 
 type Protocolo = {
@@ -75,6 +76,7 @@ type ProtocoloItem = {
     valor_unit: number;
     valor_total: number;
     link?: string | null;
+    diretoria: boolean;
 };
 
 function getNowYM() {
@@ -120,32 +122,43 @@ export default function PedidosDeCompra() {
     const [novoTitulo, setNovoTitulo] = useState("");
 
     const [editItem, setEditItem] = useState<ProtocoloItem | null>(null);
-    const [editDraft, setEditDraft] = useState({
-        loja: "",
-        produto: "",
-        prioridade: "MEDIA" as PcPrioridade,
-        quantidade: 1,
-        valor_unit: 0,
-        link: "",
-    });
+const [editDraft, setEditDraft] = useState({
+    loja: "",
+    produto: "",
+    prioridade: "MEDIA" as PcPrioridade,
+    quantidade: 1,
+    valor_unit: 0,
+    link: "",
+    diretoria: false,
+});
 
     // item editor protocolo
     const [draft, setDraft] = useState<Omit<ProtocoloItem, "id" | "protocolo_id" | "valor_total">>({
-        loja: "",
-        produto: "",
-        prioridade: "MEDIA",
-        quantidade: 1,
-        valor_unit: 0,
-        link: "",
-    });
+    loja: "",
+    produto: "",
+    prioridade: "MEDIA",
+    quantidade: 1,
+    valor_unit: 0,
+    link: "",
+    diretoria: false,
+});
 
     const valorFinalProtocolo = useMemo(() => {
         return itens.reduce((acc, i) => acc + (Number(i.valor_total) || 0), 0);
     }, [itens]);
 
+    const aprovadoDiretoria = useMemo(() => {
+        return mensal.reduce((acc, item) => {
+            if (item.diretoria && (item.status === 'ENTREGUE' || item.status === 'PEDIDO_FEITO')) {
+                return acc + Number(item.valor_total_frete || 0);
+            }
+            return acc;
+        }, 0);
+    }, [mensal]);
+
     const saldo = useMemo(() => {
         const totalConsiderados = mensal.reduce((acc, item) => {
-            if (item.status === 'ENTREGUE' || item.status === 'PEDIDO_FEITO') {
+            if (!item.diretoria && (item.status === 'ENTREGUE' || item.status === 'PEDIDO_FEITO')) {
                 return acc + Number(item.valor_total_frete || 0);
             }
             return acc;
@@ -156,7 +169,7 @@ export default function PedidosDeCompra() {
     // =============================
     // LOADERS
     // =============================
-    async function loadMensal() {
+    const loadMensal = useCallback(async () => {
         const { data, error } = await supabase
             .from("pc_mensal_itens")
             .select("*")
@@ -184,9 +197,9 @@ export default function PedidosDeCompra() {
             return;
         }
         setTotais(tData ? { total_entregue: Number(tData.total_entregue || 0), total_aprovado: Number(tData.total_aprovado || 0) } : null);
-    }
+    }, [ano, mes]);
 
-    async function loadProtocolos() {
+    const loadProtocolos = useCallback(async () => {
         const { data, error } = await supabase
             .from("pc_protocolos")
             .select("*")
@@ -200,7 +213,7 @@ export default function PedidosDeCompra() {
             return;
         }
         setProtocolos((data ?? []) as Protocolo[]);
-    }
+    }, [ano, mes]);
 
     useEffect(() => {
         if (!protocoloSelId) return;
@@ -210,7 +223,7 @@ export default function PedidosDeCompra() {
         if (found) setProtocoloSel(found);
     }, [protocolos, protocoloSelId]);
 
-    async function loadItens(protocoloId: string) {
+    const loadItens = useCallback(async (protocoloId: string) => {
         const { data, error } = await supabase
             .from("pc_protocolo_itens")
             .select("*")
@@ -223,19 +236,17 @@ export default function PedidosDeCompra() {
             return;
         }
         setItens((data ?? []) as ProtocoloItem[]);
-    }
+    }, []);
 
     useEffect(() => {
         loadMensal();
         loadProtocolos();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ano, mes]);
+    }, [loadMensal, loadProtocolos]);
 
     useEffect(() => {
         if (protocoloSel?.id) loadItens(protocoloSel.id);
         else setItens([]);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [protocoloSel?.id]);
+    }, [loadItens, protocoloSel?.id]);
 
     useEffect(() => {
         savePcUiState({
@@ -291,6 +302,7 @@ export default function PedidosDeCompra() {
             quantidade: Number(i.quantidade || 0),
             valor_unit: Number(i.valor_unit || 0),
             link: i.link || "",
+            diretoria: i.diretoria ?? false,
         });
     }
 
@@ -306,6 +318,7 @@ export default function PedidosDeCompra() {
                 quantidade: Number(editDraft.quantidade || 0),
                 valor_unit: Number(editDraft.valor_unit || 0),
                 link: (editDraft.link || "").trim() || null,
+                diretoria: editDraft.diretoria,
             })
             .eq("id", editItem.id);
 
@@ -363,6 +376,7 @@ export default function PedidosDeCompra() {
             quantidade: Number(draft.quantidade || 0),
             valor_unit: Number(draft.valor_unit || 0),
             link: (draft.link || "").trim() || null,
+            diretoria: draft.diretoria,
         };
 
         const { error } = await supabase.from("pc_protocolo_itens").insert([payload]);
@@ -371,7 +385,7 @@ export default function PedidosDeCompra() {
             return;
         }
 
-        setDraft({ loja: "", produto: "", prioridade: "MEDIA", quantidade: 1, valor_unit: 0, link: "" });
+        setDraft({ loja: "", produto: "", prioridade: "MEDIA", quantidade: 1, valor_unit: 0, link: "", diretoria: false });
         await loadItens(protocoloSel.id);
         await loadProtocolos();
     }
@@ -387,6 +401,28 @@ export default function PedidosDeCompra() {
             await loadProtocolos();
         }
     }
+
+    const toggleDiretoria = useCallback(
+        async (itemId: string, value: boolean) => {
+            try {
+                const { error } = await supabase
+                    .from("pc_protocolo_itens")
+                    .update({ diretoria: value })
+                    .eq("id", itemId);
+
+                if (error) throw error;
+
+                if (protocoloSel?.id) {
+                    await loadItens(protocoloSel.id);
+                }
+                await loadProtocolos();
+                await loadMensal();
+            } catch (error) {
+                console.error("Erro ao marcar diretoria:", error);
+            }
+        },
+        [loadItens, loadProtocolos, loadMensal, protocoloSel?.id]
+    );
 
     function exportarProtocoloSelecionado() {
         if (!protocoloSel) return;
@@ -410,12 +446,15 @@ export default function PedidosDeCompra() {
         <div className="space-y-6 sm:space-y-8">
             {/* Header (Server-Key feel) */}
         <div className="relative rounded-2xl border border-neutral-800 bg-neutral-950/60 p-6 shadow-xl overflow-hidden">
-            <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1 text-white">
-                    <h1 className="text-2xl sm:text-3xl font-bold">Pedidos de Compra</h1>
-                    <p className="text-sm text-neutral-300">MENSAL (controle do mês) e PROTOCOLO (pedidos por título)</p>
+            <div className="relative flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2 text-white">
+                    <Star className="h-6 w-6 text-primary-400" />
+                    <div className="flex flex-col text-left">
+                        <span className="text-2xl sm:text-3xl font-bold">Pedidos de Compra</span>
+                        <span className="text-xs text-neutral-400 uppercase tracking-wide">Mensal & Protocolo</span>
+                    </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
+                <div className="flex-1 grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-end">
                     <select
                         className="w-full min-w-[110px] rounded-2xl border border-neutral-800 bg-black/40 px-3 py-2 text-sm text-white shadow-sm focus:border-primary-500"
                         value={ano}
@@ -479,7 +518,7 @@ export default function PedidosDeCompra() {
                             <h2 className="text-lg font-bold">Compras do mês</h2>
                             <p className="text-sm text-neutral-400">Dados mensais consultados com base no mês selecionado.</p>
                         </div>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div className="mt-4 grid gap-3 sm:grid-cols-4">
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                                 <p className="text-xs uppercase tracking-widest text-neutral-400">Total Aprovado</p>
                                 <p className="text-2xl font-semibold text-white">{currency(totais?.total_aprovado ?? 0)}</p>
@@ -489,6 +528,11 @@ export default function PedidosDeCompra() {
                                 <p className="text-xs uppercase tracking-widest text-neutral-400">Total Entregue</p>
                                 <p className="text-2xl font-semibold text-white">{currency(totais?.total_entregue ?? 0)}</p>
                                 <p className="text-xs text-neutral-400">Atualizado automaticamente</p>
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                                <p className="text-xs uppercase tracking-widest text-neutral-400">Aprovado diretoria</p>
+                                <p className="text-2xl font-semibold text-white">{currency(aprovadoDiretoria)}</p>
+                                <p className="text-xs text-neutral-400">Itens marcados como diretoria</p>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                                 <p className="text-xs uppercase tracking-widest text-neutral-400">Saldo Restante</p>
@@ -662,21 +706,21 @@ export default function PedidosDeCompra() {
                         ) : (
                             <>
                                 {/* Form add */}
-                                <div className="mt-4 grid grid-cols-12 gap-2 w-full mb-6">
+                                <div className="mt-4 flex flex-wrap gap-2 items-center w-full mb-6">
                                     <input
-                                        className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
+                                        className="flex-1 min-w-[140px] rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Loja"
                                         value={draft.loja}
                                         onChange={(e) => setDraft((d) => ({ ...d, loja: e.target.value.toUpperCase() }))}
                                     />
                                     <input
-                                        className="col-span-12 md:col-span-4 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
+                                        className="flex-1 min-w-[200px] rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Produto"
                                         value={draft.produto}
                                         onChange={(e) => setDraft((d) => ({ ...d, produto: e.target.value.toUpperCase() }))}
                                     />
                                     <select
-                                        className="col-span-6 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
+                                        className="w-32 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         value={draft.prioridade}
                                         onChange={(e) => setDraft((d) => ({ ...d, prioridade: e.target.value as PcPrioridade }))}
                                     >
@@ -686,7 +730,7 @@ export default function PedidosDeCompra() {
                                     </select>
                                     <input
                                         type="number"
-                                        className="rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-center text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        className="w-20 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-center text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                         placeholder="Qtd"
                                         value={draft.quantidade}
                                         onChange={(e) => setDraft((d) => ({ ...d, quantidade: Number(e.target.value) }))}
@@ -695,17 +739,27 @@ export default function PedidosDeCompra() {
                                         value={draft.valor_unit}
                                         onChange={(val) => setDraft((d) => ({ ...d, valor_unit: val }))}
                                         placeholder="Valor"
-                                        className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        className="w-32 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
                                     <input
-                                        className="col-span-12 md:col-span-1 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
+                                        className="flex-1 min-w-[120px] rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Link"
                                         value={draft.link || ""}
                                         onChange={(e) => setDraft((d) => ({ ...d, link: e.target.value }))}
                                     />
                                     <button
+                                        onClick={() => setDraft((d) => ({ ...d, diretoria: !d.diretoria }))}
+                                        className={`flex items-center gap-1 rounded-2xl border border-neutral-800 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition-colors ${
+                                            draft.diretoria ? "bg-white/10" : "hover:bg-white/5"
+                                        }`}
+                                        aria-pressed={draft.diretoria}
+                                    >
+                                        <Star className="h-4 w-4 text-primary-400" aria-hidden="true" />
+                                        <span className="sr-only">Diretoria</span>
+                                    </button>
+                                    <button
                                         onClick={addItem}
-                                        className="col-span-12 rounded-2xl bg-button px-3 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-button-hover"
+                                        className="rounded-2xl bg-button px-3 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-button-hover"
                                     >
                                         Adicionar item
                                     </button>
@@ -722,6 +776,10 @@ export default function PedidosDeCompra() {
                                                 <th className="px-2 py-2 text-right font-semibold">Quant</th>
                                                 <th className="px-2 py-2 text-right font-semibold">Valor</th>
                                                 <th className="px-2 py-2 text-right font-semibold">Valor Total</th>
+                                                <th className="px-2 py-2 text-center font-semibold">
+                                                    <Star className="h-4 w-4 text-primary-400" aria-hidden="true" />
+                                                    <span className="sr-only">Diretoria</span>
+                                                </th>
                                                 <th className="px-2 py-2 text-center font-semibold">Link</th>
                                                 <th className="px-2 py-2 text-center font-semibold">Ações</th>
                                             </tr>
@@ -738,6 +796,14 @@ export default function PedidosDeCompra() {
                                                     <td className="px-3 py-2 border-b border-white/5 text-right">{Number(i.quantidade || 0)}</td>
                                                     <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(i.valor_unit || 0))}</td>
                                                     <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(i.valor_total || 0))}</td>
+                                                    <td className="px-2 py-2 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={i.diretoria}
+                                                            onChange={(e) => toggleDiretoria(i.id, e.target.checked)}
+                                                            className="h-4 w-4 rounded border-neutral-600 bg-neutral-950/40 text-primary-500 focus:ring-primary-500"
+                                                        />
+                                                    </td>
 
                                                     <td className="px-2 py-2 text-center w-12">
                                                         {i.link ? (
@@ -845,6 +911,20 @@ export default function PedidosDeCompra() {
                                                         onChange={(e) => setEditDraft((d) => ({ ...d, link: e.target.value }))}
                                                         placeholder="Link do produto"
                                                     />
+                                                    <div className="col-span-12 flex items-center gap-3">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setEditDraft((d) => ({ ...d, diretoria: !d.diretoria }))}
+                                                            className={`flex items-center gap-1 rounded-2xl border border-neutral-800 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition-colors ${
+                                                                editDraft.diretoria ? "bg-white/10" : "hover:bg-white/5"
+                                                            }`}
+                                                            aria-pressed={editDraft.diretoria}
+                                                        >
+                                                            <Star className="h-4 w-4 text-primary-400" aria-hidden="true" />
+                                                            <span className="sr-only">Diretoria</span>
+                                                        </button>
+                                                        <span className="text-xs text-neutral-400">Itens marcados como ⭐ não serão contabilizados orçamento.</span>
+                                                    </div>
                                                 </div>
 
                                                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
