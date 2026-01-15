@@ -1,4 +1,4 @@
-# ServerKey - Sistema de Gerenciamento de Segurança
+# Odontoart Hub - Sistema de Gerenciamento de Segurança
 
 Sistema completo de gerenciamento de acessos, usuários e rateios com controle de acesso baseado em funções (RBAC).
 
@@ -7,15 +7,15 @@ Sistema completo de gerenciamento de acessos, usuários e rateios com controle d
 ### Módulos Disponíveis
 - **Usuários**: Gerenciamento completo de usuários com RBAC
 - **Acessos**: Controle de credenciais e sistemas
-- **Teams**: Gerenciamento de equipes
-- **Win Users**: Usuários Windows
+- **Contas Teams**: Gerenciamento de contas teams
+- **Usuários Windows**: Gerenciamento de usuários Windows
 - **Rateio Claro**: Controle de linhas telefônicas
 - **Rateio Google**: Usuários Google Workspace
 
 ### Controle de Acesso (RBAC)
 - **Admin**: Acesso total a todos os módulos
 - **Financeiro**: Acesso aos módulos de rateio (Claro e Google)
-- **Usuário**: Acesso aos módulos operacionais (Acessos, Teams, Win Users)
+- **Usuário**: Acesso aos módulos operacionais (Acessos, Contas Teams, Usuários Windows)
 
 ## 🛠️ Tecnologias
 
@@ -128,7 +128,7 @@ Acesse a aplicação e faça login com as credenciais do admin padrão ou com um
 
 ### Tabelas de Dados
 - `acessos`: Credenciais de sistemas
-- `teams`: Equipes
+- `teams`: Contas Teams
 - `win_users`: Usuários Windows
 - `rateio_claro`: Linhas telefônicas
 - `rateio_google`: Usuários Google

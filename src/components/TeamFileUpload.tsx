@@ -217,11 +217,11 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
       const { error } = await supabase.from('teams').insert(teamsData);
       if (error) throw error;
 
-      setSuccess(`${teamsData.length} teams importados com sucesso!`);
+      setSuccess(`${teamsData.length} Contas Teams importadas com sucesso!`);
       setTimeout(() => onSuccess(), 2000);
     } catch (error) {
-      console.error('Error importing teams:', error);
-      setError('Erro ao importar teams. Tente novamente.');
+      console.error('Error importing Contas Teams:', error);
+      setError('Erro ao importar Contas Teams. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -231,7 +231,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
-          <h2 className="text-xl font-bold text-neutral-900">Importar Teams</h2>
+          <h2 className="text-xl font-bold text-neutral-900">Importar Contas Teams</h2>
           <button onClick={onCancel} className="text-neutral-400 hover:text-neutral-600">
             <X className="h-6 w-6" />
           </button>
@@ -364,7 +364,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
                 disabled={loading}
                 className="px-4 py-2 bg-button text-white rounded-lg hover:bg-button-hover disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Importando...' : 'Importar Teams'}
+                {loading ? 'Importando...' : 'Importar Contas Teams'}
               </button>
             )}
           </div>

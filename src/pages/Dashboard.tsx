@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Users, Activity, AlertTriangle, Key, UserCheck, Database, TrendingUp, Phone, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import DashboardStats from '../components/DashboardStats';
 
 interface DashboardStats {
   totalAcessos: number;
@@ -56,7 +57,7 @@ const Dashboard: React.FC = () => {
 
       if (teamsError) throw teamsError;
 
-      // Fetch Win Users data
+      // Fetch Usuários Windows data
       const { data: winUsersData, error: winUsersError } = await supabase
         .from('win_users')
         .select('id, login, usuario, created_at')
@@ -119,20 +120,20 @@ const Dashboard: React.FC = () => {
       description: 'Sistemas cadastrados'
     },
     {
-      name: 'Teams',
+      name: 'Contas Teams',
       value: stats.totalTeams.toString(),
       icon: UserCheck,
       color: 'text-button-600',
       bgColor: 'bg-button-100',
-      description: 'Equipes registradas'
+      description: 'Contas Teams registradas'
     },
     {
-      name: 'Win Users',
+      name: 'Usuários Windows',
       value: stats.totalWinUsers.toString(),
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
-      description: 'Usuários Windows'
+      description: 'Usuários Windows registrados'
     },
     {
       name: 'Rateio Claro',
@@ -177,23 +178,7 @@ const Dashboard: React.FC = () => {
         </p>
       </div>
 
-      {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
-        {dashboardCards.map((card) => (
-          <div key={card.name} className="bg-white rounded-xl shadow-md p-4 sm:p-6 transition-transform duration-200 hover:scale-105">
-            <div className="flex items-center">
-              <div className={`flex-shrink-0 p-2 sm:p-3 rounded-lg ${card.bgColor}`}>
-                <card.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${card.color}`} />
-              </div>
-              <div className="ml-3 sm:ml-4">
-                <p className="text-xs sm:text-sm font-medium text-neutral-600">{card.name}</p>
-                <p className="text-xl sm:text-2xl font-bold text-neutral-900">{card.value}</p>
-                <p className="text-xs text-neutral-500">{card.description}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <DashboardStats stats={dashboardCards} className="xl:grid-cols-6" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         {/* Acessos Recentes */}
@@ -225,10 +210,10 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Teams Recentes */}
+        {/* Contas Teams Recentes */}
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Teams Recentes</h3>
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Contas Teams Recentes</h3>
             <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-button-600" />
           </div>
           <div className="space-y-2 sm:space-y-3">
@@ -251,16 +236,16 @@ const Dashboard: React.FC = () => {
               ))
             ) : (
               <p className="text-xs sm:text-sm text-neutral-500 text-center py-4">
-                Nenhum team cadastrado
+                Nenhuma Conta Teams cadastrada
               </p>
             )}
           </div>
         </div>
 
-        {/* Win Users Recentes */}
+        {/* Usuários Windows Recentes */}
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Win Users Recentes</h3>
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Usuários Windows Recentes</h3>
             <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
           </div>
           <div className="space-y-2 sm:space-y-3">
@@ -370,15 +355,15 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="flex items-center justify-between p-3 sm:p-4 bg-button-50 rounded-lg">
             <div className="flex-1 min-w-0">
-              <p className="text-xs sm:text-sm font-medium text-button-900">Módulo Teams</p>
-              <p className="text-xs text-button-600">Gerenciamento de equipes</p>
+              <p className="text-xs sm:text-sm font-medium text-button-900">Módulo Contas Teams</p>
+              <p className="text-xs text-button-600">Gerenciamento de contas teams</p>
             </div>
             <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
           </div>
           <div className="flex items-center justify-between p-3 sm:p-4 bg-blue-50 rounded-lg">
             <div className="flex-1 min-w-0">
-              <p className="text-xs sm:text-sm font-medium text-blue-900">Módulo Win Users</p>
-              <p className="text-xs text-blue-600">Usuários Windows</p>
+              <p className="text-xs sm:text-sm font-medium text-blue-900">Módulo Usuários Windows</p>
+              <p className="text-xs text-blue-600">Gerenciamento de usuários Windows</p>
             </div>
             <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full whitespace-nowrap ml-2">Ativo</span>
           </div>

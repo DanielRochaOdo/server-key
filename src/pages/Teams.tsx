@@ -86,7 +86,7 @@ const Teams: React.FC = () => {
       if (error) throw error;
       setTeams(data || []);
     } catch (error) {
-      console.error('Error fetching teams:', error);
+      console.error('Error fetching Contas Teams:', error);
     } finally {
       setLoading(false);
     }
@@ -188,7 +188,7 @@ const Teams: React.FC = () => {
       const ws = XLSX.utils.json_to_sheet(templateData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Template');
-      XLSX.writeFile(wb, 'template_teams.xlsx', { bookType: 'xlsx' });
+      XLSX.writeFile(wb, 'template_contas_teams.xlsx', { bookType: 'xlsx' });
     } else {
       // Usar dados filtrados em vez de todos os dados
       const dataToExport = filteredTeams.map(({ id, created_at, ...rest }) => rest);
@@ -198,7 +198,7 @@ const Teams: React.FC = () => {
       
       // Incluir informações sobre filtros no nome do arquivo
       const filterInfo = (searchTerm || selectedDepartment) ? `_filtrado` : '';
-      const filename = `teams${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
+      const filename = `contas_teams${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
       
       if (format === 'csv') {
         XLSX.writeFile(wb, filename, { bookType: 'csv' });
@@ -247,8 +247,8 @@ const Teams: React.FC = () => {
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Teams</h1>
-            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de equipes</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Contas Teams</h1>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de contas teams</p>
           </div>
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             <button
@@ -351,7 +351,7 @@ const Teams: React.FC = () => {
               </div>
               <input
                 type="text"
-                placeholder="Buscar teams..."
+                placeholder="Buscar Contas Teams..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
@@ -381,7 +381,7 @@ const Teams: React.FC = () => {
             {/* Contagem de items */}
             <div className="flex items-center space-x-2">
               <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
-              <span className="text-xs sm:text-sm text-neutral-600">{filteredTeams.length} teams</span>
+              <span className="text-xs sm:text-sm text-neutral-600">{filteredTeams.length} Contas Teams</span>
             </div>
           </div>
         </div>

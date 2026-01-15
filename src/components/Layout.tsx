@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Shield, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart } from 'lucide-react';
+import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { normalizeRole, getRoleLabel } from '../utils/roles';
@@ -74,7 +74,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       
       // Pessoal module - only for usuario role
       if (hasModuleAccess('pessoal')) {
-        items.push({ name: 'Pessoal', href: '/pessoal', icon: Lock, module: 'pessoal' });
+        items.push({ name: 'Senhas Pessoais', href: '/pessoal', icon: Lock, module: 'pessoal' });
       }
       
       // Admin and specific role modules (not for usuario role)
@@ -83,11 +83,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       }
       
       if (hasModuleAccess('teams') && !isUsuario()) {
-        items.push({ name: 'Teams', href: '/teams', icon: UserCheck, module: 'teams' });
+        items.push({ name: 'Contas Teams', href: '/teams', icon: UserCheck, module: 'teams' });
       }
-      
+     
       if (hasModuleAccess('win_users') && !isUsuario()) {
-        items.push({ name: 'Win Users', href: '/win-users', icon: Monitor, module: 'win_users' });
+        items.push({ name: 'Usuários Windows', href: '/win-users', icon: Monitor, module: 'win_users' });
       }
       
       // Financeiro role modules
@@ -156,9 +156,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       >
         <div className="flex items-center justify-between h-16 px-2 border-b border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center">
-            <Shield className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+            <Network className="h-6 w-6 text-primary-600 dark:text-primary-400" />
             {!sidebarCollapsed && (
-              <span className="ml-2 text-lg font-bold text-primary-800 dark:text-primary-200">ServerKey</span>
+              <span className="ml-2 text-lg font-bold text-primary-800 dark:text-primary-200">Odontoart Hub</span>
             )}
           </div>
           <button

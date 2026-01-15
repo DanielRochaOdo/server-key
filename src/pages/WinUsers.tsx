@@ -76,22 +76,22 @@ const WinUsers: React.FC = () => {
       if (error) throw error;
       setWinUsers(data || []);
     } catch (error) {
-      console.error('Error fetching Win Users:', error);
+      console.error('Error fetching Usuários Windows:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este Win User?')) return;
+    if (!confirm('Tem certeza que deseja excluir este Usuário Windows?')) return;
 
     try {
       const { error } = await supabase.from('win_users').delete().eq('id', id);
       if (error) throw error;
       setWinUsers((prev) => prev.filter((user) => user.id !== id));
     } catch (error) {
-      console.error('Error deleting Win User:', error);
-      alert('Erro ao excluir Win User');
+      console.error('Error deleting Usuário Windows:', error);
+      alert('Erro ao excluir Usuário Windows');
     }
   };
 
@@ -164,17 +164,17 @@ const WinUsers: React.FC = () => {
       const ws = XLSX.utils.json_to_sheet(templateData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Template');
-      XLSX.writeFile(wb, 'template_win_users.xlsx', { bookType: 'xlsx' });
+      XLSX.writeFile(wb, 'template_usuarios_windows.xlsx', { bookType: 'xlsx' });
     } else {
       // Usar dados filtrados em vez de todos os dados
       const dataToExport = filteredUsers.map(({ id, created_at, ...rest }) => rest);
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'WinUsers');
+      XLSX.utils.book_append_sheet(wb, ws, 'UsuariosWindows');
       
       // Incluir informações sobre filtros no nome do arquivo
       const filterInfo = searchTerm ? `_filtrado` : '';
-      const filename = `win_users${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
+      const filename = `usuarios_windows${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
       
       if (format === 'csv') {
         XLSX.writeFile(wb, filename, { bookType: 'csv' });
@@ -217,7 +217,7 @@ const WinUsers: React.FC = () => {
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Win Users</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Usuários Windows</h1>
             <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de usuários Windows</p>
           </div>
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
