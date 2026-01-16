@@ -116,6 +116,13 @@ export default function PedidosDeCompra() {
 
     const [mensal, setMensal] = useState<MensalItem[]>([]);
     const [totais, setTotais] = useState<{ total_entregue: number; total_aprovado: number } | null>(null);
+    const [mensalSort, setMensalSort] = useState<{
+        column: "item" | "quantidade" | "valor_unit" | "valor_total" | "diretoria" | "status";
+        direction: "asc" | "desc";
+    }>({
+        column: "item",
+        direction: "asc",
+    });
 
     // PROTOCOLOS
     const [protocolos, setProtocolos] = useState<Protocolo[]>([]);
@@ -166,6 +173,65 @@ const [editDraft, setEditDraft] = useState({
         }, 0);
         return 2500 - totalConsiderados;
     }, [mensal]);
+
+    const handleMensalSort = (column: "item" | "quantidade" | "valor_unit" | "valor_total" | "diretoria" | "status") => {
+        setMensalSort((prev) => {
+            if (prev.column === column) {
+                return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
+            }
+            return { column, direction: "asc" };
+        });
+    };
+
+    const sortedMensal = useMemo(() => {
+        const list = [...mensal];
+        const dir = mensalSort.direction === "asc" ? 1 : -1;
+        list.sort((a, b) => {
+            let aVal: string | number | boolean;
+            let bVal: string | number | boolean;
+
+            switch (mensalSort.column) {
+                case "item":
+                    aVal = a.item;
+                    bVal = b.item;
+                    break;
+                case "quantidade":
+                    aVal = Number(a.quantidade || 0);
+                    bVal = Number(b.quantidade || 0);
+                    break;
+                case "valor_unit":
+                    aVal = Number(a.valor_unit || 0);
+                    bVal = Number(b.valor_unit || 0);
+                    break;
+                case "valor_total":
+                    aVal = Number(a.valor_total_frete || 0);
+                    bVal = Number(b.valor_total_frete || 0);
+                    break;
+                case "diretoria":
+                    aVal = a.diretoria;
+                    bVal = b.diretoria;
+                    break;
+                case "status":
+                    aVal = a.status;
+                    bVal = b.status;
+                    break;
+                default:
+                    aVal = a.item;
+                    bVal = b.item;
+            }
+
+            if (typeof aVal === "number" && typeof bVal === "number") {
+                return (aVal - bVal) * dir;
+            }
+
+            if (typeof aVal === "boolean" && typeof bVal === "boolean") {
+                return (Number(aVal) - Number(bVal)) * dir;
+            }
+
+            return aVal.toString().localeCompare(bVal.toString(), "pt-BR", { sensitivity: "base" }) * dir;
+        });
+        return list;
+    }, [mensal, mensalSort]);
 
     // =============================
     // LOADERS
@@ -593,17 +659,83 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                         <table className="min-w-full divide-y divide-white/5 text-[11px] text-white">
                             <thead>
                                     <tr className="text-[10px] uppercase tracking-wider text-neutral-400">
-                                        <th className="px-2 py-2 text-center font-semibold">Item</th>
-                                        <th className="px-2 py-2 text-center font-semibold">Quantidade</th>
-                                        <th className="px-2 py-2 text-center font-semibold">Valor Unit.</th>
-                                        <th className="px-2 py-2 text-center font-semibold">Valor Total + Frete</th>
-                                        <th className="px-2 py-2 text-center font-semibold">Diretoria</th>
+                                        <th className="px-2 py-2 text-center font-semibold">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleMensalSort("item")}
+                                                className="flex items-center justify-center gap-1"
+                                            >
+                                                Item
+                                                <span className="text-neutral-400">
+                                                    {mensalSort.column === "item" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
+                                                </span>
+                                            </button>
+                                        </th>
+                                        <th className="px-2 py-2 text-center font-semibold">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleMensalSort("quantidade")}
+                                                className="flex items-center justify-center gap-1"
+                                            >
+                                                Quantidade
+                                                <span className="text-neutral-400">
+                                                    {mensalSort.column === "quantidade" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
+                                                </span>
+                                            </button>
+                                        </th>
+                                        <th className="px-2 py-2 text-center font-semibold">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleMensalSort("valor_unit")}
+                                                className="flex items-center justify-center gap-1"
+                                            >
+                                                Valor Unit.
+                                                <span className="text-neutral-400">
+                                                    {mensalSort.column === "valor_unit" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
+                                                </span>
+                                            </button>
+                                        </th>
+                                        <th className="px-2 py-2 text-center font-semibold">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleMensalSort("valor_total")}
+                                                className="flex items-center justify-center gap-1"
+                                            >
+                                                Valor Total + Frete
+                                                <span className="text-neutral-400">
+                                                    {mensalSort.column === "valor_total" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
+                                                </span>
+                                            </button>
+                                        </th>
+                                        <th className="px-2 py-2 text-center font-semibold">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleMensalSort("diretoria")}
+                                                className="flex items-center justify-center gap-1"
+                                            >
+                                                Diretoria
+                                                <span className="text-neutral-400">
+                                                    {mensalSort.column === "diretoria" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
+                                                </span>
+                                            </button>
+                                        </th>
                                         <th className="px-2 py-2 text-center font-semibold">Setor</th>
-                                        <th className="px-2 py-2 text-center font-semibold">Status</th>
+                                        <th className="px-2 py-2 text-center font-semibold">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleMensalSort("status")}
+                                                className="flex items-center justify-center gap-1"
+                                            >
+                                                Status
+                                                <span className="text-neutral-400">
+                                                    {mensalSort.column === "status" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
+                                                </span>
+                                            </button>
+                                        </th>
                                     </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
-                                {mensal.map((m) => (
+                                {sortedMensal.map((m) => (
                                     <tr key={m.id} className="bg-white/5 transition-colors duration-150 hover:bg-white/10">
                                         <td className="px-3 py-2 border-b border-white/5 text-left font-semibold">{m.item}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{Number(m.quantidade || 0)}</td>
