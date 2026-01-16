@@ -20,6 +20,7 @@ type MensalItem = {
     setor: string | null;
     status: PcStatusMensal;
     diretoria: boolean;
+    protocolo_item_id?: string | null;
 };
 
 type Protocolo = {
@@ -260,7 +261,7 @@ const [editDraft, setEditDraft] = useState({
     // =============================
     // ACTIONS: MENSAL
     // =============================
-    async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
+async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         const { error } = await supabase.from("pc_mensal_itens").update(patch).eq("id", id);
         if (error) {
             console.error("Erro update mensal:", error.message);
@@ -268,6 +269,39 @@ const [editDraft, setEditDraft] = useState({
         }
         await loadMensal();
     }
+
+    const toggleMensalDiretoria = useCallback(
+        async (item: MensalItem) => {
+            const nextValue = !item.diretoria;
+            try {
+                const { error } = await supabase
+                    .from("pc_mensal_itens")
+                    .update({ diretoria: nextValue })
+                    .eq("id", item.id);
+
+                if (error) throw error;
+
+                if (item.protocolo_item_id) {
+                    const { error: protoError } = await supabase
+                        .from("pc_protocolo_itens")
+                        .update({ diretoria: nextValue })
+                        .eq("id", item.protocolo_item_id);
+
+                    if (protoError) {
+                        console.warn("Erro sincronizando diretoria protocolo:", protoError.message);
+                    }
+                }
+
+                await loadMensal();
+                if (item.protocolo_item_id) {
+                    await loadProtocolos();
+                }
+            } catch (error) {
+                console.error("Erro atualizando diretoria do mensal:", error);
+            }
+        },
+        [loadMensal, loadProtocolos]
+    );
 
     // =============================
     // ACTIONS: PROTOCOLO
@@ -334,6 +368,8 @@ const [editDraft, setEditDraft] = useState({
         }
     }
 
+    const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+
     async function salvarProtocolo() {
         if (!protocoloSel) return;
 
@@ -350,6 +386,7 @@ const [editDraft, setEditDraft] = useState({
 
         await loadProtocolos();
         await loadMensal();
+        setShowSaveConfirm(true);
     }
 
     async function excluirProtocolo() {
@@ -403,7 +440,7 @@ const [editDraft, setEditDraft] = useState({
     }
 
     const toggleDiretoria = useCallback(
-        async (itemId: string, value: boolean) => {
+    async (itemId: string, value: boolean) => {
             try {
                 const { error } = await supabase
                     .from("pc_protocolo_itens")
@@ -411,6 +448,15 @@ const [editDraft, setEditDraft] = useState({
                     .eq("id", itemId);
 
                 if (error) throw error;
+
+                const { error: mensalError } = await supabase
+                    .from("pc_mensal_itens")
+                    .update({ diretoria: value })
+                    .eq("protocolo_item_id", itemId);
+
+                if (mensalError) {
+                    console.warn("Erro atualizando item no mensal:", mensalError.message);
+                }
 
                 if (protocoloSel?.id) {
                     await loadItens(protocoloSel.id);
@@ -443,6 +489,7 @@ const [editDraft, setEditDraft] = useState({
     // UI
     // =============================
     return (
+        <>
         <div className="space-y-6 sm:space-y-8">
             {/* Header (Server-Key feel) */}
         <div className="relative rounded-2xl border border-neutral-800 bg-neutral-950/60 p-6 shadow-xl overflow-hidden">
@@ -456,7 +503,7 @@ const [editDraft, setEditDraft] = useState({
                 </div>
                 <div className="flex-1 grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-end">
                     <select
-                        className="w-full min-w-[110px] rounded-2xl border border-neutral-800 bg-black/40 px-3 py-2 text-sm text-white shadow-sm focus:border-primary-500"
+                        className="w-full max-w-[90px] rounded-2xl border border-neutral-800 bg-black/40 px-2 py-1 text-xs text-white shadow-sm focus:border-primary-500"
                         value={ano}
                         onChange={(e) => setAno(Number(e.target.value))}
                     >
@@ -471,7 +518,7 @@ const [editDraft, setEditDraft] = useState({
                     </select>
 
                     <select
-                        className="w-full min-w-[110px] rounded-2xl border border-neutral-800 bg-black/40 px-3 py-2 text-sm text-white shadow-sm focus:border-primary-500"
+                        className="w-full max-w-[70px] rounded-2xl border border-neutral-800 bg-black/40 px-2 py-1 text-xs text-white shadow-sm focus:border-primary-500"
                         value={mes}
                         onChange={(e) => setMes(Number(e.target.value))}
                     >
@@ -545,14 +592,15 @@ const [editDraft, setEditDraft] = useState({
                     <div className="overflow-x-auto p-4">
                         <table className="min-w-full divide-y divide-white/5 text-[11px] text-white">
                             <thead>
-                                <tr className="text-[10px] uppercase tracking-wider text-neutral-400">
-                                    <th className="px-2 py-2 text-center font-semibold">Item</th>
-                                    <th className="px-2 py-2 text-center font-semibold">Quantidade</th>
-                                    <th className="px-2 py-2 text-center font-semibold">Valor Unit.</th>
-                                    <th className="px-2 py-2 text-center font-semibold">Valor Total + Frete</th>
-                                    <th className="px-2 py-2 text-center font-semibold">Setor</th>
-                                    <th className="px-2 py-2 text-center font-semibold">Status</th>
-                                </tr>
+                                    <tr className="text-[10px] uppercase tracking-wider text-neutral-400">
+                                        <th className="px-2 py-2 text-center font-semibold">Item</th>
+                                        <th className="px-2 py-2 text-center font-semibold">Quantidade</th>
+                                        <th className="px-2 py-2 text-center font-semibold">Valor Unit.</th>
+                                        <th className="px-2 py-2 text-center font-semibold">Valor Total + Frete</th>
+                                        <th className="px-2 py-2 text-center font-semibold">Diretoria</th>
+                                        <th className="px-2 py-2 text-center font-semibold">Setor</th>
+                                        <th className="px-2 py-2 text-center font-semibold">Status</th>
+                                    </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {mensal.map((m) => (
@@ -561,6 +609,14 @@ const [editDraft, setEditDraft] = useState({
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{Number(m.quantidade || 0)}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(m.valor_unit || 0))}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(m.valor_total_frete || 0))}</td>
+                                        <td className="px-3 py-2 border-b border-white/5 text-center">
+                                            <button
+                                                onClick={() => toggleMensalDiretoria(m)}
+                                                className="inline-flex items-center justify-center rounded-full border border-white/10 p-2 transition hover:border-white/40"
+                                            >
+                                                <Star className={`h-4 w-4 ${m.diretoria ? "text-primary-400" : "text-white/40"}`} />
+                                            </button>
+                                        </td>
                                         <td className="px-3 py-2 border-b border-white/5">
                                             <input
                                                 className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
@@ -952,5 +1008,19 @@ const [editDraft, setEditDraft] = useState({
                 </div>
             )}
         </div>
+
+            {showSaveConfirm && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+                    onClick={() => setShowSaveConfirm(false)}
+                >
+                    <div className="max-w-xs rounded-2xl border border-white/10 bg-neutral-900/95 px-6 py-6 text-center text-white shadow-2xl backdrop-blur-xl">
+                        <p className="text-sm font-semibold uppercase tracking-wide text-white/90">Salvar confirmado</p>
+                        <p className="mt-1 text-xs text-neutral-400">Protocolo salvo com sucesso.</p>
+                        <p className="mt-3 text-[7px] uppercase tracking-[0.3em] text-white/60">Clique em qualquer lugar para fechar</p>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }
