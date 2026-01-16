@@ -1,4 +1,14 @@
 {
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        { "type": "host", "value": "server-key-psi.vercel.app" }
+      ],
+      "destination": "http://odontoarthub.odontoart.com/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/:path*",
