@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink } from 'lucide-react';
+import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail } from 'lucide-react';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
 import DashboardStats from '../components/DashboardStats';
@@ -30,6 +30,23 @@ const STATUS_OPTIONS = [
 const PAGTO_OPTIONS = [
   'Boleto',
   'CARTAO',
+];
+
+const XLSX_EXPORT_HEADERS = [
+  'FORNECEDOR',
+  'VALOR',
+  'VENCIMENTO',
+  'PAGAMENTO',
+  'EMPRESA',
+  'DESCRIÇÎÇŸO',
+  'NOTA FISCAL',
+  'SETOR RESPONSÇ?VEL',
+  'NOME DO BANCO',
+  'AGÇSNCIA',
+  'CONTA',
+  'TIPO DE CONTA',
+  'CPF/CNPJ',
+  'Anexos (Sim/NÇœo)',
 ];
 
 type ExportFormat = 'csv' | 'xlsx' | 'template' | 'xlsx_resumido';
@@ -100,6 +117,8 @@ const ContasAPagar: React.FC = () => {
   const [pendingExportFormat, setPendingExportFormat] = useState<ExportFormat | null>(savedExportState.pendingExportFormat);
   const [nfEntries, setNfEntries] = useState<Record<string, string>>(savedExportState.nfEntries);
   const [resumidoSyncVisible, setResumidoSyncVisible] = useState(savedExportState.resumidoSyncVisible);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -116,6 +135,12 @@ const ContasAPagar: React.FC = () => {
       console.error('Erro ao salvar estado do export modal:', error);
     }
   }, [showExportQuestion, showExportNfModal, pendingExportFormat, nfEntries, resumidoSyncVisible]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const fetchContas = useCallback(async () => {
     try {
@@ -371,7 +396,7 @@ const ContasAPagar: React.FC = () => {
     return filtered;
   }, [contas, searchTerm, sortConfig, statusFilter]);
 
-  const exportData = useCallback((format: ExportFormat, nfMap: Record<string, string> = {}) => {
+  const buildXlsxDataRows = useCallback((nfMap: Record<string, string>) => {
     const now = new Date();
     const parseValor = (value: string | number | null) => {
       if (value === null || value === undefined || value === '') return null;
@@ -384,56 +409,42 @@ const ContasAPagar: React.FC = () => {
       return Number.isFinite(numeric) ? numeric : null;
     };
 
-    const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-
-    const getDayValue = (value: number | null | undefined) => {
-      if (value === null || value === undefined) return null;
-      const parsed = Number(value);
-      if (!Number.isFinite(parsed)) return null;
-      const day = Math.trunc(parsed);
-      if (day < 1 || day > 31) return null;
-      return day;
+    const getNfValue = (contaId: string) => {
+      if (!contaId) return '*';
+      const candidate = nfMap[contaId];
+      if (candidate && candidate.trim()) return candidate.trim();
+      return '*';
     };
 
-    const getNextDueDate = (day: number, baseDate: Date) => {
-      let year = baseDate.getFullYear();
-      let month = baseDate.getMonth();
-      const todayStart = startOfDay(baseDate);
+    return filteredContasSorted.map((conta) => {
+      const valorNum = parseValor(conta.valor);
+      const day = getDayValue(conta.vencimento ?? null);
+      const vencDate = day ? getNextDueDate(day, now) : null;
+      const nfValue = getNfValue(conta.id);
 
-      const monthDays = getDaysInMonth(year, month);
-      let due = new Date(year, month, Math.min(day, monthDays));
+      return [
+        conta.fornecedor || '',
+        valorNum ?? null,
+        vencDate ?? null,
+        conta.tipo_pagto || 'Boleto',
+        'ODONTOART',
+        conta.descricao || '',
+        nfValue,
+        'T.I',
+        '*',
+        '*',
+        '*',
+        '*',
+        '*',
+        'NÇœo',
+      ];
+    });
+  }, [filteredContasSorted, getDayValue, getNextDueDate]);
 
-      if (due < todayStart) {
-        month += 1;
-        if (month > 11) {
-          month = 0;
-          year += 1;
-        }
-        const nextMonthDays = getDaysInMonth(year, month);
-        due = new Date(year, month, Math.min(day, nextMonthDays));
-      }
-      return due;
-    };
-
+  const exportData = useCallback((format: ExportFormat, nfMap: Record<string, string> = {}) => {
     // ===== base do arquivo (igual ao anexo) =====
     const TITLE = 'PROTOCOLO FINANCEIRO';
-    const HEADERS = [
-      'FORNECEDOR',
-      'VALOR',
-      'VENCIMENTO',
-      'PAGAMENTO',
-      'EMPRESA',
-      'DESCRIÇÃO',
-      'NOTA FISCAL',
-      'SETOR RESPONSÁVEL',
-      'NOME DO BANCO',
-      'AGÊNCIA',
-      'CONTA',
-      'TIPO DE CONTA',
-      'CPF/CNPJ',
-      'Anexos (Sim/Não)',
-    ];
+    const HEADERS = XLSX_EXPORT_HEADERS;
 
     // larguras (igual ao arquivo anexado)
     const COL_WIDTHS = [34.71, 15.0, 19.855, 20.425, 13.0, 62.57, 27.285, 19.855, 16.855, 13.0, 10.71, 14.71, 18.71, 17.425];
@@ -483,8 +494,8 @@ const ContasAPagar: React.FC = () => {
 
     // ===== monta linhas =====
     const rows: any[][] = [];
-    rows.push([TITLE, ...Array(13).fill(null)]);       // linha 1 (A1:N1)
-    rows.push([null, ...Array(13).fill(null)]);        // linha 2 (A2:N2) - para manter o merge 2 linhas
+    rows.push([TITLE, ...Array(HEADERS.length - 1).fill(null)]);       // linha 1 (A1:N1)
+    rows.push([null, ...Array(HEADERS.length - 1).fill(null)]);        // linha 2 (A2:N2) - para manter o merge 2 linhas
     rows.push(HEADERS);                                // linha 3 (cabeçalho)
 
     if (format === 'xlsx_resumido') {
@@ -679,29 +690,8 @@ const ContasAPagar: React.FC = () => {
       ]);
     } else {
       // export real (usa o filtro atual da tela)
-      filteredContasSorted.forEach((conta) => {
-        const valorNum = parseValor(conta.valor);
-        const day = getDayValue(conta.vencimento ?? null);
-        const vencDate = day ? getNextDueDate(day, now) : null;
-        const nfValue = getNfValue(conta.id);
-
-        rows.push([
-          conta.fornecedor || '',
-          valorNum ?? null,
-          vencDate ?? null,
-          conta.tipo_pagto || 'Boleto',                      // se você quiser puxar do banco depois, é aqui
-          'ODONTOART',                   // idem
-          conta.descricao || '',
-          nfValue,
-          'T.I',
-          '*',
-          '*',
-          '*',
-          '*',
-          '*',
-          'Não',
-        ]);
-      });
+      const dataRows = buildXlsxDataRows(nfMap);
+      dataRows.forEach((row) => rows.push(row));
     }
 
     // ===== cria planilha =====
@@ -753,7 +743,7 @@ const ContasAPagar: React.FC = () => {
 
     XLSX.writeFile(wb, `${filenameBase}.xlsx`);
     setShowExportMenu(false);
-  }, [filteredContasSorted, setShowExportMenu]);
+  }, [buildXlsxDataRows, filteredContasSorted, setShowExportMenu]);
 
   const resetExportFlow = useCallback(() => {
     setShowExportQuestion(false);
@@ -817,6 +807,65 @@ const ContasAPagar: React.FC = () => {
     if (!resumidoSyncVisible) return;
     exportData('xlsx_resumido', nfEntries);
   }, [nfEntries, exportData, resumidoSyncVisible]);
+
+  const handleSendXlsxEmail = useCallback(async () => {
+    if (sendingEmail || pendingExportFormat !== 'xlsx') return;
+
+    const dataRows = buildXlsxDataRows(nfEntries);
+    const rows = dataRows.map((row) =>
+      row.map((value) => {
+        if (value instanceof Date) {
+          const year = value.getFullYear();
+          const month = String(value.getMonth() + 1).padStart(2, '0');
+          const day = String(value.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+        if (value === undefined) return null;
+        return value;
+      })
+    );
+
+    setSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-contas-a-pagar-xlsx-email', {
+        body: {
+          columns: XLSX_EXPORT_HEADERS,
+          rows,
+        }
+      });
+
+      if (error) {
+        let errorMessage = 'Falha ao enviar e-mail.';
+        const context = (error as { context?: Response }).context;
+        if (context instanceof Response) {
+          try {
+            const body = await context.json();
+            if (body?.error) {
+              errorMessage = body.error;
+            }
+          } catch {
+            // ignore response parse issues
+          }
+        }
+        console.error('Erro ao enviar e-mail:', error);
+        setToast({ type: 'error', message: errorMessage });
+        return;
+      }
+
+      if (!data?.ok) {
+        console.error('Resposta inesperada da function:', data);
+        setToast({ type: 'error', message: 'Falha ao enviar e-mail.' });
+        return;
+      }
+
+      setToast({ type: 'success', message: 'E-mail enviado com sucesso' });
+    } catch (err) {
+      console.error('Erro inesperado ao enviar e-mail:', err);
+      setToast({ type: 'error', message: 'Falha ao enviar e-mail.' });
+    } finally {
+      setSendingEmail(false);
+    }
+  }, [buildXlsxDataRows, nfEntries, pendingExportFormat, sendingEmail]);
 
 
   const currentItems = filteredContasSorted;
@@ -964,6 +1013,16 @@ const ContasAPagar: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
+      {toast && (
+        <div
+          className={`fixed right-4 top-4 z-50 rounded-2xl px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-lg ${
+            toast.type === 'success' ? 'bg-emerald-500/90' : 'bg-red-500/90'
+          }`}
+          role="status"
+        >
+          {toast.message}
+        </div>
+      )}
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
@@ -1332,6 +1391,18 @@ const ContasAPagar: React.FC = () => {
               >
                 Sincronizar NF
               </button>
+              {pendingExportFormat === 'xlsx' && (
+                <button
+                  onClick={handleSendXlsxEmail}
+                  disabled={sendingEmail}
+                  className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 transition-colors ${
+                    sendingEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
+                  }`}
+                >
+                  <Mail className="h-3 w-3" />
+                  {sendingEmail ? 'ENVIANDO...' : 'ENVIAR EMAIL'}
+                </button>
+              )}
               {resumidoSyncVisible && (
                 <button
                   onClick={handleExportResumidoWithNf}
