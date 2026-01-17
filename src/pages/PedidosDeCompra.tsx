@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { Plus, Download, ExternalLink, Save, Trash2, Pencil, Star } from "lucide-react";
+import { Plus, Download, ExternalLink, Save, Trash2, Pencil, Star, Mail, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { exportProtocoloXlsx } from "../utils/exportProtocoloXlsx";
 import MoneyInputBRL from "../components/MoneyInputBRL";
@@ -139,6 +139,8 @@ const [editDraft, setEditDraft] = useState({
     link: "",
     diretoria: false,
 });
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
     // item editor protocolo
     const [draft, setDraft] = useState<Omit<ProtocoloItem, "id" | "protocolo_id" | "valor_total">>({
@@ -323,6 +325,12 @@ const [editDraft, setEditDraft] = useState({
             protocoloSelId,
         });
     }, [tab, ano, mes, protocoloSelId]);
+
+    useEffect(() => {
+        if (!toast) return;
+        const timer = setTimeout(() => setToast(null), 3500);
+        return () => clearTimeout(timer);
+    }, [toast]);
 
     // =============================
     // ACTIONS: MENSAL
@@ -551,12 +559,64 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         });
     }
 
+    async function enviarEmailProtocolo() {
+        if (!protocoloSel || sendingEmail) return;
+        setSendingEmail(true);
+
+        try {
+            const { data, error } = await supabase.functions.invoke("send-protocolo-email", {
+                body: { protocoloId: protocoloSel.id },
+            });
+
+            if (error) {
+                let errorMessage = "Falha ao enviar e-mail.";
+                const context = (error as { context?: Response }).context;
+                if (context instanceof Response) {
+                    try {
+                        const body = await context.json();
+                        if (body?.error) {
+                            errorMessage = body.error;
+                        }
+                    } catch {
+                        // ignore response parse issues
+                    }
+                }
+                console.error("Erro ao enviar e-mail:", error);
+                setToast({ type: "error", message: errorMessage });
+                return;
+            }
+
+            if (!data?.ok) {
+                console.error("Resposta inesperada da function:", data);
+                setToast({ type: "error", message: "Falha ao enviar e-mail." });
+                return;
+            }
+
+            setToast({ type: "success", message: "E-mail enviado." });
+        } catch (err) {
+            console.error("Erro inesperado ao enviar e-mail:", err);
+            setToast({ type: "error", message: "Falha ao enviar e-mail." });
+        } finally {
+            setSendingEmail(false);
+        }
+    }
+
     // =============================
     // UI
     // =============================
     return (
         <>
         <div className="space-y-6 sm:space-y-8">
+            {toast && (
+                <div
+                    className={`fixed right-4 top-4 z-50 rounded-2xl px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-lg ${
+                        toast.type === "success" ? "bg-emerald-500/90" : "bg-red-500/90"
+                    }`}
+                    role="status"
+                >
+                    {toast.message}
+                </div>
+            )}
             {/* Header (Server-Key feel) */}
         <div className="relative rounded-2xl border border-neutral-800 bg-neutral-950/60 p-6 shadow-xl overflow-hidden">
             <div className="relative flex flex-wrap items-center gap-4">
@@ -868,6 +928,20 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                             </div>
 
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <button
+                                    disabled={!protocoloSel || sendingEmail}
+                                    onClick={enviarEmailProtocolo}
+                                    className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-xs font-semibold uppercase tracking-wide transition-colors
+                                        ${protocoloSel && !sendingEmail
+                                            ? "bg-white/10 text-white shadow-lg hover:bg-white/20"
+                                            : "bg-white/5 text-white/50 cursor-not-allowed border border-white/10"
+                                        }`}
+                                    title="Enviar e-mail do protocolo"
+                                    aria-busy={sendingEmail}
+                                >
+                                    {sendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail size={16} />}
+                                    {sendingEmail ? "Enviando..." : "Enviar email"}
+                                </button>
                                 <button
                                     disabled={!protocoloSel}
                                     onClick={exportarProtocoloSelecionado}
