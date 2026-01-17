@@ -75,10 +75,13 @@ type ProtocoloItem = {
     prioridade: PcPrioridade;
     quantidade: number;
     valor_unit: number;
+    frete: number;
     valor_total: number;
     link?: string | null;
     diretoria: boolean;
 };
+
+type ProtocoloItemDraft = Omit<ProtocoloItem, "id" | "protocolo_id" | "valor_total">;
 
 function getNowYM() {
     const now = new Date();
@@ -87,6 +90,22 @@ function getNowYM() {
 
 function currency(n: number) {
     return (n ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function round2(n: number) {
+    return Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function getMensalBaseTotal(item: MensalItem) {
+    return round2(Number(item.quantidade || 0) * Number(item.valor_unit || 0));
+}
+
+function getMensalFrete(item: MensalItem) {
+    return round2(Number(item.valor_total_frete || 0) - getMensalBaseTotal(item));
+}
+
+function getProtocoloItemTotal(item: ProtocoloItem) {
+    return round2(Number(item.valor_total || 0) + Number(item.frete || 0));
 }
 
 function prioridadeBadge(p: PcPrioridade) {
@@ -117,7 +136,7 @@ export default function PedidosDeCompra() {
     const [mensal, setMensal] = useState<MensalItem[]>([]);
     const [totais, setTotais] = useState<{ total_entregue: number; total_aprovado: number } | null>(null);
     const [mensalSort, setMensalSort] = useState<{
-        column: "item" | "quantidade" | "valor_unit" | "valor_total" | "diretoria" | "status";
+        column: "item" | "quantidade" | "valor_unit" | "frete" | "valor_total" | "diretoria" | "status";
         direction: "asc" | "desc";
     }>({
         column: "item",
@@ -130,31 +149,33 @@ export default function PedidosDeCompra() {
     const [novoTitulo, setNovoTitulo] = useState("");
 
     const [editItem, setEditItem] = useState<ProtocoloItem | null>(null);
-const [editDraft, setEditDraft] = useState({
-    loja: "",
-    produto: "",
-    prioridade: "MEDIA" as PcPrioridade,
-    quantidade: 1,
-    valor_unit: 0,
-    link: "",
-    diretoria: false,
-});
+    const [editDraft, setEditDraft] = useState<ProtocoloItemDraft>({
+        loja: "",
+        produto: "",
+        prioridade: "MEDIA" as PcPrioridade,
+        quantidade: 1,
+        valor_unit: 0,
+        frete: 0,
+        link: "",
+        diretoria: false,
+    });
     const [sendingEmail, setSendingEmail] = useState(false);
     const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
     // item editor protocolo
-    const [draft, setDraft] = useState<Omit<ProtocoloItem, "id" | "protocolo_id" | "valor_total">>({
-    loja: "",
-    produto: "",
-    prioridade: "MEDIA",
-    quantidade: 1,
-    valor_unit: 0,
-    link: "",
-    diretoria: false,
-});
+    const [draft, setDraft] = useState<ProtocoloItemDraft>({
+        loja: "",
+        produto: "",
+        prioridade: "MEDIA",
+        quantidade: 1,
+        valor_unit: 0,
+        frete: 0,
+        link: "",
+        diretoria: false,
+    });
 
     const valorFinalProtocolo = useMemo(() => {
-        return itens.reduce((acc, i) => acc + (Number(i.valor_total) || 0), 0);
+        return round2(itens.reduce((acc, i) => acc + getProtocoloItemTotal(i), 0));
     }, [itens]);
 
     const aprovadoDiretoria = useMemo(() => {
@@ -176,7 +197,7 @@ const [editDraft, setEditDraft] = useState({
         return 2500 - totalConsiderados;
     }, [mensal]);
 
-    const handleMensalSort = (column: "item" | "quantidade" | "valor_unit" | "valor_total" | "diretoria" | "status") => {
+    const handleMensalSort = (column: "item" | "quantidade" | "valor_unit" | "frete" | "valor_total" | "diretoria" | "status") => {
         setMensalSort((prev) => {
             if (prev.column === column) {
                 return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
@@ -204,6 +225,10 @@ const [editDraft, setEditDraft] = useState({
                 case "valor_unit":
                     aVal = Number(a.valor_unit || 0);
                     bVal = Number(b.valor_unit || 0);
+                    break;
+                case "frete":
+                    aVal = getMensalFrete(a);
+                    bVal = getMensalFrete(b);
                     break;
                 case "valor_total":
                     aVal = Number(a.valor_total_frete || 0);
@@ -409,6 +434,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
             prioridade: i.prioridade,
             quantidade: Number(i.quantidade || 0),
             valor_unit: Number(i.valor_unit || 0),
+            frete: Number(i.frete || 0),
             link: i.link || "",
             diretoria: i.diretoria ?? false,
         });
@@ -425,6 +451,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                 prioridade: editDraft.prioridade,
                 quantidade: Number(editDraft.quantidade || 0),
                 valor_unit: Number(editDraft.valor_unit || 0),
+                frete: Number(editDraft.frete || 0),
                 link: (editDraft.link || "").trim() || null,
                 diretoria: editDraft.diretoria,
             })
@@ -486,6 +513,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
             prioridade: draft.prioridade,
             quantidade: Number(draft.quantidade || 0),
             valor_unit: Number(draft.valor_unit || 0),
+            frete: Number(draft.frete || 0),
             link: (draft.link || "").trim() || null,
             diretoria: draft.diretoria,
         };
@@ -496,7 +524,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
             return;
         }
 
-        setDraft({ loja: "", produto: "", prioridade: "MEDIA", quantidade: 1, valor_unit: 0, link: "", diretoria: false });
+        setDraft({ loja: "", produto: "", prioridade: "MEDIA", quantidade: 1, valor_unit: 0, frete: 0, link: "", diretoria: false });
         await loadItens(protocoloSel.id);
         await loadProtocolos();
     }
@@ -554,6 +582,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                 prioridade: i.prioridade,
                 quantidade: Number(i.quantidade || 0),
                 valorUnit: Number(i.valor_unit || 0),
+                frete: Number(i.frete || 0),
                 link: i.link || "",
             })),
         });
@@ -758,6 +787,18 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         <th className="px-2 py-2 text-center font-semibold">
                                             <button
                                                 type="button"
+                                                onClick={() => handleMensalSort("frete")}
+                                                className="flex items-center justify-center gap-1"
+                                            >
+                                                Frete
+                                                <span className="text-neutral-400">
+                                                    {mensalSort.column === "frete" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
+                                                </span>
+                                            </button>
+                                        </th>
+                                        <th className="px-2 py-2 text-center font-semibold">
+                                            <button
+                                                type="button"
                                                 onClick={() => handleMensalSort("valor_total")}
                                                 className="flex items-center justify-center gap-1"
                                             >
@@ -800,6 +841,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         <td className="px-3 py-2 border-b border-white/5 text-left font-semibold">{m.item}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{Number(m.quantidade || 0)}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(m.valor_unit || 0))}</td>
+                                        <td className="px-3 py-2 border-b border-white/5 text-center">{currency(getMensalFrete(m))}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(m.valor_total_frete || 0))}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">
                                             <button
@@ -833,7 +875,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
                                 {!mensal.length && (
                                     <tr>
-                                        <td className="px-3 py-6 text-center text-neutral-400" colSpan={6}>
+                                        <td className="px-3 py-6 text-center text-neutral-400" colSpan={8}>
                                             Nenhum item no mensal para {String(mes).padStart(2, "0")}/{ano}.
                                         </td>
                                     </tr>
@@ -1003,6 +1045,12 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         placeholder="Valor"
                                         className="w-32 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
+                                    <MoneyInputBRL
+                                        value={draft.frete}
+                                        onChange={(val) => setDraft((d) => ({ ...d, frete: val }))}
+                                        placeholder="Frete"
+                                        className="w-32 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    />
                                     <input
                                         className="flex-1 min-w-[120px] rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Link"
@@ -1037,7 +1085,8 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                 <th className="px-2 py-2 text-center font-semibold">Prioridade</th>
                                                 <th className="px-2 py-2 text-right font-semibold">Quant</th>
                                                 <th className="px-2 py-2 text-right font-semibold">Valor</th>
-                                                <th className="px-2 py-2 text-right font-semibold">Valor Total</th>
+                                                <th className="px-2 py-2 text-right font-semibold">Frete</th>
+                                                <th className="px-2 py-2 text-right font-semibold">Total + Frete</th>
                                                 <th className="px-2 py-2 text-center font-semibold">
                                                     <Star className="h-4 w-4 text-primary-400" aria-hidden="true" />
                                                     <span className="sr-only">Diretoria</span>
@@ -1057,7 +1106,8 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                     </td>
                                                     <td className="px-3 py-2 border-b border-white/5 text-right">{Number(i.quantidade || 0)}</td>
                                                     <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(i.valor_unit || 0))}</td>
-                                                    <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(i.valor_total || 0))}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(i.frete || 0))}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-right">{currency(getProtocoloItemTotal(i))}</td>
                                                     <td className="px-2 py-2 text-center">
                                                         <input
                                                             type="checkbox"
@@ -1109,7 +1159,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
                                             {!itens.length && (
                                                 <tr>
-                                                    <td className="px-3 py-6 text-center text-neutral-400" colSpan={8}>
+                                                    <td className="px-3 py-6 text-center text-neutral-400" colSpan={10}>
                                                         Sem itens neste protocolo.
                                                     </td>
                                                 </tr>
@@ -1164,6 +1214,12 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                         value={editDraft.valor_unit}
                                                         onChange={(val) => setEditDraft((d) => ({ ...d, valor_unit: val }))}
                                                         placeholder="Valor"
+                                                        className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    />
+                                                    <MoneyInputBRL
+                                                        value={editDraft.frete}
+                                                        onChange={(val) => setEditDraft((d) => ({ ...d, frete: val }))}
+                                                        placeholder="Frete"
                                                         className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                     />
 

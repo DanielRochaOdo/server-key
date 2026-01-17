@@ -19,6 +19,7 @@ type ProtocoloItemRow = {
   prioridade: string | null;
   quantidade: number | null;
   valor_unit: number | null;
+  frete: number | null;
   valor_total: number | null;
   link?: string | null;
 };
@@ -167,7 +168,7 @@ Deno.serve(async (req) => {
 
   const { data: itens, error: itensError } = await supabaseAdmin
     .from("pc_protocolo_itens")
-    .select("loja, produto, prioridade, quantidade, valor_unit, valor_total, link")
+    .select("loja, produto, prioridade, quantidade, valor_unit, frete, valor_total, link")
     .eq("protocolo_id", protocoloId)
     .order("created_at", { ascending: true });
 
@@ -180,8 +181,9 @@ Deno.serve(async (req) => {
   const totalFromItems = items.reduce((acc, item) => {
     const quantidade = Number(item.quantidade || 0);
     const valorUnit = Number(item.valor_unit || 0);
-    const valorTotal = Number(item.valor_total || 0) || quantidade * valorUnit;
-    return acc + valorTotal;
+    const valorBase = Number(item.valor_total || 0) || quantidade * valorUnit;
+    const frete = Number(item.frete || 0);
+    return acc + valorBase + frete;
   }, 0);
 
   const protocoloTotal = Number((protocolo as ProtocoloRow).valor_final || 0);
@@ -202,7 +204,9 @@ Deno.serve(async (req) => {
       const prioridade = escapeHtml(item.prioridade || "N/D");
       const quantidade = Number(item.quantidade || 0);
       const valorUnit = Number(item.valor_unit || 0);
-      const valorTotal = Number(item.valor_total || 0) || quantidade * valorUnit;
+      const frete = Number(item.frete || 0);
+      const valorBase = Number(item.valor_total || 0) || quantidade * valorUnit;
+      const valorTotal = valorBase + frete;
       const link = sanitizeUrl(item.link);
       const linkCell = link
         ? `<a href="${escapeHtml(link)}" target="_blank" rel="noreferrer">Abrir</a>`
@@ -215,6 +219,7 @@ Deno.serve(async (req) => {
           <td align="left">${prioridade}</td>
           <td align="center">${numberFormatter.format(quantidade)}</td>
           <td align="right">${currencyFormatter.format(valorUnit)}</td>
+          <td align="right">${currencyFormatter.format(frete)}</td>
           <td align="right">${currencyFormatter.format(valorTotal)}</td>
           <td align="left">${linkCell}</td>
         </tr>
@@ -231,7 +236,8 @@ Deno.serve(async (req) => {
           <th align="left">Prioridade</th>
           <th align="center">Qtd</th>
           <th align="right">Valor Unit.</th>
-          <th align="right">Valor Total</th>
+          <th align="right">Frete</th>
+          <th align="right">Valor Total + Frete</th>
           <th align="left">Link</th>
         </tr>
       </thead>

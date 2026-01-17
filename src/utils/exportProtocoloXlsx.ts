@@ -8,6 +8,7 @@ type ExportItem = {
   prioridade: Prioridade;
   quantidade: number;
   valorUnit: number;
+  frete: number;
   link: string;
 };
 
@@ -39,15 +40,25 @@ export function exportProtocoloXlsx(params: { protocoloNome: string; itens: Expo
 function buildSheet(params: { titulo: string; itens: ExportItem[] }) {
   const { titulo, itens } = params;
 
-  // Linhas (A..G)
+  // Linhas (A..H)
   const rows: any[][] = [];
-  rows.push([titulo, null, null, null, null, null, null]); // A1:G1 (A1:F1 mesclado)
-  rows.push(["Loja", "Produto - Descrição", "Prioridade", "Quant", "Valor Uni.", "Valor Total", "LINK"]);
+  rows.push([titulo, null, null, null, null, null, null, null]); // A1:H1 (A1:G1 mesclado)
+  rows.push([
+    "Loja",
+    "Produto - Descrição",
+    "Prioridade",
+    "Quant",
+    "Valor Uni.",
+    "Frete",
+    "Valor Total + Frete",
+    "LINK",
+  ]);
 
   for (const it of itens) {
     const qtd = Number(it.quantidade || 0);
     const v = Number(it.valorUnit || 0);
-    const valorTotal = round2(qtd * v);
+    const frete = Number(it.frete || 0);
+    const valorTotal = round2(qtd * v + frete);
 
     rows.push([
       it.loja,
@@ -55,18 +66,19 @@ function buildSheet(params: { titulo: string; itens: ExportItem[] }) {
       normalizePrioridade(it.prioridade),
       qtd,
       v,
+      frete,
       valorTotal,
       it.link || "",
     ]);
   }
 
-  // Linha total (E = label, F = fórmula)
-  rows.push([null, null, null, null, "Valor Total", null, null]);
+  // Linha total (F = label, G = fórmula)
+  rows.push([null, null, null, null, null, "Valor Total + Frete", null, null]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
 
-  // Merge A1:F1 (igual seu template)
-  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+  // Merge A1:G1 (igual seu template)
+  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }];
 
   // Larguras
   ws["!cols"] = [
@@ -75,8 +87,9 @@ function buildSheet(params: { titulo: string; itens: ExportItem[] }) {
     { wch: 14 }, // C Prioridade
     { wch: 8 },  // D Quant
     { wch: 14 }, // E Valor Uni
-    { wch: 16 }, // F Valor Total
-    { wch: 18 }, // G LINK
+    { wch: 12 }, // F Frete
+    { wch: 18 }, // G Valor Total
+    { wch: 18 }, // H LINK
   ];
 
   // Styles
@@ -97,7 +110,7 @@ function buildSheet(params: { titulo: string; itens: ExportItem[] }) {
   });
 
   // Header row (row 2)
-  for (let c = 0; c <= 6; c++) {
+  for (let c = 0; c <= 7; c++) {
     setCellStyle(ws, 1, c, {
       font: { name: "Aptos Narrow", bold: true, sz: 12 },
       fill: { patternType: "solid", fgColor: { rgb: "FFF1A983" } }, // laranja
@@ -111,8 +124,8 @@ function buildSheet(params: { titulo: string; itens: ExportItem[] }) {
   const bodyEndIdx = 1 + itens.length; // última linha de item (0-based). Se 0 itens, bodyEndIdx=1 e não entra no loop.
 
   for (let r = bodyStartIdx; r <= bodyEndIdx; r++) {
-    for (let c = 0; c <= 6; c++) {
-      const isMoney = c === 4 || c === 5;
+    for (let c = 0; c <= 7; c++) {
+      const isMoney = c === 4 || c === 5 || c === 6;
       const isQty = c === 3;
 
       setCellStyle(ws, r, c, {
@@ -139,7 +152,7 @@ function buildSheet(params: { titulo: string; itens: ExportItem[] }) {
       }
 
       // Link com hyperlink
-      if (c === 6) {
+      if (c === 7) {
         const link = String(getCell(ws, r, c) || "").trim();
         if (link) {
           const addr = XLSX.utils.encode_cell({ r, c });
@@ -152,21 +165,21 @@ function buildSheet(params: { titulo: string; itens: ExportItem[] }) {
 
   // Linha total
   const totalRowIdx = 2 + itens.length; // se 0 itens => 2
-  setCellValue(ws, totalRowIdx, 4, "Valor Total");
+  setCellValue(ws, totalRowIdx, 5, "Valor Total + Frete");
 
-  setCellStyle(ws, totalRowIdx, 4, {
+  setCellStyle(ws, totalRowIdx, 5, {
     font: { name: "Aptos Narrow", bold: true, sz: 11, color: { rgb: "FFFFFFFF" } },
     fill: { patternType: "solid", fgColor: { rgb: "FF000000" } },
     alignment: right,
   });
 
-  // Fórmula: SUM(F3:F{n})
+  // Fórmula: SUM(G3:G{n})
   const sumFrom = 3; // primeira linha de item em 1-based
   const sumTo = 2 + itens.length; // última linha de item em 1-based
-  const formula = itens.length ? `SUM(F${sumFrom}:F${sumTo})` : "0";
+  const formula = itens.length ? `SUM(G${sumFrom}:G${sumTo})` : "0";
 
-  setCellFormula(ws, totalRowIdx, 5, formula);
-  setCellStyle(ws, totalRowIdx, 5, {
+  setCellFormula(ws, totalRowIdx, 6, formula);
+  setCellStyle(ws, totalRowIdx, 6, {
     font: { name: "Aptos Narrow", sz: 11, color: { rgb: "FFFFFFFF" } },
     fill: { patternType: "solid", fgColor: { rgb: "FF000000" } },
     alignment: right,

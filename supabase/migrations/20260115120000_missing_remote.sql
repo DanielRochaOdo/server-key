@@ -1,0 +1,2 @@
+-- Placeholder migration to match remote history.
+-- The actual migration was applied remotely; keep local versions aligned.
