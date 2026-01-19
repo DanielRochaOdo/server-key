@@ -275,7 +275,7 @@ Deno.serve(async (req) => {
   try {
     await transporter.sendMail({
       from: smtpFrom,
-      to: "daniel.rocha@odontoart.com",
+      to: ["daniel.rocha@odontoart.com", "ryanmendes@odontoart.com"],
       subject,
       html: htmlBody,
     });
