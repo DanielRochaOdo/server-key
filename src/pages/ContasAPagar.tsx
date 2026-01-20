@@ -108,7 +108,8 @@ const ContasAPagar: React.FC = () => {
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
   const [pendingActionConta, setPendingActionConta] = useState<ContaAPagar | null>(null);
   const [updatingStatusIds, setUpdatingStatusIds] = useState<Set<string>>(new Set());
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(() => getState('contasAPagar_statusFilter') ?? null);
+  const persistedStatusFilter = getState('contasAPagar_statusFilter') as string | null | undefined;
   const savedExportState = useMemo(() => loadExportModalState(), []);
 
   const [showNextWeekModal, setShowNextWeekModal] = useState(false);
@@ -182,6 +183,21 @@ const ContasAPagar: React.FC = () => {
   useEffect(() => {
     setState('contasAPagar_searchTerm', searchTerm);
   }, [searchTerm, setState]);
+
+  useEffect(() => {
+    if (persistedStatusFilter === undefined) return;
+    if (statusFilter === persistedStatusFilter) return;
+    setStatusFilter(persistedStatusFilter);
+  }, [persistedStatusFilter, statusFilter]);
+
+  const updateStatusFilter = useCallback((value: string | null) => {
+    setStatusFilter(value);
+    if (value === null) {
+      clearState('contasAPagar_statusFilter');
+      return;
+    }
+    setState('contasAPagar_statusFilter', value);
+  }, [clearState, setState]);
 
 
   const getDayValue = (value: number | null | undefined) => {
@@ -962,7 +978,7 @@ const ContasAPagar: React.FC = () => {
         color: 'text-primary-600',
         bgColor: 'bg-primary-100',
         description: `${totalCount} conta${totalCount !== 1 ? 's' : ''} cadastrada${totalCount !== 1 ? 's' : ''}`,
-        onClick: () => setStatusFilter(null),
+        onClick: () => updateStatusFilter(null),
       },
       {
         title: 'Nao emitido',
@@ -971,7 +987,7 @@ const ContasAPagar: React.FC = () => {
         color: 'text-red-600',
         bgColor: 'bg-red-100',
         description: `${naoEmitidoCount} pendente${naoEmitidoCount !== 1 ? 's' : ''}`,
-        onClick: () => setStatusFilter('Nao emitido'),
+        onClick: () => updateStatusFilter('Nao emitido'),
       },
       {
         title: 'Pendente assinatura',
@@ -980,7 +996,7 @@ const ContasAPagar: React.FC = () => {
         color: 'text-yellow-600',
         bgColor: 'bg-yellow-100',
         description: `${pendenteCount} aguardando`,
-        onClick: () => setStatusFilter('Emitido pendente assinatura'),
+        onClick: () => updateStatusFilter('Emitido pendente assinatura'),
       },
       {
         title: 'Enviado financeiro',
@@ -989,7 +1005,7 @@ const ContasAPagar: React.FC = () => {
         color: 'text-green-600',
         bgColor: 'bg-green-100',
         description: `${enviadoCount} enviado${enviadoCount !== 1 ? 's' : ''}`,
-        onClick: () => setStatusFilter('Enviado financeiro'),
+        onClick: () => updateStatusFilter('Enviado financeiro'),
       },
       {
         title: 'Proximos vencimentos',
@@ -1001,7 +1017,7 @@ const ContasAPagar: React.FC = () => {
         onClick: () => setShowNextWeekModal(true),
       }
     ];
-  }, [contas, nextWeekEntries]);
+  }, [contas, nextWeekEntries, updateStatusFilter]);
 
   if (loading) {
     return (
