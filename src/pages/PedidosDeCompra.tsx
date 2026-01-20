@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { Plus, Download, ExternalLink, Save, Trash2, Pencil, Star, Mail, Loader2 } from "lucide-react";
+import { Plus, Download, ExternalLink, Save, Trash2, Pencil, Star, Mail, Loader2, FileText } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { exportProtocoloXlsx } from "../utils/exportProtocoloXlsx";
 import MoneyInputBRL from "../components/MoneyInputBRL";
@@ -31,6 +31,7 @@ type Protocolo = {
     mes: number;
     status: PcStatusProtocolo;
     valor_final: number;
+    observacoes: string | null;
     created_at: string;
 };
 
@@ -161,6 +162,11 @@ export default function PedidosDeCompra() {
     });
     const [sendingEmail, setSendingEmail] = useState(false);
     const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+    const [observacoesModalOpen, setObservacoesModalOpen] = useState(false);
+    const [observacoesDraft, setObservacoesDraft] = useState("");
+    const [observacoesModalProtocoloId, setObservacoesModalProtocoloId] = useState<string | null>(null);
+    const [observacoesSaving, setObservacoesSaving] = useState(false);
+    const [observacoesError, setObservacoesError] = useState<string | null>(null);
 
     // item editor protocolo
     const [draft, setDraft] = useState<ProtocoloItemDraft>({
@@ -404,6 +410,59 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
     // =============================
     // ACTIONS: PROTOCOLO
+    function openObservacoesModal(protocolo: Protocolo) {
+        setProtocoloSel(protocolo);
+        setProtocoloSelId(protocolo.id);
+        setObservacoesModalProtocoloId(protocolo.id);
+        setObservacoesDraft(protocolo.observacoes ?? "");
+        setObservacoesError(null);
+        setObservacoesSaving(false);
+        setObservacoesModalOpen(true);
+    }
+
+    const handleObservacoesClick = (event: React.MouseEvent<HTMLDivElement>, protocolo: Protocolo) => {
+        event.stopPropagation();
+        openObservacoesModal(protocolo);
+    };
+
+    const handleObservacoesKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, protocolo: Protocolo) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            openObservacoesModal(protocolo);
+        }
+    };
+
+    function closeObservacoesModal() {
+        setObservacoesModalOpen(false);
+        setObservacoesError(null);
+        setObservacoesModalProtocoloId(null);
+        setObservacoesSaving(false);
+    }
+
+    async function saveObservacoes() {
+        if (!observacoesModalProtocoloId) return;
+
+        setObservacoesSaving(true);
+        setObservacoesError(null);
+
+        const trimmed = observacoesDraft.trim();
+        const { error } = await supabase
+            .from("pc_protocolos")
+            .update({ observacoes: trimmed || null })
+            .eq("id", observacoesModalProtocoloId);
+
+        setObservacoesSaving(false);
+
+        if (error) {
+            console.error("Erro salvar observações:", error.message);
+            setObservacoesError("Não foi possível salvar as observações.");
+            return;
+        }
+
+        await loadProtocolos();
+        closeObservacoesModal();
+    }
     // =============================
     async function criarProtocolo() {
         const titulo = novoTitulo.trim();
@@ -911,35 +970,67 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                         </div>
 
                         <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
-                            {protocolos.map((p) => (
-                                <button
-                                    key={p.id}
-                                    onClick={() => {
-                                        setProtocoloSel(p);
-                                        setProtocoloSelId(p.id);
-                                    }}
-                                    className={`w-full rounded-2xl border px-3 py-2 text-left transition-all
-                                        ${protocoloSel?.id === p.id
-                                            ? "border-primary-500 bg-primary-600/20 text-white shadow-inner"
-                                            : "border-neutral-800 bg-white/5 text-neutral-200 hover:bg-white/10"
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="font-semibold text-white truncate" title={p.nome}>
-                                            {p.nome}
+                            {protocolos.map((p) => {
+                                const observacoesContent = (p.observacoes ?? "").trim();
+                                const hasObservacoes = Boolean(observacoesContent);
+                                const observacoesPreviewLimit = 15;
+                                const observacoesPreview = hasObservacoes
+                                    ? observacoesContent.length > observacoesPreviewLimit
+                                        ? `${observacoesContent.slice(0, observacoesPreviewLimit)}...`
+                                        : observacoesContent
+                                    : "Sem observações";
+
+                                return (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => {
+                                            setProtocoloSel(p);
+                                            setProtocoloSelId(p.id);
+                                        }}
+                                        className={`w-full rounded-2xl border px-3 py-2 text-left transition-all
+                                            ${protocoloSel?.id === p.id
+                                                ? "border-primary-500 bg-primary-600/20 text-white shadow-inner"
+                                                : "border-neutral-800 bg-white/5 text-neutral-200 hover:bg-white/10"
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="font-semibold text-white truncate" title={p.nome}>
+                                                {p.nome}
+                                            </div>
+                                            <span
+                                                className={`text-xs font-semibold px-2 py-1 rounded-lg ${p.status === "SALVO" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                                                    }`}
+                                            >
+                                                {p.status}
+                                            </span>
                                         </div>
-                                        <span
-                                            className={`text-xs font-semibold px-2 py-1 rounded-lg ${p.status === "SALVO" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                                                }`}
-                                        >
-                                            {p.status}
-                                        </span>
-                                    </div>
-                                    <div className="text-xs text-neutral-300 mt-1">
-                                        Valor final: <span className="font-semibold">{currency(Number(p.valor_final || 0))}</span>
-                                    </div>
-                                </button>
-                            ))}
+                                        <div className="text-xs text-neutral-300 mt-1 flex items-start justify-between gap-2">
+                                            <div>
+                                                Valor final: <span className="font-semibold">{currency(Number(p.valor_final || 0))}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span
+                                                    className="text-[10px] text-neutral-400"
+                                                    title={observacoesPreview}
+                                                >
+                                                    {observacoesPreview}
+                                                </span>
+                                                <div
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={(event) => handleObservacoesClick(event, p)}
+                                                    onKeyDown={(event) => handleObservacoesKeyDown(event, p)}
+                                                    className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/70 transition hover:border-white/40 hover:text-white cursor-pointer"
+                                                    aria-label="Abrir observações"
+                                                    title="Adicionar ou editar observações"
+                                                >
+                                                    <FileText className="h-4 w-4" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
 
                             {!protocolos.length && (
                                 <div className="text-sm text-gray-500 dark:text-neutral-400 py-6 text-center">Nenhum protocolo no mês selecionado.</div>
@@ -1270,6 +1361,62 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                 </div>
             )}
         </div>
+
+            {observacoesModalOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+                    onClick={closeObservacoesModal}
+                >
+                    <div
+                        className="w-full max-w-xl rounded-3xl border border-neutral-800 bg-neutral-950/90 p-6 text-white shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between gap-2">
+                            <div>
+                                <h3 className="text-lg font-bold">Observações do protocolo</h3>
+                                <p className="text-xs text-neutral-400">Sem impacto no mensal, apenas para referência aqui.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={closeObservacoesModal}
+                                className="rounded-2xl border border-neutral-800 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-neutral-600 hover:bg-white/10"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+
+                        <textarea
+                            className="mt-4 h-36 w-full rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm focus:border-primary-500 focus:outline-none"
+                            placeholder="Adicione observações sobre este protocolo..."
+                            value={observacoesDraft}
+                            onChange={(event) => setObservacoesDraft(event.target.value)}
+                        />
+
+                        {observacoesError && (
+                            <p className="mt-2 text-xs text-red-400">{observacoesError}</p>
+                        )}
+
+                        <div className="mt-4 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={closeObservacoesModal}
+                                disabled={observacoesSaving}
+                                className="rounded-2xl border border-neutral-800 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-neutral-600 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={saveObservacoes}
+                                disabled={observacoesSaving}
+                                className="rounded-2xl bg-button px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-button-hover disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {observacoesSaving ? "Salvando..." : "Salvar"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showSaveConfirm && (
                 <div
