@@ -240,12 +240,21 @@ Deno.serve(async (req) => {
 
   const htmlBody = `
     <p>Olá,</p>
-    <p>Segue abaixo pedido de compra:</p>
+    <p>Segue abaixo contas a pagar:</p>
     ${partialNote}
     ${htmlTable}
   `;
 
-  const subject = "Contas a Pagar - Exportação XLSX (NFs a inserir)";
+  const buildProtocolSubject = () => {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, "0");
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const year = now.getFullYear();
+    return `PROTOCOLO TI CONTAS A PAGAR ${day}-${month}-${year}`;
+  };
+
+  const subject = buildProtocolSubject();
+
   const transporter = nodemailer.createTransport({
     host: smtpHost,
     port: smtpPort,

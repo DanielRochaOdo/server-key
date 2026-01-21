@@ -38,18 +38,128 @@ const XLSX_EXPORT_HEADERS = [
   'VENCIMENTO',
   'PAGAMENTO',
   'EMPRESA',
-  'DESCRIÇÎÇŸO',
+  'DESCRIÇÃO',
   'NOTA FISCAL',
-  'SETOR RESPONSÇ?VEL',
+  'SETOR RESPONSÁVEL',
   'NOME DO BANCO',
-  'AGÇSNCIA',
+  'AGÊNCIA',
   'CONTA',
   'TIPO DE CONTA',
   'CPF/CNPJ',
-  'Anexos (Sim/NÇœo)',
+  'Anexos (Sim/Não)',
 ];
 
+const textDecoder = new TextDecoder('utf-8');
+
+const decodeLatin1String = (value: string) => {
+  try {
+    const bytes = Uint8Array.from([...value].map((char) => char.charCodeAt(0)));
+    return textDecoder.decode(bytes);
+  } catch {
+    return value;
+  }
+};
+
+const decodeLatin1IfNeeded = (value?: string | null): string | undefined => {
+  if (value === null || value === undefined) return undefined;
+  const decoded = decodeLatin1String(value);
+  if (decoded !== value && !decoded.includes('\uFFFD')) {
+    return decoded;
+  }
+  return value;
+};
+
+const normalizeEntryFieldValue = (value?: string) => {
+  if (value === undefined) return undefined;
+  return decodeLatin1IfNeeded(value) ?? value;
+};
+
+const normalizeExportEntry = (entry?: ExportEntry) => {
+  if (!entry) return undefined;
+  const normalized: ExportEntry = {};
+  EXPORT_ENTRY_FIELDS.forEach((field) => {
+    const value = entry[field];
+    if (value !== undefined) {
+      normalized[field] = normalizeEntryFieldValue(value);
+    }
+  });
+  return normalized;
+};
+
+const normalizeEntriesMap = (entries: Record<string, ExportEntry>) => {
+  const normalizedEntries: Record<string, ExportEntry> = {};
+  Object.entries(entries).forEach(([id, entry]) => {
+    const normalized = normalizeExportEntry(entry);
+    if (normalized) {
+      normalizedEntries[id] = normalized;
+    }
+  });
+  return normalizedEntries;
+};
+
+
+
+
 type ExportFormat = 'csv' | 'xlsx' | 'template' | 'xlsx_resumido';
+
+type ExportEntryField =
+  | 'fornecedor'
+  | 'vencimento'
+  | 'pagamento'
+  | 'empresa'
+  | 'descricao'
+  | 'notaFiscal'
+  | 'setorResponsavel'
+  | 'banco'
+  | 'agencia'
+  | 'conta'
+  | 'tipoConta'
+  | 'cpfCnpj'
+  | 'anexos';
+
+type ExportEntry = Partial<Record<ExportEntryField, string>>;
+
+const EXPORT_ENTRY_FIELDS: ExportEntryField[] = [
+  'fornecedor',
+  'vencimento',
+  'pagamento',
+  'empresa',
+  'descricao',
+  'notaFiscal',
+  'setorResponsavel',
+  'banco',
+  'agencia',
+  'conta',
+  'tipoConta',
+  'cpfCnpj',
+  'anexos',
+];
+
+const EXPORT_TABLE_COLUMNS: {
+  label: string;
+  field?: ExportEntryField;
+  type?: 'text' | 'date';
+  readonly?: boolean;
+  align?: 'left' | 'center' | 'right';
+}[] = [
+  { label: 'FORNECEDOR', field: 'fornecedor', align: 'left' },
+  { label: 'VALOR', readonly: true, align: 'right' },
+  { label: 'VENCIMENTO', field: 'vencimento', type: 'date', align: 'center' },
+  { label: 'PAGAMENTO', field: 'pagamento', align: 'center' },
+  { label: 'EMPRESA', field: 'empresa', align: 'left' },
+  { label: 'DESCRIÇÃO', field: 'descricao', align: 'left' },
+  { label: 'NOTA FISCAL', field: 'notaFiscal', align: 'left' },
+  { label: 'SETOR RESPONSÁVEL', field: 'setorResponsavel', align: 'left' },
+  { label: 'NOME DO BANCO', field: 'banco', align: 'left' },
+  { label: 'AGÊNCIA', field: 'agencia', align: 'left' },
+  { label: 'CONTA', field: 'conta', align: 'left' },
+  { label: 'TIPO DE CONTA', field: 'tipoConta', align: 'left' },
+  { label: 'CPF/CNPJ', field: 'cpfCnpj', align: 'left' },
+  { label: 'ANEXOS (SIM/NÃO)', field: 'anexos', align: 'center' },
+];
+
+
+
 
 const EXPORT_MODAL_STORAGE_KEY = 'serverkey:contas_apagar_export_state';
 
@@ -57,7 +167,7 @@ interface ExportModalState {
   showExportQuestion: boolean;
   showExportNfModal: boolean;
   pendingExportFormat: ExportFormat | null;
-  nfEntries: Record<string, string>;
+  exportEntries: Record<string, ExportEntry>;
   resumidoSyncVisible: boolean;
 }
 
@@ -65,7 +175,7 @@ const DEFAULT_EXPORT_MODAL_STATE: ExportModalState = {
   showExportQuestion: false,
   showExportNfModal: false,
   pendingExportFormat: null,
-  nfEntries: {},
+  exportEntries: {},
   resumidoSyncVisible: false,
 };
 
@@ -76,11 +186,23 @@ const loadExportModalState = (): ExportModalState => {
     if (!raw) return DEFAULT_EXPORT_MODAL_STATE;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return DEFAULT_EXPORT_MODAL_STATE;
+
+    let storedEntries: Record<string, ExportEntry> = {};
+    if (parsed.exportEntries && typeof parsed.exportEntries === 'object' && !Array.isArray(parsed.exportEntries)) {
+      storedEntries = { ...parsed.exportEntries };
+    } else if (parsed.nfEntries && typeof parsed.nfEntries === 'object' && !Array.isArray(parsed.nfEntries)) {
+      storedEntries = Object.entries(parsed.nfEntries).reduce<Record<string, ExportEntry>>((acc, [id, value]) => {
+        acc[id] = { notaFiscal: typeof value === 'string' ? value : '' };
+        return acc;
+      }, {});
+    }
+
+    const sanitizedEntries = normalizeEntriesMap(storedEntries);
     return {
       showExportQuestion: parsed.showExportQuestion ?? DEFAULT_EXPORT_MODAL_STATE.showExportQuestion,
       showExportNfModal: parsed.showExportNfModal ?? DEFAULT_EXPORT_MODAL_STATE.showExportNfModal,
       pendingExportFormat: parsed.pendingExportFormat ?? DEFAULT_EXPORT_MODAL_STATE.pendingExportFormat,
-      nfEntries: parsed.nfEntries ?? DEFAULT_EXPORT_MODAL_STATE.nfEntries,
+      exportEntries: sanitizedEntries,
       resumidoSyncVisible: parsed.resumidoSyncVisible ?? DEFAULT_EXPORT_MODAL_STATE.resumidoSyncVisible,
     };
   } catch (error) {
@@ -116,7 +238,7 @@ const ContasAPagar: React.FC = () => {
   const [showExportQuestion, setShowExportQuestion] = useState(savedExportState.showExportQuestion);
   const [showExportNfModal, setShowExportNfModal] = useState(savedExportState.showExportNfModal);
   const [pendingExportFormat, setPendingExportFormat] = useState<ExportFormat | null>(savedExportState.pendingExportFormat);
-  const [nfEntries, setNfEntries] = useState<Record<string, string>>(savedExportState.nfEntries);
+  const [exportEntries, setExportEntries] = useState<Record<string, ExportEntry>>(savedExportState.exportEntries);
   const [resumidoSyncVisible, setResumidoSyncVisible] = useState(savedExportState.resumidoSyncVisible);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -127,7 +249,7 @@ const ContasAPagar: React.FC = () => {
       showExportQuestion,
       showExportNfModal,
       pendingExportFormat,
-      nfEntries,
+      exportEntries,
       resumidoSyncVisible,
     };
     try {
@@ -135,7 +257,7 @@ const ContasAPagar: React.FC = () => {
     } catch (error) {
       console.error('Erro ao salvar estado do export modal:', error);
     }
-  }, [showExportQuestion, showExportNfModal, pendingExportFormat, nfEntries, resumidoSyncVisible]);
+  }, [showExportQuestion, showExportNfModal, pendingExportFormat, exportEntries, resumidoSyncVisible]);
 
   useEffect(() => {
     if (!toast) return;
@@ -412,8 +534,45 @@ const ContasAPagar: React.FC = () => {
     return filtered;
   }, [contas, searchTerm, sortConfig, statusFilter]);
 
-  const buildXlsxDataRows = useCallback((nfMap: Record<string, string>) => {
+  const createDefaultExportEntry = (conta: ContaAPagar) => {
     const now = new Date();
+    const day = getDayValue(conta.vencimento ?? null);
+    const vencDate = day ? getNextDueDate(day, now) : null;
+    return {
+      fornecedor: decodeLatin1IfNeeded(conta.fornecedor) ?? '',
+      vencimento: vencDate ? vencDate.toISOString().slice(0, 10) : '',
+      pagamento: conta.tipo_pagto || 'Boleto',
+      empresa: 'ODONTOART',
+      descricao: decodeLatin1IfNeeded(conta.descricao) ?? '',
+      notaFiscal: '*',
+      setorResponsavel: 'T.I',
+      banco: '*',
+      agencia: '*',
+      conta: '*',
+      tipoConta: '*',
+      cpfCnpj: '*',
+      anexos: 'Não',
+    };
+  };
+
+  const mergeExportEntryWithDefaults = (conta: ContaAPagar, entry?: ExportEntry) => {
+    const defaults = createDefaultExportEntry(conta);
+    if (!entry) {
+      return defaults;
+    }
+    const normalized = normalizeExportEntry(entry);
+    const merged: Record<ExportEntryField, string> = { ...defaults };
+    EXPORT_ENTRY_FIELDS.forEach((field) => {
+      const value = normalized?.[field];
+      if (value === undefined || value === null) return;
+      const textValue = value.toString();
+      if (textValue.trim() === '') return;
+      merged[field] = textValue;
+    });
+    return merged;
+  };
+
+  const buildXlsxDataRows = useCallback((entryMap: Record<string, ExportEntry>) => {
     const parseValor = (value: string | number | null) => {
       if (value === null || value === undefined || value === '') return null;
       if (typeof value === 'number') return value;
@@ -425,39 +584,34 @@ const ContasAPagar: React.FC = () => {
       return Number.isFinite(numeric) ? numeric : null;
     };
 
-    const getNfValue = (contaId: string) => {
-      if (!contaId) return '*';
-      const candidate = nfMap[contaId];
-      if (candidate && candidate.trim()) return candidate.trim();
-      return '*';
-    };
-
     return filteredContasSorted.map((conta) => {
       const valorNum = parseValor(conta.valor);
-      const day = getDayValue(conta.vencimento ?? null);
-      const vencDate = day ? getNextDueDate(day, now) : null;
-      const nfValue = getNfValue(conta.id);
+      const entry = mergeExportEntryWithDefaults(conta, entryMap[conta.id]);
+      let vencDate: Date | null = null;
+      if (entry.vencimento) {
+        const parsedDate = new Date(entry.vencimento);
+        vencDate = Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+      }
 
       return [
-        conta.fornecedor || '',
+        entry.fornecedor,
         valorNum ?? null,
-        vencDate ?? null,
-        conta.tipo_pagto || 'Boleto',
-        'ODONTOART',
-        conta.descricao || '',
-        nfValue,
-        'T.I',
-        '*',
-        '*',
-        '*',
-        '*',
-        '*',
-        'NÇœo',
+        vencDate,
+        entry.pagamento,
+        entry.empresa,
+        entry.descricao,
+        entry.notaFiscal,
+        entry.setorResponsavel,
+        entry.banco,
+        entry.agencia,
+        entry.conta,
+        entry.tipoConta,
+        entry.cpfCnpj,
+        entry.anexos,
       ];
     });
-  }, [filteredContasSorted, getDayValue, getNextDueDate]);
-
-  const exportData = useCallback((format: ExportFormat, nfMap: Record<string, string> = {}) => {
+  }, [filteredContasSorted, mergeExportEntryWithDefaults]);
+  const exportData = useCallback((format: ExportFormat, entryMap: Record<string, ExportEntry> = {}) => {
     // ===== base do arquivo (igual ao anexo) =====
     const TITLE = 'PROTOCOLO FINANCEIRO';
     const HEADERS = XLSX_EXPORT_HEADERS;
@@ -500,13 +654,6 @@ const ContasAPagar: React.FC = () => {
 
     const brlFinanceiroFmt =
       '_-"R$"\\ * #,##0.00_-;\\-"R$"\\ * #,##0.00_-;_-"R$"\\ * "-"??_-;_-@_-';
-
-    const getNfValue = (contaId: string) => {
-      if (!contaId) return '*';
-      const candidate = nfMap[contaId];
-      if (candidate && candidate.trim()) return candidate.trim();
-      return '*';
-    };
 
     // ===== monta linhas =====
     const rows: any[][] = [];
@@ -609,21 +756,24 @@ const ContasAPagar: React.FC = () => {
       // dados (linha 4+)
       filteredContasSorted.forEach((conta) => {
         const valorNum = parseValorLocal(conta.valor);
-        const day = getDayValueLocal(conta.vencimento ?? null);
-        const vencDate = day ? getNextDueDateLocal(day, now) : '-';
+        const entry = mergeExportEntryWithDefaults(conta, entryMap[conta.id]);
+        let vencDate: Date | string = '-';
+        if (entry.vencimento) {
+          const parsedDate = new Date(entry.vencimento);
+          vencDate = Number.isNaN(parsedDate.getTime()) ? '-' : parsedDate;
+        }
 
-        const nfValue = getNfValue(conta.id);
         rows.push([
-          conta.fornecedor || '',
+          entry.fornecedor || '',
           valorNum ?? null,
           vencDate,
-          conta.descricao || '',
-          nfValue,            // NOTA FISCAL / NF
-          null,           // coluna F oculta
+          entry.descricao || '',
+          entry.notaFiscal || '',
+          null,
         ]);
       });
 
-      // TOTAL (igual ao anexo) – soma de B4 até última linha de dados
+      // TOTAL (igual ao anexo) - soma de B4 até última linha de dados
       const firstDataRow = 4;
       const lastDataRow = rows.length; // antes de adicionar total
       rows.push(['TOTAL', { f: `SUM(B${firstDataRow}:B${lastDataRow})` }, null, null, null, null]);
@@ -661,14 +811,14 @@ const ContasAPagar: React.FC = () => {
             continue;
           }
 
-          // col C (VENCIMENTO) – só aplica date se for Date
+          // col C (VENCIMENTO) - só aplica date se for Date
           if (c === 2) {
             if (ws[addr].v instanceof Date) ws[addr].s = styleDate;
             else ws[addr].s = styleCell;
             continue;
           }
 
-          // TOTAL (linha final) – deixa A em bold
+          // TOTAL (linha final) â deixa A em bold
           if (r === rows.length - 1 && c === 0) {
             ws[addr].s = { ...styleCell, font: { bold: true, sz: 11 } };
             continue;
@@ -698,7 +848,7 @@ const ContasAPagar: React.FC = () => {
         '',     // nota fiscal
         'T.I',     // SETOR
         '',     // BANCO
-        '',     // AGENCIA
+        '',     // AGÊNCIA
         '',     // CONTA
         '',     // TIPO DE CONTA
         '',     // CPF/CNPJ
@@ -706,7 +856,7 @@ const ContasAPagar: React.FC = () => {
       ]);
     } else {
       // export real (usa o filtro atual da tela)
-      const dataRows = buildXlsxDataRows(nfMap);
+      const dataRows = buildXlsxDataRows(entryMap);
       dataRows.forEach((row) => rows.push(row));
     }
 
@@ -765,7 +915,7 @@ const ContasAPagar: React.FC = () => {
     setShowExportQuestion(false);
     setShowExportNfModal(false);
     setPendingExportFormat(null);
-    setNfEntries({});
+    setExportEntries({});
     setResumidoSyncVisible(false);
   }, []);
 
@@ -789,45 +939,61 @@ const ContasAPagar: React.FC = () => {
   const handleExportQuestionYes = useCallback(() => {
     setShowExportQuestion(false);
     setShowExportNfModal(true);
-    setNfEntries((prev) => {
+    setExportEntries((prev) => {
       const next = { ...prev };
       filteredContasSorted.forEach((conta) => {
-        if (!(conta.id in next)) {
-          next[conta.id] = '';
-        }
+        next[conta.id] = mergeExportEntryWithDefaults(conta, prev[conta.id]);
       });
       return next;
     });
-  }, [filteredContasSorted]);
+  }, [filteredContasSorted, mergeExportEntryWithDefaults]);
 
   const handleSyncNotasFiscais = useCallback(() => {
-    setNfEntries((prev) => {
+    setExportEntries((prev) => {
       const next = { ...prev };
       filteredContasSorted.forEach((conta) => {
-        const existing = (prev[conta.id] ?? '').trim();
-        next[conta.id] = existing ? existing : getNotaFiscalSource(conta);
+        const merged = mergeExportEntryWithDefaults(conta, prev[conta.id]);
+        const existingValor = prev[conta.id]?.notaFiscal;
+        const trimmedValor = existingValor?.trim() ?? '';
+        const shouldSyncNota = trimmedValor === '' || trimmedValor === '*';
+        if (shouldSyncNota) {
+          merged.notaFiscal = getNotaFiscalSource(conta);
+        }
+        next[conta.id] = merged;
       });
       return next;
     });
     setResumidoSyncVisible(true);
-  }, [filteredContasSorted]);
+  }, [filteredContasSorted, mergeExportEntryWithDefaults]);
 
   const handleExportWithNf = useCallback(() => {
     if (pendingExportFormat) {
-      exportData(pendingExportFormat, nfEntries);
+      exportData(pendingExportFormat, exportEntries);
     }
     resetExportFlow();
-  }, [pendingExportFormat, nfEntries, exportData, resetExportFlow]);
+  }, [pendingExportFormat, exportEntries, exportData, resetExportFlow]);
 
   const handleExportResumidoWithNf = useCallback(() => {
     if (!resumidoSyncVisible) return;
-    exportData('xlsx_resumido', nfEntries);
-  }, [nfEntries, exportData, resumidoSyncVisible]);
+    exportData('xlsx_resumido', exportEntries);
+  }, [exportEntries, exportData, resumidoSyncVisible]);
+
+  const handleExportEntryChange = (conta: ContaAPagar, field: ExportEntryField, value: string) => {
+    setExportEntries((prev) => {
+      const next = { ...prev };
+      const updated = mergeExportEntryWithDefaults(conta, {
+        ...prev[conta.id],
+        [field]: value,
+      });
+      next[conta.id] = updated;
+      return next;
+    });
+  };
 
   const handleSendXlsxEmail = useCallback(async () => {
     if (sendingEmail || pendingExportFormat !== 'xlsx') return;
 
-    const dataRows = buildXlsxDataRows(nfEntries);
+  const dataRows = buildXlsxDataRows(exportEntries);
     const rows = dataRows.map((row) =>
       row.map((value) => {
         if (value instanceof Date) {
@@ -881,7 +1047,7 @@ const ContasAPagar: React.FC = () => {
     } finally {
       setSendingEmail(false);
     }
-  }, [buildXlsxDataRows, nfEntries, pendingExportFormat, sendingEmail]);
+  }, [buildXlsxDataRows, exportEntries, pendingExportFormat, sendingEmail]);
 
 
   const currentItems = filteredContasSorted;
@@ -946,7 +1112,7 @@ const ContasAPagar: React.FC = () => {
   };
 
   const getNotaFiscalSource = (conta: ContaAPagar) => {
-    const value = conta.observacoes?.trim();
+    const value = decodeLatin1IfNeeded(conta.observacoes)?.trim();
     return value && value !== '' ? value : '*';
   };
 
@@ -1191,7 +1357,9 @@ const ContasAPagar: React.FC = () => {
               {currentItems.map((conta) => (
                 <tr key={conta.id} className="group hover:bg-neutral-50 transition-colors duration-150">
                   <td className="px-2 py-2">
-                    <div className="font-medium text-neutral-900 truncate max-w-[140px] sm:max-w-none">{conta.fornecedor || '-'}</div>
+                    <div className="font-medium text-neutral-900 truncate max-w-[140px] sm:max-w-none">
+                      {decodeLatin1IfNeeded(conta.fornecedor) || '-'}
+                    </div>
                   </td>
                   <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-24 text-center">
                     {conta.tipo_pagto || '-'}
@@ -1233,7 +1401,9 @@ const ContasAPagar: React.FC = () => {
                     </select>
                   </td>
                   <td className="px-2 py-2 w-32">
-                    <div className="text-neutral-600 truncate max-w-[120px] sm:max-w-none">{conta.descricao || '-'}</div>
+                    <div className="text-neutral-600 truncate max-w-[120px] sm:max-w-none">
+                      {decodeLatin1IfNeeded(conta.descricao) || '-'}
+                    </div>
                   </td>
                   <td className="px-2 py-2 whitespace-nowrap text-neutral-600">{formatCurrency(conta.valor)}</td>
                   <td className="hidden sm:table-cell px-2 py-2 whitespace-nowrap text-neutral-600 w-20 text-center">
@@ -1390,7 +1560,7 @@ const ContasAPagar: React.FC = () => {
 
       {showExportNfModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-5 w-full max-w-3xl shadow-lg">
+        <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-[calc(100vw-2rem)] shadow-xl border border-neutral-200">
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-neutral-900">Notas Fiscais</h3>
@@ -1428,37 +1598,96 @@ const ContasAPagar: React.FC = () => {
                 </button>
               )}
             </div>
-            <div className="mt-4 max-h-[55vh] overflow-y-auto space-y-3 pr-2 border-t border-dashed border-neutral-200 pt-4">
-              {filteredContasSorted.length === 0 && (
-                <div className="text-xs text-neutral-500 text-center py-6 border border-dashed rounded-lg">
-                  Nenhum registro selecionado.
-                </div>
-              )}
-              {filteredContasSorted.map((conta) => {
-                const notaFiscalText = getNotaFiscalSource(conta);
-                return (
-                  <div key={conta.id} className="grid gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 shadow-sm sm:grid-cols-[2fr,160px]">
-                    <div className="space-y-1">
-                      <div className="text-sm font-semibold text-neutral-900 truncate">{conta.fornecedor || 'Fornecedor não informado'}</div>
-                      <div className="text-xs text-neutral-500 grid gap-1">
-                        <span><span className="font-semibold">Descrição:</span> {conta.descricao || '-'}</span>
-                        <span><span className="font-semibold">Valor:</span> {formatCurrency(conta.valor)}</span>
-                        <span><span className="font-semibold">Nota Fiscal:</span> {notaFiscalText}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs uppercase tracking-wide text-neutral-500">NF</label>
-                      <input
-                        type="text"
-                        placeholder="NF"
-                        value={nfEntries[conta.id] ?? ''}
-                        onChange={(e) => setNfEntries((prev) => ({ ...prev, [conta.id]: e.target.value }))}
-                        className="w-full border border-neutral-300 rounded-lg px-2 py-1 text-sm focus:border-primary-500 focus:outline-none"
-                      />
-                    </div>
+            <div className="mt-4 border-t border-dashed border-neutral-200 pt-4">
+              <div className="max-h-[72vh] overflow-y-auto pr-2">
+                {filteredContasSorted.length === 0 ? (
+                  <div className="text-xs text-neutral-500 text-center py-6 border border-dashed rounded-lg">
+                    Nenhum registro selecionado.
                   </div>
-                );
-              })}
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[1100px] border border-neutral-200 text-[9px] sm:text-[10px] rounded-lg bg-white">
+                      <thead className="bg-neutral-100 text-[9px] uppercase tracking-wide text-neutral-500">
+                        <tr>
+                          {EXPORT_TABLE_COLUMNS.map((column) => {
+                            const headerAlignClass =
+                              column.align === 'center'
+                                ? 'text-center'
+                                : column.align === 'right'
+                                  ? 'text-right'
+                                  : 'text-left';
+                            return (
+                              <th
+                                key={column.label}
+                                className={`px-2 py-1 whitespace-nowrap font-semibold ${headerAlignClass}`}
+                              >
+                                {column.label}
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-200 bg-white">
+                        {filteredContasSorted.map((conta) => {
+                          const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
+                          return (
+                            <tr key={conta.id} className="even:bg-neutral-50">
+                              {EXPORT_TABLE_COLUMNS.map((column) => {
+                                const bodyAlignClass =
+                                  column.align === 'center'
+                                    ? 'text-center'
+                                    : column.align === 'right'
+                                      ? 'text-right'
+                                      : 'text-left';
+
+                                if (column.readonly || !column.field) {
+                                  const rawDisplayValue =
+                                    column.field === undefined
+                                      ? formatCurrency(conta.valor)
+                                      : entry[column.field as ExportEntryField] ?? '';
+                                  const displayValue = decodeLatin1IfNeeded(rawDisplayValue) ?? rawDisplayValue;
+                                  return (
+                                    <td
+                                      key={`${conta.id}-${column.label}`}
+                                      className={`px-2 py-1 text-xs sm:text-sm text-neutral-700 whitespace-nowrap font-semibold ${bodyAlignClass}`}
+                                    >
+                                      {displayValue}
+                                    </td>
+                                  );
+                                }
+
+                                const field = column.field as ExportEntryField;
+                                const rawValue = entry[field] ?? '';
+                                const value = decodeLatin1IfNeeded(rawValue) ?? rawValue;
+                                const inputType = column.type === 'date' ? 'date' : 'text';
+                                const inputAlignClass =
+                                  column.align === 'center'
+                                    ? 'text-center'
+                                    : column.align === 'right'
+                                      ? 'text-right'
+                                      : 'text-left';
+                                return (
+                                  <td
+                                    key={`${conta.id}-${column.label}`}
+                                    className={`px-2 py-1 ${bodyAlignClass}`}
+                                  >
+                                    <input
+                                      type={inputType}
+                                      value={value}
+                                      onChange={(event) => handleExportEntryChange(conta, field, event.target.value)}
+                                      className={`w-full border border-neutral-200 rounded px-2 py-1 text-[10px] sm:text-xs focus:border-primary-500 focus:outline-none ${inputAlignClass}`}
+                                    />
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
