@@ -28,8 +28,10 @@ const STATUS_OPTIONS = [
 ];
 
 const PAGTO_OPTIONS = [
-  'Boleto',
+  'BOLETO',
   'CARTAO',
+  'PIX',
+  'TRANSFERENCIA',
 ];
 
 const XLSX_EXPORT_HEADERS = [
@@ -541,7 +543,7 @@ const ContasAPagar: React.FC = () => {
     return {
       fornecedor: decodeLatin1IfNeeded(conta.fornecedor) ?? '',
       vencimento: vencDate ? vencDate.toISOString().slice(0, 10) : '',
-      pagamento: conta.tipo_pagto || 'Boleto',
+      pagamento: (conta.tipo_pagto || 'BOLETO').toUpperCase(),
       empresa: 'ODONTOART',
       descricao: decodeLatin1IfNeeded(conta.descricao) ?? '',
       notaFiscal: '*',
@@ -842,7 +844,7 @@ const ContasAPagar: React.FC = () => {
         '',     // FORNECEDOR
         null,   // VALOR
         null,   // VENCIMENTO
-        'Boleto', // PAGAMENTO
+        'BOLETO', // PAGAMENTO
         '',     // EMPRESA
         '',     // DESCRIÇÃO
         '',     // nota fiscal
@@ -1362,7 +1364,7 @@ const ContasAPagar: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-24 text-center">
-                    {conta.tipo_pagto || '-'}
+                    {conta.tipo_pagto ? conta.tipo_pagto.toUpperCase() : '-'}
                   </td>
                   <td className="px-2 py-2 text-center w-12">
                     {conta.link ? (
@@ -1473,7 +1475,9 @@ const ContasAPagar: React.FC = () => {
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes da Conta</h2>
             <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700">
               <div><strong>Status do Documento:</strong> {viewingConta.status_documento || '-'}</div>
-              <div><strong>Pagamento:</strong> {viewingConta.tipo_pagto || '-'}</div>
+            <div>
+              <strong>Pagamento:</strong> {viewingConta.tipo_pagto ? viewingConta.tipo_pagto.toUpperCase() : '-'}
+            </div>
               <div><strong>Fornecedor:</strong> {viewingConta.fornecedor || '-'}</div>
               <div>
                 <strong>Link:</strong>{' '}
