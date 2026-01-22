@@ -24,7 +24,7 @@ const RateioGoogle: React.FC = () => {
   const [rateios, setRateios] = useState<RateioGoogle[]>([]);
   const [loading, setLoading] = useState(true);
   const { getState, setState, clearState } = usePersistence();
-  
+
   const [showForm, setShowForm] = useState(() => getState('rateioGoogle_showForm') || false);
   const [showUpload, setShowUpload] = useState(() => getState('rateioGoogle_showUpload') || false);
   const [editingRateio, setEditingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_editingRateio') || null);
@@ -185,7 +185,7 @@ const RateioGoogle: React.FC = () => {
 
       const matchesStatus = selectedStatus === '' || rateio.status === selectedStatus;
       const matchesSituacao = selectedSituacao === '' || rateio.situacao === selectedSituacao;
-      
+
       const matchesDominio = selectedDominio === '' || (rateio.email && rateio.email.includes(`@${selectedDominio}`));
 
       return matchesSearch && matchesStatus && matchesSituacao && matchesDominio;
@@ -221,11 +221,11 @@ const RateioGoogle: React.FC = () => {
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'RateioGoogle');
-      
+
       // Incluir informações sobre filtros no nome do arquivo
       const filterInfo = (searchTerm || selectedStatus || selectedSituacao || selectedDominio) ? `_filtrado` : '';
-      const filename = `rateio_google${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-      
+      const filename = `rateio_google${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
+
       if (format === 'csv') {
         XLSX.writeFile(wb, filename, { bookType: 'csv' });
       } else {
@@ -295,12 +295,19 @@ const RateioGoogle: React.FC = () => {
 
     const totalCostOdontoart = domainStats.odontoart * 7.587096774193548; // Valores aproximados em USD
     const totalCostOdontoartonline = domainStats.odontoartonline * 42.46666666666667; // Valores aproximados e BRL
-    const totalCostOdontoartFormatado = totalCostOdontoart.toFixed(2);
+    const totalCostOdontoartFormatado = totalCostOdontoart.toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+    });
+    const totalCostOdontoartonlineFormatado = totalCostOdontoartonline.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
 
     // Bloco baseado no filtro de situação selecionado
     const situacaoBlockTitle = selectedSituacao === '' ? 'Todos' : selectedSituacao;
-    const situacaoBlockValue = selectedSituacao === '' 
-      ? filteredRateiosSorted.length 
+    const situacaoBlockValue = selectedSituacao === ''
+      ? filteredRateiosSorted.length
       : filteredRateiosSorted.filter(r => r.situacao === selectedSituacao).length;
     return [
       {
@@ -309,7 +316,7 @@ const RateioGoogle: React.FC = () => {
         icon: Globe,
         color: 'text-blue-600',
         bgColor: 'bg-blue-100',
-        description: `Custo: $${totalCostOdontoartFormatado} USD`
+        description: `Custo: ${totalCostOdontoartFormatado}`
       },
       {
         title: 'E-mails @odontoartonline.com.br',
@@ -317,7 +324,7 @@ const RateioGoogle: React.FC = () => {
         icon: Globe,
         color: 'text-green-600',
         bgColor: 'bg-green-100',
-        description: `Custo: R$${totalCostOdontoartonline} BRL`
+        description: `Custo: ${totalCostOdontoartonlineFormatado}`
       },
       {
         title: situacaoBlockTitle,
@@ -332,7 +339,7 @@ const RateioGoogle: React.FC = () => {
 
   const getStatusBadge = (status?: string) => {
     if (!status) return null;
-    
+
     const statusColors: Record<string, string> = {
       'Ativo': 'bg-green-100 text-green-800',
       'Inativo': 'bg-red-100 text-red-800',
@@ -511,8 +518,8 @@ const RateioGoogle: React.FC = () => {
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">
               <tr>
-                <th 
-                  onClick={toggleSortOrder} 
+                <th
+                  onClick={toggleSortOrder}
                   className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
                 >
                   <div className="flex items-center">
@@ -543,22 +550,22 @@ const RateioGoogle: React.FC = () => {
                   <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[100px]">{rateio.armazenamento || '-'}</td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
-                      <button 
+                      <button
                         onClick={() => requestActionVerification('view', rateio)}
                         className="text-neutral-600 hover:text-neutral-900"
                         title="Visualizar"
                       >
                         <Search className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
-                      <button 
-                        onClick={() => requestActionVerification('edit', rateio)} 
+                      <button
+                        onClick={() => requestActionVerification('edit', rateio)}
                         className="text-primary-600 hover:text-primary-900"
                         title="Editar"
                       >
                         <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
-                      <button 
-                        onClick={() => requestActionVerification('delete', rateio)} 
+                      <button
+                        onClick={() => requestActionVerification('delete', rateio)}
                         className="text-red-600 hover:text-red-900"
                         title="Excluir"
                       >
@@ -587,11 +594,10 @@ const RateioGoogle: React.FC = () => {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
-                currentPage === 1 
-                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
+              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${currentPage === 1
+                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                   : 'bg-primary-600 text-white hover:bg-primary-700'
-              }`}
+                }`}
             >
               ← Anterior
             </button>
@@ -601,11 +607,10 @@ const RateioGoogle: React.FC = () => {
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
-                currentPage === totalPages 
-                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
+              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${currentPage === totalPages
+                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                   : 'bg-primary-600 text-white hover:bg-primary-700'
-              }`}
+                }`}
             >
               Próxima →
             </button>
@@ -673,8 +678,8 @@ const RateioGoogle: React.FC = () => {
 
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (
-        <div 
-          className="fixed inset-0 z-5" 
+        <div
+          className="fixed inset-0 z-5"
           onClick={() => setShowExportMenu(false)}
         />
       )}
