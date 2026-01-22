@@ -295,6 +295,7 @@ const RateioGoogle: React.FC = () => {
 
     const totalCostOdontoart = domainStats.odontoart * 7.587096774193548; // Valores aproximados em USD
     const totalCostOdontoartonline = domainStats.odontoartonline * 42.46666666666667; // Valores aproximados e BRL
+    const totalCostOdontoartFormatado = totalCostOdontoart.toFixed(2);
 
     // Bloco baseado no filtro de situação selecionado
     const situacaoBlockTitle = selectedSituacao === '' ? 'Todos' : selectedSituacao;
@@ -308,7 +309,7 @@ const RateioGoogle: React.FC = () => {
         icon: Globe,
         color: 'text-blue-600',
         bgColor: 'bg-blue-100',
-        description: `Custo: $${totalCostOdontoart} USD`
+        description: `Custo: $${totalCostOdontoartFormatado} USD`
       },
       {
         title: 'E-mails @odontoartonline.com.br',
