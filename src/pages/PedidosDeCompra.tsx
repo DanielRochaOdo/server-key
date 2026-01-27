@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { Plus, Download, ExternalLink, Save, Trash2, Pencil, Star, Mail, Loader2, FileText } from "lucide-react";
-import * as XLSX from "xlsx-js-style";
 import { exportProtocoloXlsx } from "../utils/exportProtocoloXlsx";
 import MoneyInputBRL from "../components/MoneyInputBRL";
 
@@ -635,6 +634,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         if (!protocoloSel) return;
         exportProtocoloXlsx({
             protocoloNome: protocoloSel.nome,
+            observacoes: protocoloSel.observacoes,
             itens: itens.map((i) => ({
                 loja: i.loja,
                 produto: i.produto,
