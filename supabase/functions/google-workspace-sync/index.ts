@@ -200,6 +200,40 @@ function normalizeDomain(primaryEmail: string) {
   return primaryEmail.slice(at + 1).toLowerCase();
 }
 
+function parseUsageValue(raw?: string) {
+  if (!raw) return null;
+  const cleaned = raw.replace(/[^0-9.]/g, "");
+  const numeric = Number(cleaned);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function getUsageParamValue(item: UsageReportItem, name: string) {
+  const param = item.parameters?.find((p) => p.name === name);
+  if (!param) return null;
+  const rawValue = param.intValue ?? param.value ?? "";
+  return parseUsageValue(String(rawValue));
+}
+
+function resolveStorageMb(item: UsageReportItem) {
+  const accountsUsed = getUsageParamValue(item, "accounts:used_quota_in_mb");
+  if (accountsUsed !== null) return accountsUsed;
+
+  const driveUsed = getUsageParamValue(item, "drive:used_storage_in_mb");
+  const gmailUsed = getUsageParamValue(item, "gmail:used_storage_in_mb");
+  if (driveUsed !== null || gmailUsed !== null) return (driveUsed ?? 0) + (gmailUsed ?? 0);
+
+  const accountsStorage = getUsageParamValue(item, "accounts:used_storage_in_mb");
+  if (accountsStorage !== null) return accountsStorage;
+
+  const anyUsed = item.parameters?.find((p) => String(p.name || "").includes("used_storage_in_mb"));
+  if (anyUsed) {
+    const rawValue = anyUsed.intValue ?? anyUsed.value ?? "";
+    return parseUsageValue(String(rawValue));
+  }
+
+  return null;
+}
+
 type DomainCredentials = {
   client_email: string;
   private_key: string;
@@ -315,10 +349,8 @@ Deno.serve(async (req) => {
       for (const item of usageReports) {
         const email = (item.entity?.userEmail || "").toLowerCase().trim();
         if (!email) continue;
-        const param = item.parameters?.find((p) => p.name === "accounts:used_quota_in_mb");
-        const rawValue = param?.intValue ?? param?.value ?? "";
-        const numeric = Number(rawValue);
-        if (Number.isFinite(numeric)) usageByEmail.set(email, numeric);
+        const storageMb = resolveStorageMb(item);
+        if (storageMb !== null) usageByEmail.set(email, storageMb);
       }
 
       const records = users
