@@ -26,11 +26,31 @@ type GoogleUser = {
   aliases?: string[];
 };
 
+type UsageParameter = {
+  name?: string;
+  intValue?: string;
+  value?: string;
+};
+
+type UsageReportItem = {
+  entity?: { userEmail?: string };
+  parameters?: UsageParameter[];
+};
+
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
+function formatError(value: unknown) {
+  if (value instanceof Error && typeof value.message === "string") return value.message;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
 
 function normalizePrivateKey(raw: string) {
   const trimmed = (raw || "").trim();
@@ -141,6 +161,39 @@ async function listGoogleUsers(params: { accessToken: string; domain: string }) 
   return users;
 }
 
+async function getUsageReport(params: { accessToken: string; domain: string; date: string }) {
+  const { accessToken, domain, date } = params;
+  const items: UsageReportItem[] = [];
+  let pageToken: string | undefined = undefined;
+
+  for (;;) {
+    const url = new URL("https://admin.googleapis.com/admin/reports/v1/usage/users");
+    url.searchParams.set("userKey", "all");
+    url.searchParams.set("date", date);
+    url.searchParams.set("parameters", "accounts:used_quota_in_mb");
+    url.searchParams.set("filters", "accounts:is_google_workspace_account==true");
+    url.searchParams.set("customerId", "my_customer");
+    url.searchParams.set("entityType", "USER");
+    url.searchParams.set("domain", domain);
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(`Reports API error (${res.status}) for ${domain}: ${JSON.stringify(data)}`);
+    }
+
+    const batch = (data as any)?.usageReports as UsageReportItem[] | undefined;
+    if (Array.isArray(batch)) items.push(...batch);
+    pageToken = (data as any)?.nextPageToken ? String((data as any).nextPageToken) : undefined;
+    if (!pageToken) break;
+  }
+
+  return items;
+}
+
 function normalizeDomain(primaryEmail: string) {
   const at = primaryEmail.lastIndexOf("@");
   if (at < 0) return "";
@@ -215,8 +268,9 @@ Deno.serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const scope = "https://www.googleapis.com/auth/admin.directory.user.readonly";
+  const scope = "https://www.googleapis.com/auth/admin.directory.user.readonly https://www.googleapis.com/auth/admin.reports.usage.readonly";
   const runStartedAt = new Date().toISOString();
+  const usageDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   const summary: any = { ok: true, mode, runStartedAt, domains: [] as any[] };
 
@@ -256,11 +310,23 @@ Deno.serve(async (req) => {
       const users = await listGoogleUsers({ accessToken, domain: normalized });
       domainResult.fetched = users.length;
 
+      const usageReports = await getUsageReport({ accessToken, domain: normalized, date: usageDate });
+      const usageByEmail = new Map<string, number>();
+      for (const item of usageReports) {
+        const email = (item.entity?.userEmail || "").toLowerCase().trim();
+        if (!email) continue;
+        const param = item.parameters?.find((p) => p.name === "accounts:used_quota_in_mb");
+        const rawValue = param?.intValue ?? param?.value ?? "";
+        const numeric = Number(rawValue);
+        if (Number.isFinite(numeric)) usageByEmail.set(email, numeric);
+      }
+
       const records = users
         .filter((u) => u.primaryEmail && u.id)
         .map((u) => {
           const primaryEmail = String(u.primaryEmail).toLowerCase();
           const recordDomain = normalizeDomain(primaryEmail);
+          const storageMb = usageByEmail.get(primaryEmail);
           return {
             primary_email: primaryEmail,
             domain: recordDomain || normalized,
@@ -272,6 +338,7 @@ Deno.serve(async (req) => {
             archived: Boolean((u as any).archived),
             deleted: false,
             last_login_at: u.lastLoginTime ? new Date(u.lastLoginTime).toISOString() : null,
+            storage_mb: Number.isFinite(storageMb) ? storageMb : null,
             is_admin: typeof u.isAdmin === "boolean" ? u.isAdmin : null,
             aliases: Array.isArray(u.aliases) ? u.aliases.map((a) => String(a).toLowerCase()) : null,
             google_etag: u.etag ?? null,
@@ -280,6 +347,7 @@ Deno.serve(async (req) => {
           };
         });
 
+      let bulkUpsertError: unknown | null = null;
       const chunkSize = 200;
       for (let i = 0; i < records.length; i += chunkSize) {
         const chunk = records.slice(i, i + chunkSize);
@@ -289,49 +357,51 @@ Deno.serve(async (req) => {
         });
 
         if (error) {
-          domainResult.error = JSON.stringify(error);
-          throw error;
+          domainResult.error = formatError(error);
+          bulkUpsertError = error;
+          break;
         }
 
         domainResult.upserts += chunk.length;
-        continue;
       }
 
-      // Remediação simples para conflitos raros de primary_email (reuso de email)
-      const errMsg = String((domainResult.error as any) || "");
-      if (!errMsg.toLowerCase().includes("primary_email")) throw new Error(errMsg);
+      if (bulkUpsertError) {
+        // Remediação simples para conflitos raros de primary_email (reuso de email)
+        const errMsg = formatError(bulkUpsertError);
+        if (!errMsg.toLowerCase().includes("primary_email")) throw bulkUpsertError;
 
-      for (const rec of records) {
-        const { error: upsertError } = await supabase.from("google_workspace_accounts").upsert([rec], {
-          onConflict: "google_id",
-        });
-
-        if (!upsertError) {
-          domainResult.upserts += 1;
-          continue;
-        }
-
-        const { data: existing } = await supabase
-          .from("google_workspace_accounts")
-          .select("id, google_id, primary_email")
-          .eq("primary_email", rec.primary_email)
-          .limit(1)
-          .maybeSingle();
-
-        if (existing?.id && existing.google_id && existing.google_id !== rec.google_id) {
-          const tombstone = `${existing.primary_email}#reused#${existing.google_id}`.slice(0, 320);
-          await supabase
-            .from("google_workspace_accounts")
-            .update({ primary_email: tombstone, deleted: true, updated_at: new Date().toISOString() })
-            .eq("id", existing.id);
-
-          const { error: retryError } = await supabase.from("google_workspace_accounts").upsert([rec], {
+        for (const rec of records) {
+          const { error: upsertError } = await supabase.from("google_workspace_accounts").upsert([rec], {
             onConflict: "google_id",
           });
-          if (retryError) throw retryError;
-          domainResult.upserts += 1;
-        } else {
-          throw upsertError;
+
+          if (!upsertError) {
+            domainResult.upserts += 1;
+            continue;
+          }
+
+          const { data: existing } = await supabase
+            .from("google_workspace_accounts")
+            .select("id, google_id, primary_email")
+            .eq("primary_email", rec.primary_email)
+            .limit(1)
+            .maybeSingle();
+
+          if (existing?.id && existing.google_id && existing.google_id !== rec.google_id) {
+            const tombstone = `${existing.primary_email}#reused#${existing.google_id}`.slice(0, 320);
+            await supabase
+              .from("google_workspace_accounts")
+              .update({ primary_email: tombstone, deleted: true, updated_at: new Date().toISOString() })
+              .eq("id", existing.id);
+
+            const { error: retryError } = await supabase.from("google_workspace_accounts").upsert([rec], {
+              onConflict: "google_id",
+            });
+            if (retryError) throw retryError;
+            domainResult.upserts += 1;
+          } else {
+            throw upsertError;
+          }
         }
       }
 
@@ -364,7 +434,7 @@ Deno.serve(async (req) => {
 
       domainResult.ok = true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatError(err);
       domainResult.error = message;
       await supabase.from("google_workspace_sync_state").upsert(
         [
