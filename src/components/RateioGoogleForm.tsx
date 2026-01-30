@@ -28,6 +28,7 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
     armazenamento: '',
     situacao: '',
   });
+  const [emailSuggestions, setEmailSuggestions] = useState<{ primary_email: string; full_name: string | null }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
@@ -90,6 +91,36 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  useEffect(() => {
+    const q = String(formData.email || '').trim().toLowerCase();
+    if (q.length < 3) {
+      setEmailSuggestions([]);
+      return;
+    }
+
+    const t = window.setTimeout(async () => {
+      const { data, error } = await supabase
+        .from('google_workspace_accounts')
+        .select('primary_email, full_name')
+        .eq('deleted', false)
+        .eq('suspended', false)
+        .in('domain', ['odontoart.com', 'odontoartonline.com.br'])
+        .ilike('primary_email', `%${q}%`)
+        .limit(20);
+
+      if (!error) {
+        setEmailSuggestions(
+          ((data as any[]) || []).map((d) => ({
+            primary_email: String(d.primary_email || ''),
+            full_name: d.full_name ? String(d.full_name) : null,
+          }))
+        );
+      }
+    }, 250);
+
+    return () => window.clearTimeout(t);
+  }, [formData.email]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
@@ -101,15 +132,59 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
     setError('');
 
     try {
+      const emailTrimmed = String(formData.email || '').trim().toLowerCase();
+      const oldEmailTrimmed = String(rateio?.email || '').trim().toLowerCase();
+      const emailChanged = emailTrimmed !== oldEmailTrimmed;
+
+      if (emailTrimmed) {
+        const domain = emailTrimmed.split('@')[1]?.toLowerCase() || '';
+        const allowedDomains = ['odontoart.com', 'odontoartonline.com.br'];
+        if (!allowedDomains.includes(domain)) {
+          throw new Error('E-mail fora dos domínios permitidos (@odontoart.com, @odontoartonline.com.br).');
+        }
+
+        if (!rateio || emailChanged) {
+          const { data: gw, error: gwError } = await supabase
+            .from('google_workspace_accounts')
+            .select('primary_email, suspended, deleted')
+            .eq('primary_email', emailTrimmed)
+            .limit(1)
+            .maybeSingle();
+
+          if (gwError) throw gwError;
+          if (!gw) throw new Error('E-mail não encontrado no Google Workspace (catálogo sincronizado).');
+          if ((gw as any).deleted) throw new Error('Este e-mail está marcado como deletado no Google Workspace.');
+          if ((gw as any).suspended) throw new Error('Este e-mail está suspenso no Google Workspace.');
+        }
+      }
+
+      // Best-effort: vincular por user_id interno (users.auth_uid) para sync automático de email no app
+      let linkedUserId: string | null | undefined = undefined;
+      if (!emailTrimmed) {
+        linkedUserId = null;
+      } else {
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('auth_uid')
+          .ilike('email', emailTrimmed)
+          .limit(1);
+
+        if (!usersError) {
+          const authUid = (usersData as any[])?.[0]?.auth_uid;
+          linkedUserId = authUid ? String(authUid) : null;
+        }
+      }
+
       const dataToSave = {
         nome_completo: formData.nome_completo,
-        email: formData.email || null,
+        email: emailTrimmed || null,
         status: formData.status || null,
         ultimo_login: formData.ultimo_login || null,
         armazenamento: formData.armazenamento || null,
         situacao: formData.situacao || null,
         user_id: user.id,
         updated_at: new Date().toISOString(),
+        ...(linkedUserId !== undefined ? { linked_user_id: linkedUserId } : {}),
       };
 
       if (rateio) {
@@ -209,10 +284,18 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
+                list="workspace-email-suggestions"
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
                 placeholder="email@exemplo.com"
               />
+              <datalist id="workspace-email-suggestions">
+                {emailSuggestions.map((opt) => (
+                  <option key={opt.primary_email} value={opt.primary_email}>
+                    {opt.full_name ?? ''}
+                  </option>
+                ))}
+              </datalist>
             </div>
 
             <div>
