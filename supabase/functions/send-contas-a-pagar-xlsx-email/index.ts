@@ -35,6 +35,20 @@ const normalizeColumnKey = (value: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
+const normalizeRole = (role?: string | null) => {
+  if (!role) return "";
+  const value = role
+    .toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (value === "administrador") return "admin";
+  if (value === "admin") return "admin";
+  if (value === "financeiro") return "financeiro";
+  if (value === "usuario") return "usuario";
+  return value;
+};
+
 const parseNumericValue = (value: unknown) => {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") {
@@ -132,14 +146,14 @@ Deno.serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const smtpHost = Deno.env.get("SMTP_HOST");
   const smtpPortValue = Deno.env.get("SMTP_PORT");
   const smtpUser = Deno.env.get("SMTP_USER");
   const smtpPass = Deno.env.get("SMTP_PASS");
   const smtpFrom = Deno.env.get("SMTP_FROM");
 
-  if (!supabaseUrl || !supabaseKey) {
+  if (!supabaseUrl || !supabaseServiceKey) {
     console.error("Missing Supabase environment variables.");
     return jsonResponse({ ok: false, error: "Server configuration error" }, 500);
   }
@@ -155,7 +169,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, error: "Server configuration error" }, 500);
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -166,6 +180,25 @@ Deno.serve(async (req) => {
   if (authError || !authData?.user) {
     console.error("Auth error:", authError);
     return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("users")
+    .select("id, role, modules, is_active")
+    .eq("auth_uid", authData.user.id)
+    .single();
+
+  if (profileError || !profile) {
+    console.error("Profile error:", profileError);
+    return jsonResponse({ ok: false, error: "Forbidden" }, 403);
+  }
+
+  const role = normalizeRole(profile.role);
+  const modules = Array.isArray(profile.modules) ? profile.modules : [];
+  const hasAccess = profile.is_active === true && role === "admin" && modules.includes("contas_a_pagar");
+  if (!hasAccess) {
+    console.error("Access denied for user:", authData.user.id);
+    return jsonResponse({ ok: false, error: "Forbidden" }, 403);
   }
 
   let body: { subject?: string; columns?: unknown; rows?: unknown; meta?: unknown };
