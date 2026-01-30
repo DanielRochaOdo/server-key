@@ -12,7 +12,6 @@ interface RateioGoogle {
   email?: string;
   status?: string;
   ultimo_login?: string;
-  armazenamento?: string;
   created_at: string;
 }
 
@@ -23,11 +22,6 @@ const formatDateTime = (value?: string | null) => {
   return date.toLocaleString('pt-BR');
 };
 
-const formatStorage = (mb?: number | null) => {
-  if (!mb || !Number.isFinite(mb)) return '-';
-  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
-  return `${mb.toFixed(0)} MB`;
-};
 
 const RateioGoogle: React.FC = () => {
   const [rateios, setRateios] = useState<RateioGoogle[]>([]);
@@ -51,7 +45,7 @@ const RateioGoogle: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('google_workspace_accounts')
-        .select('id, full_name, primary_email, suspended, deleted, last_login_at, storage_mb, created_at')
+        .select('id, full_name, primary_email, suspended, deleted, last_login_at, created_at')
         .order('primary_email', { ascending: true });
 
       if (error) throw error;
@@ -65,7 +59,6 @@ const RateioGoogle: React.FC = () => {
           email: row.primary_email || '-',
           status,
           ultimo_login: formatDateTime(row.last_login_at),
-          armazenamento: formatStorage(row.storage_mb),
           created_at: row.created_at || new Date().toISOString(),
         } as RateioGoogle;
       });
@@ -154,7 +147,7 @@ const RateioGoogle: React.FC = () => {
       const matchesSearch =
         rateio.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         rateio.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        rateio.armazenamento?.toLowerCase().includes(searchTerm.toLowerCase());
+        false;
 
       const matchesStatus = selectedStatus === '' || rateio.status === selectedStatus;
       const matchesDominio = selectedDominio === '' || (rateio.email && rateio.email.includes(`@${selectedDominio}`));
@@ -415,7 +408,6 @@ const RateioGoogle: React.FC = () => {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Email</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Status</th>
                 <th className="hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Último Login</th>
-                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Armazenamento</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
@@ -430,7 +422,6 @@ const RateioGoogle: React.FC = () => {
                     {getStatusBadge(rateio.status) || '-'}
                   </td>
                   <td className="hidden lg:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">{rateio.ultimo_login || '-'}</td>
-                  <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[100px]">{rateio.armazenamento || '-'}</td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <button
@@ -497,7 +488,6 @@ const RateioGoogle: React.FC = () => {
               <div><strong>Email:</strong> {viewingRateio.email || '-'}</div>
               <div><strong>Status:</strong> {viewingRateio.status || '-'}</div>
               <div><strong>Último Login:</strong> {viewingRateio.ultimo_login || '-'}</div>
-              <div><strong>Armazenamento:</strong> {viewingRateio.armazenamento || '-'}</div>
             </div>
             <div className="mt-4 sm:mt-6 text-right">
               <button
