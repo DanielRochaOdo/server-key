@@ -202,9 +202,17 @@ function normalizeDomain(primaryEmail: string) {
 
 function parseUsageValue(raw?: string) {
   if (!raw) return null;
-  const cleaned = raw.replace(/[^0-9.]/g, "");
-  const numeric = Number(cleaned);
-  return Number.isFinite(numeric) ? numeric : null;
+  const value = raw.trim();
+  const match = value.match(/([0-9]+(?:\.[0-9]+)?)\s*(KB|MB|GB|TB)?/i);
+  if (!match) return null;
+  const numeric = Number(match[1]);
+  if (!Number.isFinite(numeric)) return null;
+  const unit = (match[2] || "MB").toUpperCase();
+  if (unit === "KB") return numeric / 1024;
+  if (unit === "MB") return numeric;
+  if (unit === "GB") return numeric * 1024;
+  if (unit === "TB") return numeric * 1024 * 1024;
+  return numeric;
 }
 
 function getUsageParamValue(item: UsageReportItem, name: string) {
