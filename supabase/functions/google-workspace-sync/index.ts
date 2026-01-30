@@ -114,7 +114,7 @@ async function listGoogleUsers(params: { accessToken: string; domain: string }) 
   const users: GoogleUser[] = [];
   let pageToken: string | undefined = undefined;
 
-  for (;;) {
+  for (; ;) {
     const url = new URL("https://admin.googleapis.com/admin/directory/v1/users");
     url.searchParams.set("customer", "my_customer");
     url.searchParams.set("domain", domain);
@@ -288,47 +288,50 @@ Deno.serve(async (req) => {
           onConflict: "google_id",
         });
 
-        if (!error) {
-          domainResult.upserts += chunk.length;
+        if (error) {
+          domainResult.error = JSON.stringify(error);
+          throw error;
+        }
+
+        domainResult.upserts += chunk.length;
+        continue;
+      }
+
+      // Remediação simples para conflitos raros de primary_email (reuso de email)
+      const errMsg = String((domainResult.error as any) || "");
+      if (!errMsg.toLowerCase().includes("primary_email")) throw new Error(errMsg);
+
+      for (const rec of records) {
+        const { error: upsertError } = await supabase.from("google_workspace_accounts").upsert([rec], {
+          onConflict: "google_id",
+        });
+
+        if (!upsertError) {
+          domainResult.upserts += 1;
           continue;
         }
 
-        // Remediação simples para conflitos raros de primary_email (reuso de email)
-        const errMsg = String((error as any)?.message || "");
-        if (!errMsg.toLowerCase().includes("primary_email")) throw error;
+        const { data: existing } = await supabase
+          .from("google_workspace_accounts")
+          .select("id, google_id, primary_email")
+          .eq("primary_email", rec.primary_email)
+          .limit(1)
+          .maybeSingle();
 
-        for (const rec of chunk) {
-          const { error: upsertError } = await supabase.from("google_workspace_accounts").upsert([rec], {
+        if (existing?.id && existing.google_id && existing.google_id !== rec.google_id) {
+          const tombstone = `${existing.primary_email}#reused#${existing.google_id}`.slice(0, 320);
+          await supabase
+            .from("google_workspace_accounts")
+            .update({ primary_email: tombstone, deleted: true, updated_at: new Date().toISOString() })
+            .eq("id", existing.id);
+
+          const { error: retryError } = await supabase.from("google_workspace_accounts").upsert([rec], {
             onConflict: "google_id",
           });
-
-          if (!upsertError) {
-            domainResult.upserts += 1;
-            continue;
-          }
-
-          const { data: existing } = await supabase
-            .from("google_workspace_accounts")
-            .select("id, google_id, primary_email")
-            .eq("primary_email", rec.primary_email)
-            .limit(1)
-            .maybeSingle();
-
-          if (existing?.id && existing.google_id && existing.google_id !== rec.google_id) {
-            const tombstone = `${existing.primary_email}#reused#${existing.google_id}`.slice(0, 320);
-            await supabase
-              .from("google_workspace_accounts")
-              .update({ primary_email: tombstone, deleted: true, updated_at: new Date().toISOString() })
-              .eq("id", existing.id);
-
-            const { error: retryError } = await supabase.from("google_workspace_accounts").upsert([rec], {
-              onConflict: "google_id",
-            });
-            if (retryError) throw retryError;
-            domainResult.upserts += 1;
-          } else {
-            throw upsertError;
-          }
+          if (retryError) throw retryError;
+          domainResult.upserts += 1;
+        } else {
+          throw upsertError;
         }
       }
 
