@@ -37,6 +37,29 @@ Defina em **Project Settings â†’ Functions â†’ Secrets**:
 - `GOOGLE_ADMIN_SUBJECTS_JSON`: JSON com admin por domÃ­nio, ex.:
   - `{"odontoart.com":"ti.admin@odontoart.com","odontoartonline.com.br":"ti.admin@odontoartonline.com.br"}`
 
+### Workspaces diferentes (multi-tenant)
+Se cada domÃƒÂ­nio estiver em **um Google Workspace diferente**, use **credenciais por domÃƒÂ­nio**:
+
+- `GOOGLE_DOMAIN_CREDENTIALS_JSON`: JSON com `client_email`, `private_key` e `subject` por domÃƒÂ­nio.
+
+Exemplo:
+```json
+{
+  "odontoart.com": {
+    "client_email": "sa-odontoart@project.iam.gserviceaccount.com",
+    "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+    "subject": "daniel.rocha@odontoart.com"
+  },
+  "odontoartonline.com.br": {
+    "client_email": "sa-odontoartonline@project.iam.gserviceaccount.com",
+    "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+    "subject": "tecnologia@odontoartonline.com.br"
+  }
+}
+```
+
+> Se `GOOGLE_DOMAIN_CREDENTIALS_JSON` estiver definido, ele tem prioridade sobre `GOOGLE_SA_CLIENT_EMAIL/GOOGLE_SA_PRIVATE_KEY/GOOGLE_ADMIN_SUBJECTS_JSON`.
+
 ### GitHub Actions (cron)
 
 Em **GitHub â†’ Settings â†’ Secrets and variables â†’ Actions**:
@@ -82,4 +105,3 @@ select *
 from public.google_workspace_sync_state
 order by domain;
 ```
-

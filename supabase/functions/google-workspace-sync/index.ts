@@ -147,6 +147,12 @@ function normalizeDomain(primaryEmail: string) {
   return primaryEmail.slice(at + 1).toLowerCase();
 }
 
+type DomainCredentials = {
+  client_email: string;
+  private_key: string;
+  subject: string;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
@@ -163,21 +169,35 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, error: "Missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY" }, 500);
   }
 
+  const domainCredentialsJsonRaw = (Deno.env.get("GOOGLE_DOMAIN_CREDENTIALS_JSON") || "").trim();
+  let domainCredentials: Record<string, DomainCredentials> | null = null;
+
+  if (domainCredentialsJsonRaw) {
+    try {
+      domainCredentials = JSON.parse(domainCredentialsJsonRaw) as Record<string, DomainCredentials>;
+    } catch {
+      return jsonResponse({ ok: false, error: "Invalid GOOGLE_DOMAIN_CREDENTIALS_JSON (must be JSON object)" }, 500);
+    }
+  }
+
   const saClientEmail = (Deno.env.get("GOOGLE_SA_CLIENT_EMAIL") || "").trim();
   const saPrivateKey = normalizePrivateKey(Deno.env.get("GOOGLE_SA_PRIVATE_KEY") || "");
   const subjectsJsonRaw = (Deno.env.get("GOOGLE_ADMIN_SUBJECTS_JSON") || "").trim();
-  if (!saClientEmail || !saPrivateKey || !subjectsJsonRaw) {
+
+  if (!domainCredentials && (!saClientEmail || !saPrivateKey || !subjectsJsonRaw)) {
     return jsonResponse(
       { ok: false, error: "Missing GOOGLE_SA_CLIENT_EMAIL/GOOGLE_SA_PRIVATE_KEY/GOOGLE_ADMIN_SUBJECTS_JSON" },
       500
     );
   }
 
-  let subjectsByDomain: Record<string, string>;
-  try {
-    subjectsByDomain = JSON.parse(subjectsJsonRaw) as Record<string, string>;
-  } catch {
-    return jsonResponse({ ok: false, error: "Invalid GOOGLE_ADMIN_SUBJECTS_JSON (must be JSON object)" }, 500);
+  let subjectsByDomain: Record<string, string> = {};
+  if (!domainCredentials) {
+    try {
+      subjectsByDomain = JSON.parse(subjectsJsonRaw) as Record<string, string>;
+    } catch {
+      return jsonResponse({ ok: false, error: "Invalid GOOGLE_ADMIN_SUBJECTS_JSON (must be JSON object)" }, 500);
+    }
   }
 
   let payload: SyncRequest = {};
@@ -202,17 +222,33 @@ Deno.serve(async (req) => {
 
   for (const domain of domains) {
     const normalized = String(domain || "").trim().toLowerCase();
-    const subject = (subjectsByDomain[normalized] || "").trim();
-    if (!subject) {
-      summary.domains.push({ domain: normalized, ok: false, error: "Missing admin subject for domain" });
+    let subject = "";
+    let clientEmail = saClientEmail;
+    let privateKey = saPrivateKey;
+
+    if (domainCredentials) {
+      const creds = domainCredentials[normalized];
+      if (!creds?.client_email || !creds?.private_key || !creds?.subject) {
+        summary.domains.push({ domain: normalized, ok: false, error: "Missing domain credentials for domain" });
+        continue;
+      }
+      subject = String(creds.subject).trim();
+      clientEmail = String(creds.client_email).trim();
+      privateKey = normalizePrivateKey(String(creds.private_key || ""));
+    } else {
+      subject = (subjectsByDomain[normalized] || "").trim();
+    }
+
+    if (!subject || !clientEmail || !privateKey) {
+      summary.domains.push({ domain: normalized, ok: false, error: "Missing credentials/subject for domain" });
       continue;
     }
 
     const domainResult: any = { domain: normalized, ok: false, fetched: 0, upserts: 0, marked_deleted: 0 };
     try {
       const accessToken = await getGoogleAccessToken({
-        clientEmail: saClientEmail,
-        privateKey: saPrivateKey,
+        clientEmail,
+        privateKey,
         subject,
         scope,
       });
@@ -346,4 +382,3 @@ Deno.serve(async (req) => {
   summary.ok = summary.domains.every((d: any) => d.ok);
   return jsonResponse(summary, summary.ok ? 200 : 500);
 });
-
