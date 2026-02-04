@@ -37,7 +37,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navRef = React.useRef<HTMLElement | null>(null);
   const sectionPaths = {
     acessos: ['/pessoal', '/acessos', '/teams', '/win-users'],
-    financeiro: ['/rateio-claro', '/rateio-google', '/contas-a-pagar', '/pedidos-de-compra'],
+    financeiro: ['/rateio-claro', '/rateio-google', '/rateio-mkm', '/contas-a-pagar', '/pedidos-de-compra'],
     configuracoes: ['/configuracoes', '/usuarios'],
   };
   const [openSections, setOpenSections] = useState<Record<NavSection['key'], boolean>>(() => ({
@@ -89,12 +89,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   React.useEffect(() => {
-    const section = getSectionForPath(location.pathname);
-    if (!section) return;
-    setOpenSections((prev) => ({ ...prev, [section]: true }));
-  }, [location.pathname]);
-
-  React.useEffect(() => {
     const hasOpenSection = Object.values(openSections).some(Boolean);
     if (!hasOpenSection) return;
 
@@ -142,6 +136,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
     if (hasModuleAccess('rateio_google')) {
       financeiroItems.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail });
+    }
+    if (isAdmin() || hasModuleAccess('rateio_mkm')) {
+      financeiroItems.push({ name: 'Rateio Fatura MKM', href: '/rateio-mkm', icon: FileText });
     }
     if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
       financeiroItems.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText });

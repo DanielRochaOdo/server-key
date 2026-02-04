@@ -198,37 +198,43 @@ BEGIN
     admin_auth_id := gen_random_uuid();
     
     -- Create admin in auth.users
-    INSERT INTO auth.users (
-      instance_id,
-      id,
-      aud,
-      role,
-      email,
-      encrypted_password,
-      email_confirmed_at,
-      raw_user_meta_data,
-      created_at,
-      updated_at,
-      confirmation_token,
-      email_change,
-      email_change_token_new,
-      recovery_token
-    ) VALUES (
-      '00000000-0000-0000-0000-000000000000',
-      admin_auth_id,
-      'authenticated',
-      'authenticated',
-      'admin@serverkey.com',
-      crypt('admin123', gen_salt('bf')),
-      NOW(),
-      '{"name": "Administrador", "role": "admin", "password": "admin123"}',
-      NOW(),
-      NOW(),
-      '',
-      '',
-      '',
-      ''
-    );
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'gen_salt') THEN
+      EXECUTE $sql$
+        INSERT INTO auth.users (
+          instance_id,
+          id,
+          aud,
+          role,
+          email,
+          encrypted_password,
+          email_confirmed_at,
+          raw_user_meta_data,
+          created_at,
+          updated_at,
+          confirmation_token,
+          email_change,
+          email_change_token_new,
+          recovery_token
+        ) VALUES (
+          '00000000-0000-0000-0000-000000000000',
+          $1,
+          'authenticated',
+          'authenticated',
+          'admin@serverkey.com',
+          crypt('admin123', gen_salt('bf')),
+          NOW(),
+          '{"name": "Administrador", "role": "admin", "password": "admin123"}',
+          NOW(),
+          NOW(),
+          '',
+          '',
+          '',
+          ''
+        );
+      $sql$ USING admin_auth_id;
+    ELSE
+      RAISE NOTICE 'Skipping auth.users admin insert: pgcrypto (gen_salt) not available.';
+    END IF;
     
     RAISE NOTICE 'Admin user created in auth.users with ID: %', admin_auth_id;
   ELSE
