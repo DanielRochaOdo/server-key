@@ -352,7 +352,14 @@ Deno.serve(async (req) => {
       const users = await listGoogleUsers({ accessToken, domain: normalized });
       domainResult.fetched = users.length;
 
-      const usageReports = await getUsageReport({ accessToken, domain: normalized, date: usageDate });
+      let usageReports: UsageReportItem[] = [];
+      try {
+        usageReports = await getUsageReport({ accessToken, domain: normalized, date: usageDate });
+      } catch (usageError) {
+        const msg = formatError(usageError);
+        console.warn(`Reports API skipped for ${normalized}: ${msg}`);
+        usageReports = [];
+      }
       const usageByEmail = new Map<string, number>();
       for (const item of usageReports) {
         const email = (item.entity?.userEmail || "").toLowerCase().trim();

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart } from 'lucide-react';
+import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart, ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { normalizeRole, getRoleLabel } from '../utils/roles';
@@ -15,12 +15,36 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+}
+
+interface NavSection {
+  key: 'acessos' | 'financeiro' | 'configuracoes';
+  name: string;
+  icon: React.ElementType;
+  items: NavItem[];
+}
+
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { userProfile, signOut, hasModuleAccess, isAdmin, isUsuario } = useAuth();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [extendedProfile, setExtendedProfile] = useState<UserProfileExtended | null>(null);
   const { theme, toggleTheme } = useTheme();
+  const navRef = React.useRef<HTMLElement | null>(null);
+  const sectionPaths = {
+    acessos: ['/pessoal', '/acessos', '/teams', '/win-users'],
+    financeiro: ['/rateio-claro', '/rateio-google', '/contas-a-pagar', '/pedidos-de-compra'],
+    configuracoes: ['/configuracoes', '/usuarios'],
+  };
+  const [openSections, setOpenSections] = useState<Record<NavSection['key'], boolean>>(() => ({
+    acessos: sectionPaths.acessos.includes(location.pathname),
+    financeiro: sectionPaths.financeiro.includes(location.pathname),
+    configuracoes: sectionPaths.configuracoes.includes(location.pathname),
+  }));
 
   // Fetch extended profile data to get 'nome' field
   React.useEffect(() => {
@@ -53,6 +77,37 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return location.pathname === path;
   };
 
+  const closeAllSections = () => {
+    setOpenSections({ acessos: false, financeiro: false, configuracoes: false });
+  };
+
+  const getSectionForPath = (path: string): NavSection['key'] | null => {
+    if (sectionPaths.acessos.includes(path)) return 'acessos';
+    if (sectionPaths.financeiro.includes(path)) return 'financeiro';
+    if (sectionPaths.configuracoes.includes(path)) return 'configuracoes';
+    return null;
+  };
+
+  React.useEffect(() => {
+    const section = getSectionForPath(location.pathname);
+    if (!section) return;
+    setOpenSections((prev) => ({ ...prev, [section]: true }));
+  }, [location.pathname]);
+
+  React.useEffect(() => {
+    const hasOpenSection = Object.values(openSections).some(Boolean);
+    if (!hasOpenSection) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!navRef.current) return;
+      if (navRef.current.contains(event.target as Node)) return;
+      setOpenSections({ acessos: false, financeiro: false, configuracoes: false });
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openSections]);
+
   // Get display name - use 'nome' if available, otherwise fallback to 'name'
   const getDisplayName = () => {
     return extendedProfile?.nome || userProfile?.name || '';
@@ -60,61 +115,54 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Define navigation items based on user permissions
   const getNavigationItems = () => {
-    const items = [
-    ];
+    const topItems: NavItem[] = [];
 
     // Dashboard - não disponível para usuários nível "usuario"
     if (!isUsuario()) {
-      items.push({ name: 'Dashboard', href: '/dashboard', icon: BarChart3, module: null });
-      
-      // Admin can see user management
-      if (isAdmin()) {
-        items.push({ name: 'Usuários', href: '/usuarios', icon: Users, module: 'usuarios' });
-      }
-      
-      // Pessoal module - only for usuario role
-      if (hasModuleAccess('pessoal')) {
-        items.push({ name: 'Senhas Pessoais', href: '/pessoal', icon: Lock, module: 'pessoal' });
-      }
-      
-      // Admin and specific role modules (not for usuario role)
-      if (hasModuleAccess('acessos') && !isUsuario()) {
-        items.push({ name: 'Acessos', href: '/acessos', icon: Key, module: 'acessos' });
-      }
-      
-      if (hasModuleAccess('teams') && !isUsuario()) {
-        items.push({ name: 'Contas Teams', href: '/teams', icon: UserCheck, module: 'teams' });
-      }
-     
-      if (hasModuleAccess('win_users') && !isUsuario()) {
-        items.push({ name: 'Usuários Windows', href: '/win-users', icon: Monitor, module: 'win_users' });
-      }
-      
-      // Financeiro role modules
-      if (hasModuleAccess('rateio_claro')) {
-        items.push({ name: 'Rateio Claro', href: '/rateio-claro', icon: Phone, module: 'rateio_claro' });
-      }
-      
-      if (hasModuleAccess('rateio_google')) {
-        items.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail, module: 'rateio_google' });
-      }
-      
-      if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
-        items.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText, module: 'contas_a_pagar' });
-      }
-      
-      }
-      if (!isUsuario()) {
-        items.push({ name: 'Pedidos de Compra', href: '/pedidos-de-compra', icon: ShoppingCart, module: 'pedidos_de_compra' });
-      }
-
-    if (isAdmin() && hasModuleAccess('pedidos_de_compra')) {
-      items.push({ name: 'Pedidos de Compra', href: '/pedidos-de-compra', icon: ShoppingCart, module: 'pedidos_de_compra' });
+      topItems.push({ name: 'Dashboard', href: '/dashboard', icon: BarChart3 });
     }
 
-    items.push({ name: 'Configuracoes', href: '/configuracoes', icon: Settings, module: null });
+    const acessosItems: NavItem[] = [];
+    if (hasModuleAccess('pessoal')) {
+      acessosItems.push({ name: 'Senhas Pessoais', href: '/pessoal', icon: Lock });
+    }
+    if (hasModuleAccess('acessos') && !isUsuario()) {
+      acessosItems.push({ name: 'Acessos', href: '/acessos', icon: Key });
+    }
+    if (hasModuleAccess('teams') && !isUsuario()) {
+      acessosItems.push({ name: 'Contas Teams', href: '/teams', icon: UserCheck });
+    }
+    if (hasModuleAccess('win_users') && !isUsuario()) {
+      acessosItems.push({ name: 'Usuários Windows', href: '/win-users', icon: Monitor });
+    }
 
-    return items;
+    const financeiroItems: NavItem[] = [];
+    if (hasModuleAccess('rateio_claro')) {
+      financeiroItems.push({ name: 'Rateio Claro', href: '/rateio-claro', icon: Phone });
+    }
+    if (hasModuleAccess('rateio_google')) {
+      financeiroItems.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail });
+    }
+    if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
+      financeiroItems.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText });
+    }
+    if (!isUsuario()) {
+      financeiroItems.push({ name: 'Pedidos de Compra', href: '/pedidos-de-compra', icon: ShoppingCart });
+    }
+
+    const configuracoesItems: NavItem[] = [];
+    configuracoesItems.push({ name: 'Configurações', href: '/configuracoes', icon: Settings });
+    if (isAdmin()) {
+      configuracoesItems.push({ name: 'Usuários', href: '/usuarios', icon: Users });
+    }
+
+    const sections: NavSection[] = [
+      { key: 'acessos', name: 'Acessos', icon: Key, items: acessosItems },
+      { key: 'financeiro', name: 'Financeiro', icon: FileText, items: financeiroItems },
+      { key: 'configuracoes', name: 'Configurações', icon: Settings, items: configuracoesItems },
+    ].filter((section) => section.items.length > 0);
+
+    return { topItems, sections };
   };
 
   const getRoleBadge = (role: string) => {
@@ -170,11 +218,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-4 space-y-1">
-          {navigationItems.map((item) => (
+        <nav ref={navRef} className="flex-1 py-4 space-y-2">
+          {navigationItems.topItems.map((item) => (
             <Link
               key={item.name}
               to={item.href}
+              onClick={closeAllSections}
               title={item.name}
               aria-label={item.name}
               className={`
@@ -188,6 +237,98 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {!sidebarCollapsed && <span className="ml-3">{item.name}</span>}
             </Link>
           ))}
+
+          {navigationItems.sections.map((section) => {
+            const isSectionActive = section.items.some((item) => isActive(item.href));
+            const isSectionOpen = openSections[section.key];
+
+            return (
+              <div key={section.key} className="relative space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenSections((prev) => {
+                      const shouldOpen = !prev[section.key];
+                      return {
+                        acessos: false,
+                        financeiro: false,
+                        configuracoes: false,
+                        [section.key]: shouldOpen,
+                      };
+                    });
+                  }}
+                  title={section.name}
+                  aria-label={section.name}
+                  aria-expanded={isSectionOpen}
+                  className={`
+                    flex items-center w-full ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2 text-sm font-medium rounded-lg transition-colors duration-200
+                    ${isSectionActive
+                      ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
+                      : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                  `}
+                >
+                  <section.icon className="h-5 w-5" />
+                  {!sidebarCollapsed && (
+                    <>
+                      <span className="ml-3 flex-1 text-left">{section.name}</span>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${isSectionOpen ? 'rotate-180' : ''}`}
+                      />
+                    </>
+                  )}
+                </button>
+                {!sidebarCollapsed && isSectionOpen && (
+                  <div className="space-y-1">
+                    {section.items.map((item) => (
+                      <Link
+                        key={item.name}
+                        to={item.href}
+                        onClick={closeAllSections}
+                        title={item.name}
+                        aria-label={item.name}
+                        className={`
+                          flex items-center px-3 py-2 pl-10 text-sm font-medium rounded-lg transition-colors duration-200
+                          ${isActive(item.href)
+                            ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
+                            : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                        `}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span className="ml-3">{item.name}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {sidebarCollapsed && isSectionOpen && (
+                  <div className="absolute left-full top-0 ml-2 z-50 min-w-[13rem] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-800 dark:bg-neutral-950">
+                    <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                      {section.name}
+                    </div>
+                    <div className="space-y-1">
+                      {section.items.map((item) => (
+                        <Link
+                          key={item.name}
+                          to={item.href}
+                          onClick={closeAllSections}
+                          title={item.name}
+                          aria-label={item.name}
+                          className={`
+                            flex items-center px-2 py-2 text-sm font-medium rounded-lg transition-colors duration-200
+                            ${isActive(item.href)
+                              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
+                              : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                          `}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span className="ml-3">{item.name}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         {/* User info + logout */}
