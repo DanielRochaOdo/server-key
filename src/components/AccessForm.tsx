@@ -122,8 +122,6 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
       };
 
       if (access) {
-        console.log('Updating access with ID:', access.id);
-        console.log('Data to save:', dataToSave);
         const { error } = await supabase
           .from('acessos')
           .update(dataToSave)
@@ -132,10 +130,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
           console.error('Update error:', error);
           throw error;
         }
-        console.log('Update successful');
       } else {
-        console.log('Creating new access');
-        console.log('Data to save:', dataToSave);
         const { error } = await supabase
           .from('acessos')
           .insert([{ ...dataToSave, created_at: new Date().toISOString() }]);
@@ -143,7 +138,6 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
           console.error('Insert error:', error);
           throw error;
         }
-        console.log('Insert successful');
       }
 
       // Limpar dados persistidos após sucesso

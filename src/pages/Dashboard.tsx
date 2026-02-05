@@ -179,7 +179,7 @@ const Dashboard: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('auth_uid, nome, name, email')
+        .select('auth_uid, name, email')
         .in('auth_uid', ids);
 
       if (error) throw error;
@@ -187,7 +187,7 @@ const Dashboard: React.FC = () => {
       const map: Record<string, string> = {};
       (data || []).forEach((row: any) => {
         if (!row?.auth_uid) return;
-        map[row.auth_uid] = row.nome || row.name || row.email || 'Usuario';
+        map[row.auth_uid] = row.name || row.email || 'Usuario';
       });
       return map;
     } catch (error) {
@@ -286,14 +286,14 @@ const Dashboard: React.FC = () => {
           fetchModule({
             key: 'win_users',
             table: 'win_users',
-            select: 'id, usuario, login, created_at, user_id',
+            select: 'id, usuario, login, created_at',
             mapRow: (row) => ({
               id: row.id,
               module: 'win_users',
               title: row.usuario || row.login || 'Usuario Windows',
               subtitle: row.login ? `Login: ${row.login}` : undefined,
               created_at: row.created_at,
-              created_by_id: row.user_id,
+              created_by_id: null,
             }),
           })
         );

@@ -9,7 +9,6 @@ export const useRequireAuth = () => {
   useEffect(() => {
     // Only redirect if we're done loading and there's no user
     if (!loading && !user) {
-      console.log('🔒 No authenticated user, redirecting to login');
       navigate('/login', { replace: true });
     }
   }, [user, loading, navigate]);

@@ -174,9 +174,14 @@ Deno.serve(async (req) => {
       autoRefreshToken: false,
       persistSession: false,
     },
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
   });
 
-  const { data: authData, error: authError } = await supabase.auth.getUser(token);
+  const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData?.user) {
     console.error("Auth error:", authError);
     return jsonResponse({ ok: false, error: "Unauthorized" }, 401);

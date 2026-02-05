@@ -54,12 +54,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('nome, telefone')
+          .select('name, email')
           .eq('auth_uid', userProfile.auth_uid)
           .single();
 
         if (!error && data) {
-          setExtendedProfile(data);
+          setExtendedProfile({
+            nome: data.name || data.email || undefined,
+          });
+        } else if (error) {
+          console.error('Error fetching extended profile:', error);
         }
       } catch (error) {
         console.error('Error fetching extended profile:', error);

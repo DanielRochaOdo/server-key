@@ -22,7 +22,6 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     if (!authLoading && user) {
-      console.log('✅ User authenticated, redirecting to dashboard');
       navigate('/dashboard', { replace: true });
     }
   }, [user, authLoading, navigate]);
@@ -39,14 +38,11 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      console.log('🔐 Starting login process for:', email);
       const { error } = await signIn(email, password);
       
       if (error) {
         console.error('❌ Login failed:', error);
         setError(error);
-      } else {
-        console.log('✅ Login successful, waiting for redirect...');
       }
     } catch (error) {
       console.error('❌ Unexpected login error:', error);
