@@ -322,6 +322,15 @@ const RateioMkm: React.FC = () => {
         </div>
       </div>
 
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
+        <p className="text-sm font-semibold text-neutral-700 mb-2">Legenda</p>
+        <div className="text-sm text-neutral-600 space-y-1">
+          <div>COBRANCA: Atualizacao de cartao + Disparo antes do vencimento</div>
+          <div>Call Center: Odontoart</div>
+          <div>Administrativo: Comercial Disparo</div>
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
         {layoutLoading ? (
           <div className="flex items-center justify-center min-h-48">

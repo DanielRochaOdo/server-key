@@ -41,9 +41,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     configuracoes: ['/configuracoes', '/usuarios'],
   };
   const [openSections, setOpenSections] = useState<Record<NavSection['key'], boolean>>(() => ({
-    acessos: sectionPaths.acessos.includes(location.pathname),
-    financeiro: sectionPaths.financeiro.includes(location.pathname),
-    configuracoes: sectionPaths.configuracoes.includes(location.pathname),
+    acessos: false,
+    financeiro: false,
+    configuracoes: false,
   }));
 
   // Fetch extended profile data to get 'nome' field
