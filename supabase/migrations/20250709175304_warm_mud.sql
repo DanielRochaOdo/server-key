@@ -20,6 +20,11 @@
     - Maintain proper role-based module assignments
 */
 
+-- Ensure pgcrypto is available for gen_random_uuid / gen_salt / crypt
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+SET search_path = public, extensions;
+
 -- Drop existing functions and triggers to recreate them properly
 DROP FUNCTION IF EXISTS handle_new_user() CASCADE;
 DROP FUNCTION IF EXISTS sync_auth_user_to_public_users() CASCADE;
@@ -171,52 +176,66 @@ GRANT EXECUTE ON FUNCTION sync_auth_user_to_public_users TO service_role;
 DO $$
 BEGIN
   -- Check if admin user exists in auth.users
-  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'admin@serverkey.com') THEN
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE lower(email) = lower('admin@serverkey.com')) THEN
     -- Insert into auth.users first
-    INSERT INTO auth.users (
-      instance_id,
-      id,
-      aud,
-      role,
-      email,
-      encrypted_password,
-      email_confirmed_at,
-      raw_user_meta_data,
-      created_at,
-      updated_at,
-      confirmation_token,
-      email_change,
-      email_change_token_new,
-      recovery_token
-    ) VALUES (
-      '00000000-0000-0000-0000-000000000000',
-      gen_random_uuid(),
-      'authenticated',
-      'authenticated',
-      'admin@serverkey.com',
-      crypt('admin123', gen_salt('bf')),
-      NOW(),
-      '{"name": "Administrador", "role": "admin"}',
-      NOW(),
-      NOW(),
-      '',
-      '',
-      '',
-      ''
-    );
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'gen_salt') THEN
+      BEGIN
+        EXECUTE $sql$
+          INSERT INTO auth.users (
+            instance_id,
+            id,
+            aud,
+            role,
+            email,
+            encrypted_password,
+            email_confirmed_at,
+            raw_user_meta_data,
+            created_at,
+            updated_at,
+            confirmation_token,
+            email_change,
+            email_change_token_new,
+            recovery_token
+          ) VALUES (
+            '00000000-0000-0000-0000-000000000000',
+            gen_random_uuid(),
+            'authenticated',
+            'authenticated',
+            'admin@serverkey.com',
+            crypt('admin123', gen_salt('bf')),
+            NOW(),
+            '{"name": "Administrador", "role": "admin"}',
+            NOW(),
+            NOW(),
+            '',
+            '',
+            '',
+            ''
+          );
+        $sql$;
+      EXCEPTION
+        WHEN unique_violation THEN
+          RAISE NOTICE 'Admin user already exists in auth.users.';
+      END;
+    ELSE
+      RAISE NOTICE 'Skipping auth.users admin insert: pgcrypto (gen_salt) not available.';
+    END IF;
   END IF;
 
   -- Ensure admin user exists in public.users
-  IF NOT EXISTS (SELECT 1 FROM public.users WHERE email = 'admin@serverkey.com') THEN
+  UPDATE public.users
+  SET role = 'admin',
+      is_active = true
+  WHERE lower(email) = lower('admin@serverkey.com');
+
+  IF NOT FOUND THEN
     INSERT INTO public.users (email, name, role, is_active, pass) VALUES (
       'admin@serverkey.com',
       'Administrador',
       'admin',
       true,
       'admin123'
-    ) ON CONFLICT (email) DO UPDATE SET
-      role = 'admin',
-      is_active = true;
+    );
   END IF;
 END $$;
 

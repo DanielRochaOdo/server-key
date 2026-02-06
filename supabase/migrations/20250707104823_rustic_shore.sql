@@ -116,25 +116,32 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger para definir módulos automaticamente baseado no role
+DROP TRIGGER IF EXISTS set_modules_on_role_change ON users;
 CREATE TRIGGER set_modules_on_role_change
   BEFORE INSERT OR UPDATE OF role ON users
   FOR EACH ROW
   EXECUTE FUNCTION set_modules_by_role();
 
 -- Trigger para atualizar updated_at
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at
   BEFORE UPDATE ON users
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
 -- Inserir usuário admin padrão
-INSERT INTO users (email, name, role, is_active, pass) VALUES (
-  'admin@serverkey.com',
-  'Administrador',
-  'admin',
-  true,
-  'admin123'
-) ON CONFLICT (email) DO NOTHING;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = lower('admin@serverkey.com')) THEN
+    INSERT INTO users (email, name, role, is_active, pass) VALUES (
+      'admin@serverkey.com',
+      'Administrador',
+      'admin',
+      true,
+      'admin123'
+    );
+  END IF;
+END $$;
 
 -- Atualizar políticas nas outras tabelas para usar o novo sistema de módulos
 

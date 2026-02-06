@@ -217,6 +217,13 @@ BEGIN
 END $$;
 
 -- Ensure admin user exists in public.users (auth.users will be handled by Edge Function)
+UPDATE public.users
+SET role = 'admin',
+    modules = ARRAY['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google'],
+    is_active = true,
+    updated_at = NOW()
+WHERE lower(email) = lower('admin@serverkey.com');
+
 INSERT INTO public.users (
   email,
   name,
@@ -225,7 +232,8 @@ INSERT INTO public.users (
   is_active,
   auth_uid,
   pass
-) VALUES (
+)
+SELECT
   'admin@serverkey.com',
   'Administrador',
   'admin',
@@ -233,11 +241,9 @@ INSERT INTO public.users (
   true,
   NULL, -- Will be set when auth user is created
   'admin123'
-) ON CONFLICT (email) DO UPDATE SET
-  role = 'admin',
-  modules = ARRAY['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google'],
-  is_active = true,
-  updated_at = NOW();
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.users WHERE lower(email) = lower('admin@serverkey.com')
+);
 
 -- Update all users to ensure they have proper modules based on their role
 UPDATE public.users 

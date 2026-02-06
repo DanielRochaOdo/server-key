@@ -27,8 +27,10 @@ const STATUS_OPTIONS = [
 ];
 
 const PAGTO_OPTIONS = [
-  'Boleto',
+  'BOLETO',
   'CARTAO',
+  'PIX',
+  'TRANSFERENCIA',
 ];
 
 const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, onCancel }) => {
@@ -98,10 +100,12 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
 
     if (conta) {
       const parsedValor = parseBRLToNumber(String(conta.valor));
+      const storedTipo = (conta.tipo_pagto || '').trim().toUpperCase();
+      const normalizedTipoPagto = PAGTO_OPTIONS.includes(storedTipo as any) ? storedTipo : PAGTO_OPTIONS[0];
       setFormData({
         status_documento: conta.status_documento || STATUS_OPTIONS[0],
         fornecedor: conta.fornecedor || '',
-        tipo_pagto: conta.tipo_pagto || PAGTO_OPTIONS[0],
+        tipo_pagto: normalizedTipoPagto,
         link: conta.link || '',
         descricao: conta.descricao || '',
         valor: Number.isFinite(parsedValor) ? formatBRL(parsedValor) : '',
@@ -165,11 +169,11 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
 
       const normalizedLink = formData.link ? formData.link.trim() : '';
 
-      const tipoPagto = (formData.tipo_pagto || '').trim();
-        if (!PAGTO_OPTIONS.includes(tipoPagto as any)) {
-          setError('Tipo de pagamento inválido');
-          return;
-        }
+      const tipoPagto = (formData.tipo_pagto || '').trim().toUpperCase();
+      if (!PAGTO_OPTIONS.includes(tipoPagto as any)) {
+        setError('Tipo de pagamento inválido');
+        return;
+      }
 
       const dataToSave = {
         ...formData,

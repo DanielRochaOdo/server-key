@@ -54,10 +54,27 @@ CREATE POLICY "Todos podem ler rateio google"
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_rateio_google_user_id ON rateio_google(user_id);
 CREATE INDEX IF NOT EXISTS idx_rateio_google_created_at ON rateio_google(created_at);
-CREATE INDEX IF NOT EXISTS idx_rateio_google_servico ON rateio_google(servico);
-CREATE INDEX IF NOT EXISTS idx_rateio_google_setor ON rateio_google(setor);
+
+-- Guard optional column indexes for idempotency
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'rateio_google' AND column_name = 'servico'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_rateio_google_servico ON rateio_google(servico)';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'rateio_google' AND column_name = 'setor'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_rateio_google_setor ON rateio_google(setor)';
+  END IF;
+END $$;
 
 -- Create trigger to automatically update updated_at timestamp
+DROP TRIGGER IF EXISTS update_rateio_google_updated_at ON rateio_google;
 CREATE TRIGGER update_rateio_google_updated_at
   BEFORE UPDATE ON rateio_google
   FOR EACH ROW

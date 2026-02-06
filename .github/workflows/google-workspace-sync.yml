@@ -1,0 +1,38 @@
+name: Google Workspace Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Sync mode"
+        required: false
+        default: "full"
+        type: choice
+        options:
+          - full
+          - incremental
+  schedule:
+    - cron: "0 * * * *" # hourly
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Call Supabase Edge Function
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SYNC_SECRET: ${{ secrets.GOOGLE_WORKSPACE_SYNC_SECRET }}
+          MODE: ${{ github.event.inputs.mode || 'full' }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SYNC_SECRET" ]; then
+            echo "Missing SUPABASE_URL or GOOGLE_WORKSPACE_SYNC_SECRET GitHub secrets"
+            exit 1
+          fi
+
+          curl -sS -X POST "$SUPABASE_URL/functions/v1/google-workspace-sync" \
+            -H "Content-Type: application/json" \
+            -H "x-sync-secret: $SYNC_SECRET" \
+            -d "{\"mode\":\"$MODE\",\"domains\":[\"odontoart.com\",\"odontoartonline.com.br\"]}" \
+            | tee /tmp/sync-result.json
+

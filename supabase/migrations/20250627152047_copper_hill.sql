@@ -22,6 +22,11 @@
     - Add policy for authenticated users to manage their own data
 */
 
+-- Ensure pgcrypto is available for gen_random_uuid
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+SET search_path = public, extensions;
+
 CREATE TABLE IF NOT EXISTS acessos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   descricao text NOT NULL,

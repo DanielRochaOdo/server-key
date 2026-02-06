@@ -62,9 +62,17 @@ BEGIN
 END $$;
 
 -- Migrate existing data from 'completo' to 'nome_completo' if needed
-UPDATE rateio_google 
-SET nome_completo = completo 
-WHERE nome_completo IS NULL AND completo IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'rateio_google' AND column_name = 'completo'
+  ) THEN
+    UPDATE rateio_google
+    SET nome_completo = completo
+    WHERE nome_completo IS NULL AND completo IS NOT NULL;
+  END IF;
+END $$;
 
 -- Drop old columns that are no longer needed
 DO $$

@@ -11,6 +11,7 @@ type ProtocoloRow = {
   id: string;
   titulo: string;
   valor_final?: number | null;
+  observacoes?: string | null;
 };
 
 type ProtocoloItemRow = {
@@ -157,7 +158,7 @@ Deno.serve(async (req) => {
   console.log("send-protocolo-email: loading protocolo", protocoloId);
   const { data: protocolo, error: protocoloError } = await supabaseAdmin
     .from("pc_protocolos")
-    .select("id, titulo, valor_final")
+    .select("id, titulo, valor_final, observacoes")
     .eq("id", protocoloId)
     .single();
 
@@ -248,16 +249,19 @@ Deno.serve(async (req) => {
   `;
 
   const titulo = ((protocolo as ProtocoloRow).titulo || "").toString();
+  const observacoes = String((protocolo as ProtocoloRow).observacoes || "").trim();
+  const subjectDate = formatDateBr(new Date());
   const htmlBody = `
     <p>Ol&aacute;,</p>
     <p>Segue abaixo pedido de compra:</p>
-    <p><strong>${escapeHtml(titulo)}</strong> &mdash; Total consolidado: ${currencyFormatter.format(totalBase)}</p>
+    <p><strong>${escapeHtml(titulo)}</strong> &mdash; Valor total: ${currencyFormatter.format(totalBase)}</p>
+    ${observacoes ? `<p><strong>Observa&ccedil;&atilde;o:</strong> ${escapeHtml(observacoes)}</p>` : ""}
     <p>Prioridades: ${escapeHtml(priorities || "N/D")}</p>
     ${htmlTable}
     <p style="margin-top:16px;"><strong>Valor final:</strong> ${currencyFormatter.format(totalBase)}</p>
   `;
 
-  const subject = `Pedido de Compra - ${titulo}`.replace(/[\r\n]+/g, " ").trim();
+  const subject = `Pedido de Compra - ${titulo} | ${subjectDate}`.replace(/[\r\n]+/g, " ").trim();
   const transporter = nodemailer.createTransport({
     host: smtpHost,
     port: smtpPort,
@@ -287,3 +291,17 @@ Deno.serve(async (req) => {
   console.log("send-protocolo-email: done");
   return jsonResponse({ ok: true }, 200);
 });
+
+function formatDateBr(value: Date) {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(value);
+
+  const day = parts.find((p) => p.type === "day")?.value ?? "00";
+  const month = parts.find((p) => p.type === "month")?.value ?? "00";
+  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
+  return `${day}-${month}-${year}`;
+}
