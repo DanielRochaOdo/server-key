@@ -130,13 +130,18 @@ CREATE TRIGGER update_users_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 
 -- Inserir usuário admin padrão
-INSERT INTO users (email, name, role, is_active, pass) VALUES (
-  'admin@serverkey.com',
-  'Administrador',
-  'admin',
-  true,
-  'admin123'
-) ON CONFLICT (email) DO NOTHING;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = lower('admin@serverkey.com')) THEN
+    INSERT INTO users (email, name, role, is_active, pass) VALUES (
+      'admin@serverkey.com',
+      'Administrador',
+      'admin',
+      true,
+      'admin123'
+    );
+  END IF;
+END $$;
 
 -- Atualizar políticas nas outras tabelas para usar o novo sistema de módulos
 

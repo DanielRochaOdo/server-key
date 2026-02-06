@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Phone, Plus, Upload, Download, Search, Edit, Trash2, Eye, Building } from 'lucide-react';
+import { Phone, Download, Search, Edit, Trash2, Building, RefreshCw } from 'lucide-react';
 import RateioClaroForm from '../components/RateioClaroForm';
 import RateioClaroFileUpload from '../components/RateioClaroFileUpload';
+import RateioClaroSyncModal from '../components/RateioClaroSyncModal';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
@@ -35,7 +36,8 @@ const RateioClaro: React.FC = () => {
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
   const [pendingActionRateio, setPendingActionRateio] = useState<RateioClaro | null>(null);
-  const { user } = useAuth();
+  const [showSync, setShowSync] = useState(false);
+  const { isAdmin } = useAuth();
 
   const itemsPerPage = 10;
 
@@ -221,6 +223,10 @@ const RateioClaro: React.FC = () => {
     clearState('rateioClaro_showUpload');
   }, [fetchRateios]);
 
+  const handleSyncSuccess = useCallback(async () => {
+    await fetchRateios();
+  }, [fetchRateios]);
+
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingRateio(null);
@@ -256,6 +262,8 @@ const RateioClaro: React.FC = () => {
     }];
   }, [filteredRateiosSorted]);
 
+  const canSync = isAdmin();
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -273,13 +281,15 @@ const RateioClaro: React.FC = () => {
             <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de rateio de linhas Claro</p>
           </div>
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-            <button
-              onClick={() => setShowUpload(true)}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
-            >
-              <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              Importar
-            </button>
+            {canSync && (
+              <button
+                onClick={() => setShowSync(true)}
+                className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
+              >
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                Sincronizar
+              </button>
+            )}
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
@@ -316,13 +326,6 @@ const RateioClaro: React.FC = () => {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
-            >
-              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              Novo Rateio
-            </button>
           </div>
         </div>
       </div>
@@ -390,7 +393,9 @@ const RateioClaro: React.FC = () => {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Número da Linha</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Responsável Atual</th>
                 <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Setor</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
+                {isAdmin() && (
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
@@ -402,31 +407,33 @@ const RateioClaro: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.numero_linha || '-'}</td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.responsavel_atual || '-'}</td>
                   <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[150px]">{rateio.setor || '-'}</td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
-                    <div className="flex items-center space-x-1 sm:space-x-2">
-                      <button 
-                        onClick={() => requestActionVerification('view', rateio)}
-                        className="text-neutral-600 hover:text-neutral-900"
-                        title="Visualizar"
-                      >
-                        <Search className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </button>
-                      <button 
-                        onClick={() => requestActionVerification('edit', rateio)} 
-                        className="text-primary-600 hover:text-primary-900"
-                        title="Editar"
-                      >
-                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </button>
-                      <button 
-                        onClick={() => requestActionVerification('delete', rateio)} 
-                        className="text-red-600 hover:text-red-900"
-                        title="Excluir"
-                      >
-                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </button>
-                    </div>
-                  </td>
+                  {isAdmin() && (
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
+                      <div className="flex items-center space-x-1 sm:space-x-2">
+                        <button 
+                          onClick={() => requestActionVerification('view', rateio)}
+                          className="text-neutral-600 hover:text-neutral-900"
+                          title="Visualizar"
+                        >
+                          <Search className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </button>
+                        <button 
+                          onClick={() => requestActionVerification('edit', rateio)} 
+                          className="text-primary-600 hover:text-primary-900"
+                          title="Editar"
+                        >
+                          <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </button>
+                        <button 
+                          onClick={() => requestActionVerification('delete', rateio)} 
+                          className="text-red-600 hover:text-red-900"
+                          title="Excluir"
+                        >
+                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -487,6 +494,14 @@ const RateioClaro: React.FC = () => {
         <RateioClaroFileUpload
           onSuccess={handleUploadSuccess}
           onCancel={handleCancelUpload}
+        />
+      )}
+
+      {showSync && (
+        <RateioClaroSyncModal
+          isOpen={showSync}
+          onClose={() => setShowSync(false)}
+          onSuccess={handleSyncSuccess}
         />
       )}
 

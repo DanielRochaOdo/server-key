@@ -1,5 +1,10 @@
 -- Fix user creation to ensure proper sync between auth.users and public.users
 
+-- Ensure pgcrypto is available for gen_random_uuid / gen_salt / crypt
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+SET search_path = public, extensions;
+
 -- Drop existing trigger and function to recreate them
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS handle_new_auth_user() CASCADE;
@@ -186,10 +191,10 @@ DECLARE
   admin_auth_id uuid;
 BEGIN
   -- Check if admin exists in auth.users
-  SELECT * INTO auth_admin FROM auth.users WHERE email = 'admin@serverkey.com';
+  SELECT * INTO auth_admin FROM auth.users WHERE lower(email) = lower('admin@serverkey.com');
   
   -- Check if admin exists in public.users
-  SELECT * INTO public_admin FROM public.users WHERE email = 'admin@serverkey.com';
+  SELECT * INTO public_admin FROM public.users WHERE lower(email) = lower('admin@serverkey.com');
   
   IF auth_admin.id IS NULL THEN
     RAISE NOTICE 'Creating admin user in auth.users...';
@@ -307,8 +312,8 @@ BEGIN
     SELECT 1 
     FROM public.users pu 
     JOIN auth.users au ON pu.auth_uid = au.id 
-    WHERE pu.email = 'admin@serverkey.com' 
-    AND au.email = 'admin@serverkey.com'
+    WHERE lower(pu.email) = lower('admin@serverkey.com') 
+    AND lower(au.email) = lower('admin@serverkey.com')
     AND pu.role = 'admin'
     AND pu.is_active = true
   ) INTO admin_linked;

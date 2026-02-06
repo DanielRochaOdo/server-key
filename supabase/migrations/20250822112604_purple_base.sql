@@ -15,6 +15,7 @@
 -- Remove políticas existentes
 DROP POLICY IF EXISTS "pessoal_module_read" ON pessoal;
 DROP POLICY IF EXISTS "pessoal_module_manage_own" ON pessoal;
+DROP POLICY IF EXISTS "pessoal_own_data_only" ON pessoal;
 
 -- Cria política restritiva - usuário só acessa seus próprios dados
 CREATE POLICY "pessoal_own_data_only"

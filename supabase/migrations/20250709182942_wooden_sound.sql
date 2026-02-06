@@ -8,6 +8,11 @@
   5. Ensure proper auth flow
 */
 
+-- Ensure pgcrypto is available for gen_random_uuid / gen_salt / crypt
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+SET search_path = public, extensions;
+
 -- First, let's clean up everything and start fresh
 DO $$
 DECLARE
@@ -41,8 +46,8 @@ DROP FUNCTION IF EXISTS create_user_profile(uuid, text, text, text, text[], bool
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
 -- Clean up existing admin user data to start fresh
-DELETE FROM public.users WHERE email = 'admin@serverkey.com';
-DELETE FROM auth.users WHERE email = 'admin@serverkey.com';
+DELETE FROM public.users WHERE lower(email) = lower('admin@serverkey.com');
+DELETE FROM auth.users WHERE lower(email) = lower('admin@serverkey.com');
 
 -- Ensure users table has correct structure
 DO $$
@@ -385,20 +390,24 @@ BEGIN
     RAISE NOTICE '? Admin user created successfully with ID: %', admin_auth_id;
   ELSE
     RAISE NOTICE 'Skipping auth.users admin insert: pgcrypto (gen_salt) not available.';
-    INSERT INTO public.users (email, name, role, modules, is_active, pass)
-    VALUES (
-      'admin@serverkey.com',
-      'Administrador',
-      'admin',
-      ARRAY['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google'],
-      true,
-      'admin123'
-    )
-    ON CONFLICT (email) DO UPDATE SET
-      role = 'admin',
-      modules = ARRAY['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google'],
-      is_active = true,
-      pass = 'admin123';
+    UPDATE public.users
+    SET role = 'admin',
+        modules = ARRAY['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google'],
+        is_active = true,
+        pass = 'admin123'
+    WHERE lower(email) = lower('admin@serverkey.com');
+
+    IF NOT FOUND THEN
+      INSERT INTO public.users (email, name, role, modules, is_active, pass)
+      VALUES (
+        'admin@serverkey.com',
+        'Administrador',
+        'admin',
+        ARRAY['usuarios', 'acessos', 'teams', 'win_users', 'rateio_claro', 'rateio_google'],
+        true,
+        'admin123'
+      );
+    END IF;
   END IF;
 
 END $$;

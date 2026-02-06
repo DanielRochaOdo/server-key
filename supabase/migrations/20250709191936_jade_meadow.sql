@@ -12,6 +12,11 @@
     - Sets up proper role and module access
 */
 
+-- Ensure pgcrypto is available for gen_random_uuid / gen_salt / crypt
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+SET search_path = public, extensions;
+
 -- Create the default admin user in auth.users if it doesn't exist
 DO $$
 DECLARE
@@ -21,7 +26,7 @@ BEGIN
     -- Check if admin user already exists in auth.users
     SELECT COUNT(*) INTO existing_user_count
     FROM auth.users 
-    WHERE email = 'admin@serverkey.com';
+    WHERE lower(email) = lower('admin@serverkey.com');
     
     IF existing_user_count = 0 THEN
         -- Insert admin user into auth.users
@@ -69,7 +74,6 @@ BEGIN
             $sql$;
         ELSE
             RAISE NOTICE 'Skipping auth.users admin insert: pgcrypto (gen_salt) not available.';
-        END IF;
         END IF;
         
         RAISE NOTICE 'Default admin user created successfully';

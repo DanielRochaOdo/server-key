@@ -126,25 +126,29 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'users' AND column_name = 'permissions'
   ) THEN
-    INSERT INTO users (email, name, role, is_active, permissions) VALUES (
-      'admin@example.com',
-      'Administrador',
-      'admin',
-      true,
-      '{
-        "acessos": {"view": true, "edit": true},
-        "teams": {"view": true, "edit": true},
-        "win_users": {"view": true, "edit": true},
-        "rateio_claro": {"view": true, "edit": true},
-        "rateio_google": {"view": true, "edit": true}
-      }'::jsonb
-    ) ON CONFLICT (email) DO NOTHING;
+    IF NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = lower('admin@example.com')) THEN
+      INSERT INTO users (email, name, role, is_active, permissions) VALUES (
+        'admin@example.com',
+        'Administrador',
+        'admin',
+        true,
+        '{
+          "acessos": {"view": true, "edit": true},
+          "teams": {"view": true, "edit": true},
+          "win_users": {"view": true, "edit": true},
+          "rateio_claro": {"view": true, "edit": true},
+          "rateio_google": {"view": true, "edit": true}
+        }'::jsonb
+      );
+    END IF;
   ELSE
-    INSERT INTO users (email, name, role, is_active) VALUES (
-      'admin@example.com',
-      'Administrador',
-      'admin',
-      true
-    ) ON CONFLICT (email) DO NOTHING;
+    IF NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = lower('admin@example.com')) THEN
+      INSERT INTO users (email, name, role, is_active) VALUES (
+        'admin@example.com',
+        'Administrador',
+        'admin',
+        true
+      );
+    END IF;
   END IF;
 END $$;
