@@ -26,6 +26,19 @@ interface CreateUserRequest {
   is_active: boolean
 }
 
+const getModulesByRole = (role: string): string[] => {
+  switch (role) {
+    case 'admin':
+      return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'contas_a_pagar', 'rateio_mkm']
+    case 'financeiro':
+      return ['rateio_claro', 'rateio_google', 'rateio_mkm']
+    case 'usuario':
+      return ['acessos', 'pessoal', 'teams', 'win_users']
+    default:
+      return []
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -74,14 +87,16 @@ Deno.serve(async (req) => {
     // Get request body
     const { email, password, name, role, is_active }: CreateUserRequest = await req.json()
     const normalizedRole = normalizeRole(role)
+    const normalizedEmail = (email || '').trim()
+    const normalizedName = (name || '').trim()
 
-    console.log('📝 Request received:', { email, name, role: normalizedRole || role, is_active })
+    console.log('📝 Request received:', { email: normalizedEmail, name: normalizedName, role: normalizedRole || role, is_active })
 
     // Validate required fields
-    if (!email || !password || !name || !role) {
+    if (!normalizedEmail || !normalizedName || !role) {
       console.log('❌ Missing required fields')
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: email, password, name, role' }),
+        JSON.stringify({ error: 'Missing required fields: email, name, role' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -113,15 +128,15 @@ Deno.serve(async (req) => {
       }
     )
 
-    console.log('🔍 Checking for existing users with email:', email)
+    console.log('🔍 Checking for existing users with email:', normalizedEmail)
     // Check if user already exists in public.users
     const { data: existingPublicUser, error: publicCheckError } = await supabaseAdmin
       .from('users')
-      .select('id, email')
-      .eq('email', email)
-      .single()
+      .select('id, email, auth_uid')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
 
-    if (publicCheckError && publicCheckError.code !== 'PGRST116') {
+    if (publicCheckError) {
       console.error('❌ Error checking existing public user:', publicCheckError)
       return new Response(
         JSON.stringify({ error: `Database error: ${publicCheckError.message}` }),
@@ -132,8 +147,24 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (existingPublicUser) {
-      console.log('❌ User already exists in public.users')
+    console.log('🔍 Checking for existing auth user with email:', normalizedEmail)
+    const { data: existingAuthResponse, error: authLookupError } = await supabaseAdmin.auth.admin.getUserByEmail(normalizedEmail)
+
+    if (authLookupError) {
+      console.error('❌ Error checking existing auth user:', authLookupError)
+      return new Response(
+        JSON.stringify({ error: `Auth lookup error: ${authLookupError.message}` }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    const existingAuthUser = existingAuthResponse?.user ?? null
+
+    if (existingPublicUser?.auth_uid) {
+      console.log('❌ User already exists in public.users with auth_uid')
       return new Response(
         JSON.stringify({ error: 'User with this email already exists' }),
         { 
@@ -143,122 +174,184 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('✅ No existing user found, proceeding with creation')
-
-    // Define modules based on role
-    let modules: string[] = []
-    switch (normalizedRole) {
-      case 'admin':
-        modules = ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'contas_a_pagar']
-        break
-      case 'financeiro':
-        modules = ['rateio_claro', 'rateio_google']
-        break
-      case 'usuario':
-        modules = ['acessos', 'pessoal', 'teams', 'win_users']
-        break
-    }
-
-    console.log('📝 Creating auth user with role:', normalizedRole, 'and modules:', modules)
-
-    // Create user in auth.users
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm email
-      user_metadata: {
-        name,
-        role: normalizedRole
-      }
-    })
-
-    if (authError) {
-      console.error('??O Auth error:', authError)
-      const message = authError.message?.toLowerCase() || ''
-      if (message.includes('already') || message.includes('exists')) {
-        return new Response(
-          JSON.stringify({ error: 'User with this email already exists' }),
-          {
-            status: 409,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        )
-      }
+    if (!password && !existingAuthUser) {
       return new Response(
-        JSON.stringify({ error: `Failed to create auth user: ${authError.message}` }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    if (!authUser.user) {
-      console.error('❌ No auth user returned')
-      return new Response(
-        JSON.stringify({ error: 'Failed to create auth user: no user returned' }),
+        JSON.stringify({ error: 'Password is required for new users' }),
         { 
-          status: 500, 
+          status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
 
-    console.log('✅ Auth user created successfully:', authUser.user.id)
+    const modules = getModulesByRole(normalizedRole)
 
-    // Create user in public.users table
-    const { data: publicUser, error: publicError } = await supabaseAdmin
-      .from('users')
-      .insert({
-        email,
-        name,
-        role: normalizedRole,
-        modules,
-        is_active: is_active ?? true,
-        auth_uid: authUser.user.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single()
+    const ensureAuthUser = async () => {
+      if (existingAuthUser) {
+        console.log('ℹ️ Auth user already exists, updating metadata')
+        const updatePayload: Record<string, unknown> = {
+          email_confirm: true,
+          user_metadata: {
+            name: normalizedName,
+            role: normalizedRole
+          }
+        }
 
-    if (publicError) {
-      console.error('❌ Public user creation failed:', publicError)
-      
-      // Clean up auth user if public user creation fails
-      try {
-        await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
-        console.log('🧹 Cleaned up auth user after public user creation failure')
-      } catch (cleanupError) {
-        console.error('❌ Failed to cleanup auth user:', cleanupError)
+        if (password) {
+          updatePayload.password = password
+        }
+
+        const { data: updatedAuth, error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(
+          existingAuthUser.id,
+          updatePayload
+        )
+
+        if (updateAuthError) {
+          console.error('❌ Failed to update existing auth user:', updateAuthError)
+          return { user: null, error: updateAuthError }
+        }
+
+        return { user: updatedAuth.user ?? existingAuthUser, error: null }
       }
-      
-      // Check if it's a unique constraint violation
-      if (publicError.code === '23505') {
+
+      console.log('📝 Creating auth user with role:', normalizedRole, 'and modules:', modules)
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: normalizedEmail,
+        password: password || '',
+        email_confirm: true, // Auto-confirm email
+        user_metadata: {
+          name: normalizedName,
+          role: normalizedRole
+        }
+      })
+
+      if (authError) {
+        console.error('??O Auth error:', authError)
+        return { user: null, error: authError }
+      }
+
+      if (!authUser.user) {
+        console.error('❌ No auth user returned')
+        return { user: null, error: new Error('Failed to create auth user: no user returned') }
+      }
+
+      console.log('✅ Auth user created successfully:', authUser.user.id)
+      return { user: authUser.user, error: null }
+    }
+
+    console.log('✅ Proceeding with user creation/linking')
+
+    const { user: authUser, error: authError } = await ensureAuthUser()
+
+    if (authError || !authUser) {
+      const message = authError instanceof Error ? authError.message : 'Failed to ensure auth user'
+      const lowered = message.toLowerCase()
+      return new Response(
+        JSON.stringify({ error: message }),
+        { 
+          status: lowered.includes('already') || lowered.includes('exists') ? 409 : 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    let publicUserResult
+
+    if (existingPublicUser) {
+      console.log('🔗 Linking existing public user with auth_uid')
+      const { data: updatedPublicUser, error: publicUpdateError } = await supabaseAdmin
+        .from('users')
+        .update({
+          email: normalizedEmail,
+          name: normalizedName,
+          role: normalizedRole,
+          modules,
+          is_active: is_active ?? true,
+          auth_uid: authUser.id,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingPublicUser.id)
+        .select()
+        .single()
+
+      if (publicUpdateError) {
+        console.error('❌ Public user update failed:', publicUpdateError)
+        if (publicUpdateError.code === '23505') {
+          return new Response(
+            JSON.stringify({ error: 'User with this email already exists' }),
+            { 
+              status: 409, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          )
+        }
         return new Response(
-          JSON.stringify({ error: 'User with this email already exists' }),
+          JSON.stringify({ error: `Failed to link user profile: ${publicUpdateError.message}` }),
           { 
-            status: 409, 
+            status: 500, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         )
       }
-      
-      return new Response(
-        JSON.stringify({ error: `Failed to create user profile: ${publicError.message}` }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+
+      publicUserResult = updatedPublicUser
+    } else {
+      console.log('🔗 Creating public user profile')
+      const { data: publicUser, error: publicError } = await supabaseAdmin
+        .from('users')
+        .insert({
+          email: normalizedEmail,
+          name: normalizedName,
+          role: normalizedRole,
+          modules,
+          is_active: is_active ?? true,
+          auth_uid: authUser.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (publicError) {
+        console.error('❌ Public user creation failed:', publicError)
+        
+        if (!existingAuthUser) {
+          try {
+            await supabaseAdmin.auth.admin.deleteUser(authUser.id)
+            console.log('🧹 Cleaned up auth user after public user creation failure')
+          } catch (cleanupError) {
+            console.error('❌ Failed to cleanup auth user:', cleanupError)
+          }
         }
-      )
+        
+        if (publicError.code === '23505') {
+          return new Response(
+            JSON.stringify({ error: 'User with this email already exists' }),
+            { 
+              status: 409, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          )
+        }
+        
+        return new Response(
+          JSON.stringify({ error: `Failed to create user profile: ${publicError.message}` }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
+
+      publicUserResult = publicUser
     }
 
-    console.log('✅ Public user created successfully:', publicUser.id)
+    console.log('✅ Public user saved successfully:', publicUserResult?.id)
 
     console.log('🎉 User creation completed successfully:', {
-      authUserId: authUser.user.id,
-      publicUserId: publicUser.id,
-      email,
+      authUserId: authUser.id,
+      publicUserId: publicUserResult?.id,
+      email: normalizedEmail,
       role: normalizedRole,
       modules
     })
@@ -267,13 +360,13 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         user: {
-          id: publicUser.id,
-          email: publicUser.email,
-          name: publicUser.name,
-          role: publicUser.role,
-          modules: publicUser.modules,
-          is_active: publicUser.is_active,
-          auth_uid: publicUser.auth_uid
+          id: publicUserResult.id,
+          email: publicUserResult.email,
+          name: publicUserResult.name,
+          role: publicUserResult.role,
+          modules: publicUserResult.modules,
+          is_active: publicUserResult.is_active,
+          auth_uid: publicUserResult.auth_uid
         }
       }),
       { 
