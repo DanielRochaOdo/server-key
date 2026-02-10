@@ -49,13 +49,6 @@ const parseMonthIndex = (mes: string) => {
   return Number.isFinite(monthIndex) && monthIndex >= 0 && monthIndex < 12 ? monthIndex : -1;
 };
 
-const createTempId = () => {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-  return `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-};
-
 const parseQuantidade = (value: string) => {
   const digits = value.replace(/[^\d-]/g, '');
   const parsed = parseInt(digits, 10);
@@ -86,6 +79,16 @@ const ControleEmpresas: React.FC = () => {
   const [loadError, setLoadError] = useState('');
   const [newEmpresa, setNewEmpresa] = useState('');
   const [addEmpresaError, setAddEmpresaError] = useState('');
+  const [showMonthSelector, setShowMonthSelector] = useState(false);
+  const [monthSelectorError, setMonthSelectorError] = useState('');
+  const [pendingEmpresa, setPendingEmpresa] = useState('');
+  const [pendingMonths, setPendingMonths] = useState<number[]>([]);
+  const [selectedMonths, setSelectedMonths] = useState<Record<number, boolean>>({});
+  const [addSaving, setAddSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ empresa: string; monthIndex: number } | null>(null);
+  const [deleteModalError, setDeleteModalError] = useState('');
+  const [deleteSaving, setDeleteSaving] = useState(false);
   const [monthsState, setMonthsState] = useState<MonthState[]>(
     MONTHS.map(() => ({ rows: [], deletedIds: [], saving: false, error: '' }))
   );
@@ -200,33 +203,128 @@ const ControleEmpresas: React.FC = () => {
     }
 
     const normalized = empresa.toLowerCase();
-    const alreadyExists = monthsState.some((month) =>
-      month.rows.some((row) => row.empresa.trim().toLowerCase() === normalized)
-    );
+    const monthsMissing = MONTHS.filter((_, index) => {
+      const month = monthsState[index];
+      return !month.rows.some((row) => row.empresa.trim().toLowerCase() === normalized);
+    }).map((month) => month.index);
 
-    if (alreadyExists) {
-      setAddEmpresaError('Empresa já existe no controle.');
+    if (monthsMissing.length === 0) {
+      setAddEmpresaError('Empresa já existe em todos os meses.');
       return;
     }
 
-    setMonthsState((prev) =>
-      prev.map((month) => ({
-        ...month,
-        rows: sortRowsByCompany([
-          ...month.rows,
-          {
-            tempId: createTempId(),
-            empresa,
-            quantidade: '',
-          },
-        ]),
-      }))
-    );
-
-    setNewEmpresa('');
-    setAddEmpresaError('');
+    const defaultSelection: Record<number, boolean> = {};
+    monthsMissing.forEach((monthIndex) => {
+      defaultSelection[monthIndex] = true;
+    });
+    setPendingEmpresa(empresa);
+    setPendingMonths(monthsMissing);
+    setSelectedMonths(defaultSelection);
+    setMonthSelectorError('');
+    setShowMonthSelector(true);
   };
 
+  const handleConfirmMonthSelection = async () => {
+    const selected = pendingMonths.filter((monthIndex) => selectedMonths[monthIndex]);
+    if (selected.length === 0) {
+      setMonthSelectorError('Selecione pelo menos um mês.');
+      return;
+    }
+
+    if (!user?.id) {
+      setMonthSelectorError('Usuário não autenticado.');
+      return;
+    }
+
+    setAddSaving(true);
+    try {
+      const payload = selected.map((monthIndex) => ({
+        mes: buildMonthDate(year, monthIndex),
+        empresa: pendingEmpresa.trim(),
+        quantidade: 0,
+        user_id: user.id,
+      }));
+      await upsertControleEmpresasByUnique(payload);
+      await loadData();
+      setShowMonthSelector(false);
+      setPendingEmpresa('');
+      setPendingMonths([]);
+      setSelectedMonths({});
+      setMonthSelectorError('');
+      setNewEmpresa('');
+      setAddEmpresaError('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao adicionar empresa.';
+      setMonthSelectorError(message);
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
+
+  const buildCascadeDeletion = (state: MonthState[], monthIndex: number, empresa: string) => {
+    const target = empresa.trim().toLowerCase();
+    const removedIds: string[] = [];
+    const nextState = state.map((month, index) => {
+      if (index < monthIndex) return month;
+      const remainingRows = month.rows.filter(
+        (item) => item.empresa.trim().toLowerCase() !== target
+      );
+      const removedRows = month.rows.filter(
+        (item) => item.empresa.trim().toLowerCase() === target
+      );
+      if (removedRows.length === 0) return month;
+      const ids = removedRows.map((item) => item.id).filter(Boolean) as string[];
+      removedIds.push(...ids)
+      return {
+        ...month,
+        rows: remainingRows,
+        deletedIds: Array.from(new Set([...month.deletedIds, ...ids])),
+      };
+    });
+    return { nextState, removedIds };
+  };
+
+  const requestDeleteRow = (monthIndex: number, row: MonthRow) => {
+    setDeleteTarget({ empresa: row.empresa, monthIndex });
+    setDeleteModalError('');
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmCascadeDeletion = async () => {
+    if (!deleteTarget) return;
+    const result = buildCascadeDeletion(monthsState, deleteTarget.monthIndex, deleteTarget.empresa);
+    setMonthsState(result.nextState);
+
+    if (result.removedIds.length === 0) {
+      setShowDeleteConfirm(false);
+      setDeleteTarget(null);
+      return;
+    }
+
+    setDeleteSaving(true);
+    try {
+      await deleteControleEmpresas(result.removedIds);
+      setMonthsState((prev) =>
+        prev.map((month, index) => {
+          if (index < deleteTarget.monthIndex) return month;
+          if (month.deletedIds.length === 0) return month;
+          return {
+            ...month,
+            deletedIds: month.deletedIds.filter((id) => !result.removedIds.includes(id)),
+          };
+        })
+      );
+      setShowDeleteConfirm(false);
+      setDeleteTarget(null);
+      setDeleteModalError('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao excluir empresa.';
+      setDeleteModalError(message);
+    } finally {
+      setDeleteSaving(false);
+    }
+  };
   const handleRowChange = (
     monthIndex: number,
     rowId: string,
@@ -242,11 +340,7 @@ const ControleEmpresas: React.FC = () => {
   };
 
   const handleDeleteRow = (monthIndex: number, row: MonthRow) => {
-    updateMonthState(monthIndex, (month) => ({
-      ...month,
-      rows: month.rows.filter((item) => item.tempId !== row.tempId),
-      deletedIds: row.id ? [...month.deletedIds, row.id] : month.deletedIds,
-    }));
+    requestDeleteRow(monthIndex, row);
   };
 
   const handleSaveMonth = async (monthIndex: number) => {
@@ -377,6 +471,107 @@ const ControleEmpresas: React.FC = () => {
       {loadError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {loadError}
+        </div>
+      )}
+
+      {showMonthSelector && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-neutral-900">Selecionar meses</h2>
+            <p className="text-sm text-neutral-600 mt-1">
+              A empresa <strong>{pendingEmpresa}</strong> ainda não existe em alguns meses.
+              Selecione onde deseja criar.
+            </p>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {pendingMonths.map((monthIndex) => (
+                <label key={monthIndex} className="flex items-center gap-2 text-sm text-neutral-700">
+                  <input
+                    type="checkbox"
+                    checked={!!selectedMonths[monthIndex]}
+                    onChange={(event) =>
+                      setSelectedMonths((prev) => ({
+                        ...prev,
+                        [monthIndex]: event.target.checked,
+                      }))
+                    }
+                  />
+                  {MONTHS[monthIndex]?.label}
+                </label>
+              ))}
+            </div>
+
+            {monthSelectorError && (
+              <div className="mt-3 text-xs text-red-600">{monthSelectorError}</div>
+            )}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMonthSelector(false);
+                  setPendingEmpresa('');
+                  setPendingMonths([]);
+                  setSelectedMonths({});
+                  setMonthSelectorError('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-neutral-700 border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                disabled={addSaving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmMonthSelection}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-60"
+                disabled={addSaving}
+              >
+                {addSaving ? 'Salvando...' : 'Confirmar e salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-neutral-900">Confirmar exclusão</h2>
+            <p className="text-sm text-neutral-600 mt-1">
+              Excluir a empresa <strong>{deleteTarget.empresa}</strong> a partir de{' '}
+              <strong>{MONTHS[deleteTarget.monthIndex]?.label}</strong> e todos os meses posteriores.
+            </p>
+            <p className="text-xs text-neutral-500 mt-2">
+              Esta ação salva automaticamente a exclusão.
+            </p>
+
+            {deleteModalError && (
+              <div className="mt-3 text-xs text-red-600">{deleteModalError}</div>
+            )}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteTarget(null);
+                  setDeleteModalError('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-neutral-700 border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                disabled={deleteSaving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmCascadeDeletion}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
+                disabled={deleteSaving}
+              >
+                {deleteSaving ? 'Excluindo...' : 'Excluir e salvar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
