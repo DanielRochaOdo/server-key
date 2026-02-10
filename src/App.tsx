@@ -48,7 +48,7 @@ function App() {
               <Route
                 path="/usuarios"
                 element={
-                  <ProtectedRoute adminOnly={true}>
+                  <ProtectedRoute requiredModule="usuarios">
                     <Usuarios />
                   </ProtectedRoute>
                 }
@@ -102,7 +102,7 @@ function App() {
               <Route
                 path="/contas-a-pagar"
                 element={
-                  <ProtectedRoute requiredModule="contas_a_pagar" adminOnly={true}>
+                  <ProtectedRoute requiredModule="contas_a_pagar">
                     <ContasAPagar />
                   </ProtectedRoute>
                 }
@@ -126,7 +126,7 @@ function App() {
               <Route
                 path="/controle-empresas"
                 element={
-                  <ProtectedRoute requiredModule="controle_empresas" adminOnly={false}>
+                  <ProtectedRoute requiredModule="controle_empresas">
                     <ControleEmpresas />
                   </ProtectedRoute>
                 }
@@ -134,7 +134,7 @@ function App() {
               <Route
                 path="/controle-uber"
                 element={
-                  <ProtectedRoute requiredModule="controle_uber" adminOnly={true}>
+                  <ProtectedRoute requiredModule="controle_uber">
                     <ControleUber />
                   </ProtectedRoute>
                 }
@@ -142,7 +142,7 @@ function App() {
               <Route
                 path="/visitas-clinicas"
                 element={
-                  <ProtectedRoute requiredModule="visitas_clinicas" adminOnly={false}>
+                  <ProtectedRoute requiredModule="visitas_clinicas">
                     <VisitasClinicas />
                   </ProtectedRoute>
                 }
@@ -159,7 +159,7 @@ function App() {
               <Route
                 path="/pedidos-de-compra"
                 element={
-                  <ProtectedRoute requiredModule="pedidos_de_compra" adminOnly={true}>
+                  <ProtectedRoute requiredModule="pedidos_de_compra">
                     <PedidosDeCompra />
                   </ProtectedRoute>
                 }

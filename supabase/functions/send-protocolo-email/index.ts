@@ -49,11 +49,13 @@ const normalizeRole = (role?: string | null) => {
   if (!role) return "";
   const value = role
     .toString()
+    .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
   if (value === "administrador") return "admin";
   if (value === "admin") return "admin";
+  if (value === "owner") return "owner";
   if (value === "financeiro") return "financeiro";
   if (value === "usuario") return "usuario";
   return value;
@@ -149,7 +151,9 @@ Deno.serve(async (req) => {
 
   const role = normalizeRole(profile.role);
   const modules = Array.isArray(profile.modules) ? profile.modules : [];
-  const hasAccess = profile.is_active === true && (role === "admin" || modules.includes("pedidos_de_compra"));
+  const hasAccess =
+    profile.is_active === true &&
+    (role === "admin" || role === "owner" || modules.includes("pedidos_de_compra"));
   if (!hasAccess) {
     console.error("Access denied for user:", authData.user.id);
     return jsonResponse({ ok: false, error: "Forbidden" }, 403);

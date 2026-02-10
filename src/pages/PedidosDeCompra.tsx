@@ -647,29 +647,48 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         });
     }
 
+    const getAccessToken = async () => {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+
+        let session = data.session;
+        const now = Math.floor(Date.now() / 1000);
+        if (!session || (session.expires_at && session.expires_at < now + 30)) {
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError) throw refreshError;
+            session = refreshData.session;
+        }
+
+        const token = session?.access_token;
+        if (!token) {
+            throw new Error("Sessao expirada. Faça login novamente.");
+        }
+        return token;
+    };
+
     async function enviarEmailProtocolo() {
         if (!protocoloSel || sendingEmail) return;
         setSendingEmail(true);
 
         try {
-            const { data, error } = await supabase.functions.invoke("send-protocolo-email", {
-                body: { protocoloId: protocoloSel.id },
-            });
-
-            if (error) {
-                let errorMessage = "Falha ao enviar e-mail.";
-                const context = (error as { context?: Response }).context;
-                if (context instanceof Response) {
-                    try {
-                        const body = await context.json();
-                        if (body?.error) {
-                            errorMessage = body.error;
-                        }
-                    } catch {
-                        // ignore response parse issues
-                    }
+            const token = await getAccessToken();
+            const response = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-protocolo-email`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                        apikey: `${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                    },
+                    body: JSON.stringify({ protocoloId: protocoloSel.id }),
                 }
-                console.error("Erro ao enviar e-mail:", error);
+            );
+
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                const errorMessage = data?.error || "Falha ao enviar e-mail.";
+                console.error("Erro ao enviar e-mail:", data);
                 setToast({ type: "error", message: errorMessage });
                 return;
             }
