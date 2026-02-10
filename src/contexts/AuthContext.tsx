@@ -7,7 +7,7 @@ interface UserProfile {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'financeiro' | 'usuario';
+  role: 'admin' | 'owner' | 'financeiro' | 'usuario';
   modules: string[];
   is_active: boolean;
   auth_uid: string;
@@ -22,6 +22,7 @@ interface AuthContextData {
   signOut: () => Promise<void>;
   hasModuleAccess: (module: string) => boolean;
   isAdmin: () => boolean;
+  isOwner: () => boolean;
   isFinanceiro: () => boolean;
   isUsuario: () => boolean;
 }
@@ -238,11 +239,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!userProfile || !userProfile.is_active) {
       return false;
     }
+    if (normalizeRole(userProfile.role) === 'owner') {
+      return true;
+    }
     return userProfile.modules?.includes(module) || false;
   };
 
   const isAdmin = (): boolean => {
-    return normalizeRole(userProfile?.role) === 'admin' && userProfile?.is_active === true;
+    const role = normalizeRole(userProfile?.role);
+    return (role === 'admin' || role === 'owner') && userProfile?.is_active === true;
+  };
+
+  const isOwner = (): boolean => {
+    return normalizeRole(userProfile?.role) === 'owner' && userProfile?.is_active === true;
   };
 
   const isFinanceiro = (): boolean => {
@@ -262,6 +271,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signOut,
     hasModuleAccess,
     isAdmin,
+    isOwner,
     isFinanceiro,
     isUsuario,
   };

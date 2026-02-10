@@ -17,6 +17,7 @@ import RateioMkm from './pages/RateioMkm';
 import Configuracoes from './pages/Configuracoes';
 import ContasAPagar from './pages/ContasAPagar';
 import PedidosDeCompra from './pages/PedidosDeCompra';  
+import VisitasClinicas from './pages/VisitasClinicas';
 
 function App() {
   return (
@@ -117,6 +118,14 @@ function App() {
                 element={
                   <ProtectedRoute requiredModule="rateio_mkm" adminOnly={false}>
                     <RateioMkm />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/visitas-clinicas"
+                element={
+                  <ProtectedRoute requiredModule="visitas_clinicas">
+                    <VisitasClinicas />
                   </ProtectedRoute>
                 }
               />

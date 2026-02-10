@@ -9,9 +9,10 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'financeiro' | 'usuario';
+  role: 'admin' | 'owner' | 'financeiro' | 'usuario';
   is_active: boolean;
   modules: string[]; // ajustado para módulos como string[]
+  auth_uid?: string | null;
 }
 
 const Usuarios: React.FC = () => {

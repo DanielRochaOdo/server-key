@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart, ChevronDown } from 'lucide-react';
+import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart, ChevronDown, Calendar } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { normalizeRole, getRoleLabel } from '../utils/roles';
@@ -37,7 +37,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navRef = React.useRef<HTMLElement | null>(null);
   const sectionPaths = {
     acessos: ['/pessoal', '/acessos', '/teams', '/win-users'],
-    financeiro: ['/rateio-claro', '/rateio-google', '/rateio-mkm', '/contas-a-pagar', '/pedidos-de-compra'],
+    financeiro: ['/rateio-claro', '/rateio-google', '/rateio-mkm', '/visitas-clinicas', '/contas-a-pagar', '/pedidos-de-compra'],
     configuracoes: ['/configuracoes', '/usuarios'],
   };
   const [openSections, setOpenSections] = useState<Record<NavSection['key'], boolean>>(() => ({
@@ -144,6 +144,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (isAdmin() || hasModuleAccess('rateio_mkm')) {
       financeiroItems.push({ name: 'Rateio Fatura MKM', href: '/rateio-mkm', icon: FileText });
     }
+    if (hasModuleAccess('visitas_clinicas')) {
+      financeiroItems.push({ name: 'Visitas as Clinicas', href: '/visitas-clinicas', icon: Calendar });
+    }
     if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
       financeiroItems.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText });
     }
@@ -170,6 +173,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const normalized = normalizeRole(role);
     const badges = {
       admin: { label: 'Administrador', color: 'bg-red-100 text-red-800' },
+      owner: { label: 'Owner', color: 'bg-amber-100 text-amber-800' },
       financeiro: { label: 'Financeiro', color: 'bg-blue-100 text-blue-800' },
       usuario: { label: 'Usuario', color: 'bg-green-100 text-green-800' },
     };
