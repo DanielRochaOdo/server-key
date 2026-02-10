@@ -119,6 +119,12 @@ const buildMonthRange = (year: number, monthIndex: number) => {
   };
 };
 
+const isValidDateKey = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = parseDateKey(value);
+  return toDateKey(parsed) === value;
+};
+
 const VisitasClinicas: React.FC = () => {
   const { getState, setState } = usePersistence();
   const { user } = useAuth();
@@ -247,6 +253,16 @@ const VisitasClinicas: React.FC = () => {
     setFormError('');
   };
 
+  const handleDateChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, date: value }));
+    setFormError('');
+
+    if (!isValidDateKey(value)) return;
+    setSelectedDateKey(value);
+    const parsed = parseDateKey(value);
+    setCurrentMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
+  };
+
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -255,8 +271,14 @@ const VisitasClinicas: React.FC = () => {
     const pessoa1 = formData.pessoa1.trim();
     const status = formData.status;
 
-    if (!selectedDateKey) {
+    const targetDate = formData.date.trim();
+
+    if (!targetDate) {
       setFormError('Selecione uma data no calendario.');
+      return;
+    }
+    if (!isValidDateKey(targetDate)) {
+      setFormError('Data invalida.');
       return;
     }
     if (!servico) {
@@ -285,7 +307,7 @@ const VisitasClinicas: React.FC = () => {
     setFormError('');
 
     const payload = {
-      data: selectedDateKey,
+      data: targetDate,
       servico,
       clinica,
       pessoa_1: pessoa1,
@@ -492,10 +514,10 @@ const VisitasClinicas: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">Data</label>
               <input
-                type="text"
+                type="date"
                 value={formData.date}
-                readOnly
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-600"
+                onChange={(event) => handleDateChange(event.target.value)}
+                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
