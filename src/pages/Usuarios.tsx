@@ -33,7 +33,6 @@ const Usuarios: React.FC = () => {
       console.error('Erro ao buscar usuários:', error);
       setUsers([]);
     } else {
-      console.log('Users loaded:', data);
       setUsers(data as User[]);
     }
     setLoading(false);

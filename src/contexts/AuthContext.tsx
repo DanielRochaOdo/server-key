@@ -40,8 +40,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       try {
-        console.log('🔐 Initializing authentication...');
-        
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -49,7 +47,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Clear potentially corrupted session
           await supabase.auth.signOut();
         } else if (mounted) {
-          console.log('✅ Initial session:', session?.user?.email || 'no user');
           setUser(session?.user ?? null);
         }
       } catch (error) {
@@ -72,8 +69,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('⚡ Auth state changed:', event, session?.user?.email || 'no user');
-        
         if (mounted) {
           setUser(session?.user ?? null);
           
@@ -106,7 +101,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        console.log('👤 Fetching user profile for:', user.email);
         setLoadingProfile(true);
 
         const { data: profile, error } = await supabase
@@ -120,7 +114,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (error.code === 'PGRST116') {
             // User doesn't exist in public.users
-            console.log('⚠️ User profile not found, signing out');
             await supabase.auth.signOut();
             window.location.href = '/login?error=usuario_nao_encontrado';
             return;
@@ -159,12 +152,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: normalizedRole || profile.role,
           };
 
-          console.log('User profile loaded:', {
-            email: profile.email,
-            role: normalizedProfile.role,
-            modules: profile.modules,
-            active: profile.is_active
-          });
           setUserProfile(normalizedProfile);
         }
       } catch (error) {
@@ -189,8 +176,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string): Promise<{ error?: string }> => {
     try {
-      console.log('🔑 Attempting sign in for:', email);
-      
       // Clear any existing session first
       await supabase.auth.signOut();
       
@@ -218,8 +203,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: 'Falha na autenticação. Tente novamente.' };
       }
 
-      console.log('✅ Sign in successful for:', data.user.email);
-      
       return {};
     } catch (error) {
       console.error('❌ Unexpected sign in error:', error);
@@ -229,8 +212,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      console.log('🚪 Signing out...');
-      
       // Clear profile first
       setUserProfile(null);
       setLoadingProfile(false);
@@ -248,8 +229,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Clear state
       setUser(null);
-      
-      console.log('✅ Signed out successfully');
     } catch (error) {
       console.error('❌ Unexpected sign out error:', error);
     }

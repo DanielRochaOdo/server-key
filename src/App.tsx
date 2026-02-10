@@ -13,9 +13,11 @@ import Teams from './pages/Teams';
 import WinUsers from './pages/WinUsers';
 import RateioClaro from './pages/RateioClaro';
 import RateioGoogle from './pages/RateioGoogle';
+import RateioMkm from './pages/RateioMkm';
 import Configuracoes from './pages/Configuracoes';
 import ContasAPagar from './pages/ContasAPagar';
 import PedidosDeCompra from './pages/PedidosDeCompra';  
+import ControleEmpresas from './pages/ControleEmpresas';
 
 function App() {
   return (
@@ -108,6 +110,22 @@ function App() {
                 element={
                   <ProtectedRoute requiredModule="rateio_google">
                     <RateioGoogle />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rateio-mkm"
+                element={
+                  <ProtectedRoute requiredModule="rateio_mkm" adminOnly={false}>
+                    <RateioMkm />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/controle-empresas"
+                element={
+                  <ProtectedRoute requiredModule="controle_empresas" adminOnly={false}>
+                    <ControleEmpresas />
                   </ProtectedRoute>
                 }
               />

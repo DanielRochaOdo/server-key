@@ -50,7 +50,6 @@ const Pessoal: React.FC = () => {
   const fetchPessoais = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('🔍 Fetching pessoal data for user:', user?.id);
       const { data, error } = await supabase
         .from('pessoal')
         .select('id, descricao, para_que_serve, ip_url, usuario_login, senha, observacao, suporte_contato, email, dia_pagamento, created_at')
@@ -58,7 +57,6 @@ const Pessoal: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      console.log('✅ Pessoal data loaded:', data?.length, 'records');
       setPessoais(data || []);
     } catch (error) {
       console.error('Error fetching pessoal:', error);

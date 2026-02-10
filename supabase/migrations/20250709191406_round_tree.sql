@@ -1,5 +1,10 @@
 -- Fix user creation to ensure proper sync between auth.users and public.users
 
+-- Ensure pgcrypto is available for gen_random_uuid / gen_salt / crypt
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+SET search_path = public, extensions;
+
 -- Drop existing trigger and function to recreate them
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS handle_new_auth_user() CASCADE;
@@ -186,10 +191,10 @@ DECLARE
   admin_auth_id uuid;
 BEGIN
   -- Check if admin exists in auth.users
-  SELECT * INTO auth_admin FROM auth.users WHERE email = 'admin@serverkey.com';
+  SELECT * INTO auth_admin FROM auth.users WHERE lower(email) = lower('admin@serverkey.com');
   
   -- Check if admin exists in public.users
-  SELECT * INTO public_admin FROM public.users WHERE email = 'admin@serverkey.com';
+  SELECT * INTO public_admin FROM public.users WHERE lower(email) = lower('admin@serverkey.com');
   
   IF auth_admin.id IS NULL THEN
     RAISE NOTICE 'Creating admin user in auth.users...';
@@ -198,37 +203,43 @@ BEGIN
     admin_auth_id := gen_random_uuid();
     
     -- Create admin in auth.users
-    INSERT INTO auth.users (
-      instance_id,
-      id,
-      aud,
-      role,
-      email,
-      encrypted_password,
-      email_confirmed_at,
-      raw_user_meta_data,
-      created_at,
-      updated_at,
-      confirmation_token,
-      email_change,
-      email_change_token_new,
-      recovery_token
-    ) VALUES (
-      '00000000-0000-0000-0000-000000000000',
-      admin_auth_id,
-      'authenticated',
-      'authenticated',
-      'admin@serverkey.com',
-      crypt('admin123', gen_salt('bf')),
-      NOW(),
-      '{"name": "Administrador", "role": "admin", "password": "admin123"}',
-      NOW(),
-      NOW(),
-      '',
-      '',
-      '',
-      ''
-    );
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'gen_salt') THEN
+      EXECUTE $sql$
+        INSERT INTO auth.users (
+          instance_id,
+          id,
+          aud,
+          role,
+          email,
+          encrypted_password,
+          email_confirmed_at,
+          raw_user_meta_data,
+          created_at,
+          updated_at,
+          confirmation_token,
+          email_change,
+          email_change_token_new,
+          recovery_token
+        ) VALUES (
+          '00000000-0000-0000-0000-000000000000',
+          $1,
+          'authenticated',
+          'authenticated',
+          'admin@serverkey.com',
+          crypt('admin123', gen_salt('bf')),
+          NOW(),
+          '{"name": "Administrador", "role": "admin", "password": "admin123"}',
+          NOW(),
+          NOW(),
+          '',
+          '',
+          '',
+          ''
+        );
+      $sql$ USING admin_auth_id;
+    ELSE
+      RAISE NOTICE 'Skipping auth.users admin insert: pgcrypto (gen_salt) not available.';
+    END IF;
     
     RAISE NOTICE 'Admin user created in auth.users with ID: %', admin_auth_id;
   ELSE
@@ -301,8 +312,8 @@ BEGIN
     SELECT 1 
     FROM public.users pu 
     JOIN auth.users au ON pu.auth_uid = au.id 
-    WHERE pu.email = 'admin@serverkey.com' 
-    AND au.email = 'admin@serverkey.com'
+    WHERE lower(pu.email) = lower('admin@serverkey.com') 
+    AND lower(au.email) = lower('admin@serverkey.com')
     AND pu.role = 'admin'
     AND pu.is_active = true
   ) INTO admin_linked;

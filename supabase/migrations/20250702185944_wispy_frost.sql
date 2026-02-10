@@ -54,6 +54,7 @@ CREATE INDEX IF NOT EXISTS idx_rateio_claro_numero_linha ON rateio_claro(numero_
 CREATE INDEX IF NOT EXISTS idx_rateio_claro_setor ON rateio_claro(setor);
 
 -- Create trigger to automatically update updated_at timestamp
+DROP TRIGGER IF EXISTS update_rateio_claro_updated_at ON rateio_claro;
 CREATE TRIGGER update_rateio_claro_updated_at
   BEFORE UPDATE ON rateio_claro
   FOR EACH ROW

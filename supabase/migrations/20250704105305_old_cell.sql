@@ -113,22 +113,42 @@ END;
 $$ language 'plpgsql';
 
 -- Create trigger to automatically update updated_at
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at
   BEFORE UPDATE ON users
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
 -- Insert a default admin user (you should change the email and name)
-INSERT INTO users (email, name, role, is_active, permissions) VALUES (
-  'admin@example.com',
-  'Administrador',
-  'admin',
-  true,
-  '{
-    "acessos": {"view": true, "edit": true},
-    "teams": {"view": true, "edit": true},
-    "win_users": {"view": true, "edit": true},
-    "rateio_claro": {"view": true, "edit": true},
-    "rateio_google": {"view": true, "edit": true}
-  }'::jsonb
-) ON CONFLICT (email) DO NOTHING;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'permissions'
+  ) THEN
+    IF NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = lower('admin@example.com')) THEN
+      INSERT INTO users (email, name, role, is_active, permissions) VALUES (
+        'admin@example.com',
+        'Administrador',
+        'admin',
+        true,
+        '{
+          "acessos": {"view": true, "edit": true},
+          "teams": {"view": true, "edit": true},
+          "win_users": {"view": true, "edit": true},
+          "rateio_claro": {"view": true, "edit": true},
+          "rateio_google": {"view": true, "edit": true}
+        }'::jsonb
+      );
+    END IF;
+  ELSE
+    IF NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = lower('admin@example.com')) THEN
+      INSERT INTO users (email, name, role, is_active) VALUES (
+        'admin@example.com',
+        'Administrador',
+        'admin',
+        true
+      );
+    END IF;
+  END IF;
+END $$;

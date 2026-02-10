@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Globe, Plus, Upload, Download, Search, Edit, Trash2, DollarSign, Users, CheckCircle, XCircle } from 'lucide-react';
-import RateioGoogleForm from '../components/RateioGoogleForm';
-import RateioGoogleFileUpload from '../components/RateioGoogleFileUpload';
+import { Globe, Download, Search, Users } from 'lucide-react';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx';
 
@@ -15,44 +12,57 @@ interface RateioGoogle {
   email?: string;
   status?: string;
   ultimo_login?: string;
-  armazenamento?: string;
-  situacao?: string;
   created_at: string;
 }
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('pt-BR');
+};
+
 
 const RateioGoogle: React.FC = () => {
   const [rateios, setRateios] = useState<RateioGoogle[]>([]);
   const [loading, setLoading] = useState(true);
   const { getState, setState, clearState } = usePersistence();
-  
-  const [showForm, setShowForm] = useState(() => getState('rateioGoogle_showForm') || false);
-  const [showUpload, setShowUpload] = useState(() => getState('rateioGoogle_showUpload') || false);
-  const [editingRateio, setEditingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_editingRateio') || null);
+
   const [searchTerm, setSearchTerm] = useState(() => getState('rateioGoogle_searchTerm') || '');
   const [selectedStatus, setSelectedStatus] = useState(() => getState('rateioGoogle_selectedStatus') || '');
-  const [selectedSituacao, setSelectedSituacao] = useState(() => getState('rateioGoogle_selectedSituacao') || '');
   const [selectedDominio, setSelectedDominio] = useState(() => getState('rateioGoogle_selectedDominio') || '');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_viewingRateio') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
+  const [pendingAction, setPendingAction] = useState<'view' | null>(null);
   const [pendingActionRateio, setPendingActionRateio] = useState<RateioGoogle | null>(null);
-  const { user } = useAuth();
-
   const itemsPerPage = 10;
 
   const fetchRateios = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('rateio_google')
-        .select('id, nome_completo, email, status, ultimo_login, armazenamento, situacao, created_at')
-        .order('created_at', { ascending: false });
+        .from('google_workspace_accounts')
+        .select('id, full_name, primary_email, suspended, deleted, last_login_at, created_at')
+        .order('primary_email', { ascending: true });
 
       if (error) throw error;
-      setRateios(data || []);
+      const mapped = (data || []).map((row: any) => {
+        const isDeleted = Boolean(row.deleted);
+        const isSuspended = Boolean(row.suspended);
+        const status = isDeleted ? 'Excluído' : isSuspended ? 'Suspenso' : 'Ativo';
+        return {
+          id: row.id,
+          nome_completo: row.full_name || '-',
+          email: row.primary_email || '-',
+          status,
+          ultimo_login: formatDateTime(row.last_login_at),
+          created_at: row.created_at || new Date().toISOString(),
+        } as RateioGoogle;
+      });
+      setRateios(mapped);
     } catch (error) {
       console.error('Error fetching rateio google:', error);
     } finally {
@@ -63,19 +73,6 @@ const RateioGoogle: React.FC = () => {
   useEffect(() => {
     fetchRateios();
   }, [fetchRateios]);
-
-  // Persist form states
-  useEffect(() => {
-    setState('rateioGoogle_showForm', showForm);
-  }, [showForm, setState]);
-
-  useEffect(() => {
-    setState('rateioGoogle_showUpload', showUpload);
-  }, [showUpload, setState]);
-
-  useEffect(() => {
-    setState('rateioGoogle_editingRateio', editingRateio);
-  }, [editingRateio, setState]);
 
   useEffect(() => {
     setState('rateioGoogle_viewingRateio', viewingRateio);
@@ -90,16 +87,12 @@ const RateioGoogle: React.FC = () => {
   }, [selectedStatus, setState]);
 
   useEffect(() => {
-    setState('rateioGoogle_selectedSituacao', selectedSituacao);
-  }, [selectedSituacao, setState]);
-
-  useEffect(() => {
     setState('rateioGoogle_selectedDominio', selectedDominio);
   }, [selectedDominio, setState]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedStatus, selectedSituacao, selectedDominio]);
+  }, [searchTerm, selectedStatus, selectedDominio]);
 
   const toggleSortOrder = useCallback(() => {
     setSortOrder((prev) => {
@@ -109,20 +102,7 @@ const RateioGoogle: React.FC = () => {
     });
   }, []);
 
-  const handleDelete = useCallback(async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este rateio?')) return;
-
-    try {
-      const { error } = await supabase.from('rateio_google').delete().eq('id', id);
-      if (error) throw error;
-      setRateios(prev => prev.filter((rateio) => rateio.id !== id));
-    } catch (error) {
-      console.error('Error deleting rateio:', error);
-      alert('Erro ao excluir rateio');
-    }
-  }, []);
-
-  const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', rateio: RateioGoogle) => {
+  const requestActionVerification = useCallback((action: 'view', rateio: RateioGoogle) => {
     setPendingAction(action);
     setPendingActionRateio(rateio);
     setShowActionPasswordModal(true);
@@ -142,27 +122,13 @@ const RateioGoogle: React.FC = () => {
       return;
     }
 
-    if (action === 'edit') {
-      setEditingRateio(rateio);
-      setShowForm(true);
-      return;
-    }
-
-    await handleDelete(rateio.id);
-  }, [pendingAction, pendingActionRateio, handleDelete]);
+  }, [pendingAction, pendingActionRateio]);
 
   const statusOptions = useMemo(() => {
     const statusList = rateios
       .map((rateio) => rateio.status?.trim() || '')
       .filter((status) => status !== '');
     return Array.from(new Set(statusList)).sort();
-  }, [rateios]);
-
-  const situacaoOptions = useMemo(() => {
-    const situacaoList = rateios
-      .map((rateio) => rateio.situacao?.trim() || '')
-      .filter((situacao) => situacao !== '');
-    return Array.from(new Set(situacaoList)).sort();
   }, [rateios]);
 
   const dominioOptions = useMemo(() => {
@@ -181,14 +147,12 @@ const RateioGoogle: React.FC = () => {
       const matchesSearch =
         rateio.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         rateio.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        rateio.armazenamento?.toLowerCase().includes(searchTerm.toLowerCase());
+        false;
 
       const matchesStatus = selectedStatus === '' || rateio.status === selectedStatus;
-      const matchesSituacao = selectedSituacao === '' || rateio.situacao === selectedSituacao;
-      
       const matchesDominio = selectedDominio === '' || (rateio.email && rateio.email.includes(`@${selectedDominio}`));
 
-      return matchesSearch && matchesStatus && matchesSituacao && matchesDominio;
+      return matchesSearch && matchesStatus && matchesDominio;
     });
 
     if (sortOrder === 'asc') {
@@ -198,42 +162,26 @@ const RateioGoogle: React.FC = () => {
     }
 
     return filtered;
-  }, [rateios, searchTerm, selectedStatus, selectedSituacao, selectedDominio, sortOrder]);
+  }, [rateios, searchTerm, selectedStatus, selectedDominio, sortOrder]);
 
   const exportData = useCallback((format: 'csv' | 'xlsx') => {
-    if (format === 'template') {
-      // Create template with headers only
-      const templateData = [{
-        nome_completo: '',
-        email: '',
-        status: '',
-        ultimo_login: '',
-        armazenamento: '',
-        situacao: ''
-      }];
-      const ws = XLSX.utils.json_to_sheet(templateData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Template');
-      XLSX.writeFile(wb, 'template_rateio_google.xlsx', { bookType: 'xlsx' });
-    } else {
-      // Usar dados filtrados em vez de todos os dados
-      const dataToExport = filteredRateiosSorted.map(({ id, created_at, ...rest }) => rest);
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'RateioGoogle');
-      
+    // Usar dados filtrados em vez de todos os dados
+    const dataToExport = filteredRateiosSorted.map(({ id, created_at, ...rest }) => rest);
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'RateioGoogle');
+
       // Incluir informações sobre filtros no nome do arquivo
-      const filterInfo = (searchTerm || selectedStatus || selectedSituacao || selectedDominio) ? `_filtrado` : '';
-      const filename = `rateio_google${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-      
+      const filterInfo = (searchTerm || selectedStatus || selectedDominio) ? `_filtrado` : '';
+      const filename = `rateio_google${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
+
       if (format === 'csv') {
         XLSX.writeFile(wb, filename, { bookType: 'csv' });
       } else {
         XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
       }
-    }
     setShowExportMenu(false);
-  }, [filteredRateiosSorted, searchTerm, selectedStatus, selectedSituacao, selectedDominio]);
+  }, [filteredRateiosSorted, searchTerm, selectedStatus, selectedDominio]);
 
   const currentItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -241,32 +189,6 @@ const RateioGoogle: React.FC = () => {
   }, [filteredRateiosSorted, currentPage, itemsPerPage]);
 
   const totalPages = Math.ceil(filteredRateiosSorted.length / itemsPerPage);
-
-  const handleFormSuccess = useCallback(() => {
-    fetchRateios();
-    setShowForm(false);
-    setEditingRateio(null);
-    clearState('rateioGoogle_showForm');
-    clearState('rateioGoogle_editingRateio');
-  }, [fetchRateios]);
-
-  const handleUploadSuccess = useCallback(() => {
-    fetchRateios();
-    setShowUpload(false);
-    clearState('rateioGoogle_showUpload');
-  }, [fetchRateios]);
-
-  const handleCancelForm = useCallback(() => {
-    setShowForm(false);
-    setEditingRateio(null);
-    clearState('rateioGoogle_showForm');
-    clearState('rateioGoogle_editingRateio');
-  }, []);
-
-  const handleCancelUpload = useCallback(() => {
-    setShowUpload(false);
-    clearState('rateioGoogle_showUpload');
-  }, []);
 
   const handleCloseView = useCallback(() => {
     setViewingRateio(null);
@@ -287,20 +209,22 @@ const RateioGoogle: React.FC = () => {
       return acc;
     }, { odontoart: 0, odontoartonline: 0 });
 
-    const situacaoStats = filteredRateiosSorted.reduce((acc, rateio) => {
-      const situacao = rateio.situacao || 'Não definida';
-      acc[situacao] = (acc[situacao] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
     const totalCostOdontoart = domainStats.odontoart * 7.587096774193548; // Valores aproximados em USD
     const totalCostOdontoartonline = domainStats.odontoartonline * 42.46666666666667; // Valores aproximados e BRL
+    const totalCostOdontoartFormatado = totalCostOdontoart.toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+    });
+    const totalCostOdontoartonlineFormatado = totalCostOdontoartonline.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
 
     // Bloco baseado no filtro de situação selecionado
-    const situacaoBlockTitle = selectedSituacao === '' ? 'Todos' : selectedSituacao;
-    const situacaoBlockValue = selectedSituacao === '' 
-      ? filteredRateiosSorted.length 
-      : filteredRateiosSorted.filter(r => r.situacao === selectedSituacao).length;
+    const situacaoBlockTitle = selectedStatus === '' ? 'Todos' : selectedStatus;
+    const situacaoBlockValue = selectedStatus === ''
+      ? filteredRateiosSorted.length
+      : filteredRateiosSorted.filter(r => r.status === selectedStatus).length;
     return [
       {
         title: 'E-mails @odontoart.com',
@@ -308,7 +232,7 @@ const RateioGoogle: React.FC = () => {
         icon: Globe,
         color: 'text-blue-600',
         bgColor: 'bg-blue-100',
-        description: `Custo: $${totalCostOdontoart} USD`
+        description: `Custo: ${totalCostOdontoartFormatado}`
       },
       {
         title: 'E-mails @odontoartonline.com.br',
@@ -316,7 +240,7 @@ const RateioGoogle: React.FC = () => {
         icon: Globe,
         color: 'text-green-600',
         bgColor: 'bg-green-100',
-        description: `Custo: R$${totalCostOdontoartonline} BRL`
+        description: `Custo: ${totalCostOdontoartonlineFormatado}`
       },
       {
         title: situacaoBlockTitle,
@@ -327,17 +251,15 @@ const RateioGoogle: React.FC = () => {
         description: `${situacaoBlockValue} usuário${situacaoBlockValue !== 1 ? 's' : ''}`
       }
     ];
-  }, [filteredRateiosSorted]);
+  }, [filteredRateiosSorted, selectedStatus]);
 
   const getStatusBadge = (status?: string) => {
     if (!status) return null;
-    
+
     const statusColors: Record<string, string> = {
       'Ativo': 'bg-green-100 text-green-800',
-      'Inativo': 'bg-red-100 text-red-800',
       'Suspenso': 'bg-yellow-100 text-yellow-800',
-      'Bloqueado': 'bg-red-100 text-red-800',
-      'Pendente': 'bg-blue-100 text-blue-800'
+      'Excluído': 'bg-red-100 text-red-800'
     };
 
     return (
@@ -364,13 +286,6 @@ const RateioGoogle: React.FC = () => {
             <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de usuários Google Workspace</p>
           </div>
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-            <button
-              onClick={() => setShowUpload(true)}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
-            >
-              <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              Importar
-            </button>
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
@@ -383,7 +298,7 @@ const RateioGoogle: React.FC = () => {
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
                   <div className="py-1">
                     <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
-                      {(searchTerm || selectedStatus || selectedSituacao || selectedDominio) ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
+                      {(searchTerm || selectedStatus || selectedDominio) ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
                     </div>
                     <button
                       onClick={() => exportData('csv')}
@@ -397,23 +312,10 @@ const RateioGoogle: React.FC = () => {
                     >
                       Exportar como XLSX
                     </button>
-                    <button
-                      onClick={() => exportData('template')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 border-t border-neutral-200"
-                    >
-                      Baixar Modelo
-                    </button>
                   </div>
                 </div>
               )}
             </div>
-            <button
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
-            >
-              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              Novo Usuário
-            </button>
           </div>
         </div>
       </div>
@@ -484,24 +386,6 @@ const RateioGoogle: React.FC = () => {
                 </select>
               </div>
 
-              <div className="flex flex-col space-y-1">
-                <label htmlFor="filter-situacao" className="text-xs sm:text-sm font-medium text-neutral-700">
-                  Situação:
-                </label>
-                <select
-                  id="filter-situacao"
-                  className="border border-neutral-300 rounded-lg px-2 sm:px-3 py-1 text-xs sm:text-sm"
-                  value={selectedSituacao}
-                  onChange={(e) => setSelectedSituacao(e.target.value)}
-                >
-                  <option value="">Todas</option>
-                  {situacaoOptions.map((situacao) => (
-                    <option key={situacao} value={situacao}>
-                      {situacao}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
           </div>
         </div>
@@ -510,8 +394,8 @@ const RateioGoogle: React.FC = () => {
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">
               <tr>
-                <th 
-                  onClick={toggleSortOrder} 
+                <th
+                  onClick={toggleSortOrder}
                   className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
                 >
                   <div className="flex items-center">
@@ -524,7 +408,6 @@ const RateioGoogle: React.FC = () => {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Email</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Status</th>
                 <th className="hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Último Login</th>
-                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Armazenamento</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
@@ -539,29 +422,14 @@ const RateioGoogle: React.FC = () => {
                     {getStatusBadge(rateio.status) || '-'}
                   </td>
                   <td className="hidden lg:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">{rateio.ultimo_login || '-'}</td>
-                  <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[100px]">{rateio.armazenamento || '-'}</td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
-                      <button 
+                      <button
                         onClick={() => requestActionVerification('view', rateio)}
                         className="text-neutral-600 hover:text-neutral-900"
                         title="Visualizar"
                       >
                         <Search className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </button>
-                      <button 
-                        onClick={() => requestActionVerification('edit', rateio)} 
-                        className="text-primary-600 hover:text-primary-900"
-                        title="Editar"
-                      >
-                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </button>
-                      <button 
-                        onClick={() => requestActionVerification('delete', rateio)} 
-                        className="text-red-600 hover:text-red-900"
-                        title="Excluir"
-                      >
-                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                     </div>
                   </td>
@@ -575,7 +443,7 @@ const RateioGoogle: React.FC = () => {
               <Globe className="mx-auto h-8 w-8 sm:h-12 sm:w-12 text-neutral-400" />
               <h3 className="mt-2 text-sm font-medium text-neutral-900">Nenhum usuário encontrado</h3>
               <p className="mt-1 text-xs sm:text-sm text-neutral-500">
-                {searchTerm ? 'Tente ajustar sua busca' : 'Comece adicionando um novo usuário'}
+                {searchTerm ? 'Tente ajustar sua busca' : 'Nenhum usuário sincronizado no momento'}
               </p>
             </div>
           )}
@@ -586,11 +454,10 @@ const RateioGoogle: React.FC = () => {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
-                currentPage === 1 
-                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
+              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${currentPage === 1
+                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                   : 'bg-primary-600 text-white hover:bg-primary-700'
-              }`}
+                }`}
             >
               ← Anterior
             </button>
@@ -600,11 +467,10 @@ const RateioGoogle: React.FC = () => {
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
-                currentPage === totalPages 
-                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
+              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${currentPage === totalPages
+                  ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                   : 'bg-primary-600 text-white hover:bg-primary-700'
-              }`}
+                }`}
             >
               Próxima →
             </button>
@@ -613,21 +479,6 @@ const RateioGoogle: React.FC = () => {
       </div>
 
       {/* Modals */}
-      {showForm && (
-        <RateioGoogleForm
-          rateio={editingRateio}
-          onSuccess={handleFormSuccess}
-          onCancel={handleCancelForm}
-        />
-      )}
-
-      {showUpload && (
-        <RateioGoogleFileUpload
-          onSuccess={handleUploadSuccess}
-          onCancel={handleCancelUpload}
-        />
-      )}
-
       {viewingRateio && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-4 sm:p-6 max-w-lg w-full shadow-lg max-h-[90vh] overflow-y-auto">
@@ -637,8 +488,6 @@ const RateioGoogle: React.FC = () => {
               <div><strong>Email:</strong> {viewingRateio.email || '-'}</div>
               <div><strong>Status:</strong> {viewingRateio.status || '-'}</div>
               <div><strong>Último Login:</strong> {viewingRateio.ultimo_login || '-'}</div>
-              <div><strong>Armazenamento:</strong> {viewingRateio.armazenamento || '-'}</div>
-              <div><strong>Situação:</strong> {viewingRateio.situacao || '-'}</div>
             </div>
             <div className="mt-4 sm:mt-6 text-right">
               <button
@@ -661,19 +510,13 @@ const RateioGoogle: React.FC = () => {
         }}
         onSuccess={handleActionPasswordVerified}
         title="Verificacao de Senha"
-        message={
-          pendingAction === 'edit'
-            ? "Digite sua senha para editar este usuario:"
-            : pendingAction === 'delete'
-              ? "Digite sua senha para excluir este usuario:"
-              : "Digite sua senha para visualizar os detalhes do usuario:"
-        }
+        message="Digite sua senha para visualizar os detalhes do usuario:"
       />
 
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (
-        <div 
-          className="fixed inset-0 z-5" 
+        <div
+          className="fixed inset-0 z-5"
           onClick={() => setShowExportMenu(false)}
         />
       )}

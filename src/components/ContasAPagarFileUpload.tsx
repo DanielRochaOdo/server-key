@@ -26,13 +26,15 @@ const STATUS_OPTIONS = [
   'Enviado financeiro'
 ];
 
-const PAGTO_OPTIONS = ['Boleto', 'CARTAO'] as const;
+const PAGTO_OPTIONS = ['BOLETO', 'CARTAO', 'PIX', 'TRANSFERENCIA'] as const;
 
 const normalizePagto = (value: string): (typeof PAGTO_OPTIONS)[number] => {
   const norm = normalize(value);
+  if (norm.includes('pix')) return 'PIX';
+  if (norm.includes('transfer')) return 'TRANSFERENCIA';
   if (norm.includes('cart')) return 'CARTAO';
-  if (norm.includes('boleto') || norm.includes('bol')) return 'Boleto';
-  return 'Boleto';
+  if (norm.includes('boleto') || norm.includes('bol')) return 'BOLETO';
+  return 'BOLETO';
 };
 
 
@@ -157,7 +159,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
             row[key as keyof ParsedRow] = val?.toString().trim() || '';
           } else if (key === 'tipo_pagto') {
             const raw = val?.toString().trim() || '';
-            row.tipo_pagto = raw ? normalizePagto(raw) : 'Boleto';
+          row.tipo_pagto = raw ? normalizePagto(raw) : 'BOLETO';
           }
         });
 
@@ -211,7 +213,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
             row[key as keyof ParsedRow] = val?.toString().trim() || '';
           } else if (key === 'tipo_pagto') {
             const raw = val?.toString().trim() || '';
-            row.tipo_pagto = raw ? normalizePagto(raw) : 'Boleto';
+            row.tipo_pagto = raw ? normalizePagto(raw) : 'BOLETO';
           }
         });
 
@@ -226,7 +228,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
           rows.push({
             status_documento: row.status_documento || STATUS_OPTIONS[0],
             fornecedor: row.fornecedor || null,
-            tipo_pagto: row.tipo_pagto || 'Boleto',
+            tipo_pagto: row.tipo_pagto || 'BOLETO',
             link: row.link || null,
             descricao: row.descricao || null,
             valor: Number.isFinite(parsedValor) ? parsedValor : null,
@@ -341,7 +343,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
                     {preview.map((row, index) => (
                       <tr key={index}>
                         <td className="px-4 py-2 text-sm text-neutral-900">{row.status_documento || '-'}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.tipo_pagto || 'Boleto'}</td>
+                        <td className="px-4 py-2 text-sm text-neutral-600">{row.tipo_pagto || 'BOLETO'}</td>
                         <td className="px-4 py-2 text-sm text-neutral-600">{row.fornecedor || '-'}</td>
                         <td className="px-4 py-2 text-sm text-neutral-600">{row.descricao || '-'}</td>
                         <td className="px-4 py-2 text-sm text-neutral-600">{row.valor || '-'}</td>
