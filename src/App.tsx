@@ -18,6 +18,8 @@ import Configuracoes from './pages/Configuracoes';
 import ContasAPagar from './pages/ContasAPagar';
 import PedidosDeCompra from './pages/PedidosDeCompra';  
 import ControleEmpresas from './pages/ControleEmpresas';
+import ControleUber from './pages/ControleUber';
+import VisitasClinicas from './pages/VisitasClinicas';
 
 function App() {
   return (
@@ -126,6 +128,22 @@ function App() {
                 element={
                   <ProtectedRoute requiredModule="controle_empresas" adminOnly={false}>
                     <ControleEmpresas />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/controle-uber"
+                element={
+                  <ProtectedRoute requiredModule="controle_uber" adminOnly={true}>
+                    <ControleUber />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/visitas-clinicas"
+                element={
+                  <ProtectedRoute requiredModule="visitas_clinicas" adminOnly={false}>
+                    <VisitasClinicas />
                   </ProtectedRoute>
                 }
               />
