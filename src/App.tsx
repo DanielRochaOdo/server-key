@@ -17,11 +17,8 @@ import RateioMkm from './pages/RateioMkm';
 import Configuracoes from './pages/Configuracoes';
 import ContasAPagar from './pages/ContasAPagar';
 import PedidosDeCompra from './pages/PedidosDeCompra';  
-<<<<<<< HEAD
 import ControleEmpresas from './pages/ControleEmpresas';
 import ControleUber from './pages/ControleUber';
-=======
->>>>>>> 5367ea213892bbfb5653047b0660e7941be3bf27
 import VisitasClinicas from './pages/VisitasClinicas';
 
 function App() {
@@ -127,7 +124,6 @@ function App() {
                 }
               />
               <Route
-<<<<<<< HEAD
                 path="/controle-empresas"
                 element={
                   <ProtectedRoute requiredModule="controle_empresas">
@@ -144,8 +140,6 @@ function App() {
                 }
               />
               <Route
-=======
->>>>>>> 5367ea213892bbfb5653047b0660e7941be3bf27
                 path="/visitas-clinicas"
                 element={
                   <ProtectedRoute requiredModule="visitas_clinicas">
