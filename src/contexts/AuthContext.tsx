@@ -127,27 +127,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } else if (profile && mounted) {
           const normalizedRole = normalizeRole(profile.role);
-          const modules = profile.modules || [];
-          const needsContasModule =
-            normalizedRole === 'admin' && !modules.includes('contas_a_pagar');
-
-          if (needsContasModule) {
-            const updatedModules = Array.from(new Set([...modules, 'contas_a_pagar']));
-            const { error: updateError } = await supabase
-              .from('users')
-              .update({
-                modules: updatedModules,
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', profile.id);
-
-            if (updateError) {
-              console.error('Error updating user modules:', updateError);
-            } else {
-              profile.modules = updatedModules;
-            }
-          }
-
           const normalizedProfile = {
             ...profile,
             role: normalizedRole || profile.role,

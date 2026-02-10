@@ -176,9 +176,18 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   const getAccessToken = async () => {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
-    const token = data.session?.access_token;
+
+    let session = data.session;
+    const now = Math.floor(Date.now() / 1000);
+    if (!session || (session.expires_at && session.expires_at < now + 30)) {
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) throw refreshError;
+      session = refreshData.session;
+    }
+
+    const token = session?.access_token;
     if (!token) {
-      throw new Error('Sessao expirada. Faça login novamente.');
+      throw new Error('Sessao expirada. FaÃ§a login novamente.');
     }
     return token;
   };

@@ -29,7 +29,7 @@ interface NavSection {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { userProfile, signOut, hasModuleAccess, isAdmin, isUsuario } = useAuth();
+  const { userProfile, signOut, hasModuleAccess, isUsuario } = useAuth();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [extendedProfile, setExtendedProfile] = useState<UserProfileExtended | null>(null);
@@ -124,13 +124,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (hasModuleAccess('pessoal')) {
       acessosItems.push({ name: 'Senhas Pessoais', href: '/pessoal', icon: Lock });
     }
-    if (hasModuleAccess('acessos') && !isUsuario()) {
+    if (hasModuleAccess('acessos')) {
       acessosItems.push({ name: 'Acessos', href: '/acessos', icon: Key });
     }
-    if (hasModuleAccess('teams') && !isUsuario()) {
+    if (hasModuleAccess('teams')) {
       acessosItems.push({ name: 'Contas Teams', href: '/teams', icon: UserCheck });
     }
-    if (hasModuleAccess('win_users') && !isUsuario()) {
+    if (hasModuleAccess('win_users')) {
       acessosItems.push({ name: 'Usuários Windows', href: '/win-users', icon: Monitor });
     }
 
@@ -141,22 +141,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (hasModuleAccess('rateio_google')) {
       financeiroItems.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail });
     }
-    if (isAdmin() || hasModuleAccess('rateio_mkm')) {
+    if (hasModuleAccess('rateio_mkm')) {
       financeiroItems.push({ name: 'Rateio Fatura MKM', href: '/rateio-mkm', icon: FileText });
     }
     if (hasModuleAccess('visitas_clinicas')) {
       financeiroItems.push({ name: 'Visitas as Clinicas', href: '/visitas-clinicas', icon: Calendar });
     }
-    if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
+    if (hasModuleAccess('contas_a_pagar')) {
       financeiroItems.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText });
     }
-    if (!isUsuario()) {
+    if (hasModuleAccess('pedidos_de_compra')) {
       financeiroItems.push({ name: 'Pedidos de Compra', href: '/pedidos-de-compra', icon: ShoppingCart });
     }
 
     const configuracoesItems: NavItem[] = [];
     configuracoesItems.push({ name: 'Configurações', href: '/configuracoes', icon: Settings });
-    if (isAdmin()) {
+    if (hasModuleAccess('usuarios')) {
       configuracoesItems.push({ name: 'Usuários', href: '/usuarios', icon: Users });
     }
 

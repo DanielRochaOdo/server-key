@@ -135,7 +135,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Check module access
-  if (requiredModule && !hasModuleAccess(requiredModule) && !isAdmin()) {
+  if (requiredModule && !hasModuleAccess(requiredModule)) {
     return (
       <Layout>
         <div className="min-h-64 flex items-center justify-center">

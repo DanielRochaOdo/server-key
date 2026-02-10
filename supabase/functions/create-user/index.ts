@@ -18,6 +18,8 @@ const normalizeRole = (role: string) => {
 
   const value = (role || '')
 
+    .trim()
+
     .toLowerCase()
 
     .normalize('NFD')
