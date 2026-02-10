@@ -37,7 +37,7 @@ const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'];
 const MONTHS = [
   'Janeiro',
   'Fevereiro',
-  'Marco',
+  'Março',
   'Abril',
   'Maio',
   'Junho',
@@ -52,9 +52,21 @@ const MONTHS = [
 const CLINICAS = ['Parangaba', 'Bezerra', 'Aguanambi'];
 const PESSOAS = ['Flash', 'Vinicius', 'Daniel', 'Ryan', 'Cezar'];
 const STATUS_OPTIONS: Array<{ value: VisitStatus; label: string; color: string }> = [
-  { value: 'concluido', label: 'Concluido', color: 'bg-green-100 text-green-800' },
-  { value: 'pendente', label: 'Pendente', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'atrasado', label: 'Atrasado', color: 'bg-red-100 text-red-800' },
+  {
+    value: 'concluido',
+    label: 'Concluido',
+    color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+  },
+  {
+    value: 'pendente',
+    label: 'Pendente',
+    color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200',
+  },
+  {
+    value: 'atrasado',
+    label: 'Atrasado',
+    color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
+  },
 ];
 
 const toDateKey = (date: Date) => {
@@ -414,14 +426,16 @@ const VisitasClinicas: React.FC = () => {
     <div className="space-y-6 sm:space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Visitas as Clinicas</h1>
-          <p className="mt-1 text-sm text-primary-600">
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary-900 dark:text-primary-100">
+            Visitas as Clinicas
+          </h1>
+          <p className="mt-1 text-sm text-primary-600 dark:text-neutral-300">
             Controle mensal de visitas com calendario e detalhes por dia.
           </p>
         </div>
         <button
           onClick={handleToday}
-          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
+          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
         >
           <Calendar className="h-4 w-4" />
           Ir para hoje
@@ -429,28 +443,30 @@ const VisitasClinicas: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_1fr] gap-6">
-        <div className="bg-white rounded-xl shadow-md border border-neutral-200 p-4 sm:p-6">
+        <div className="bg-white rounded-xl shadow-md border border-neutral-200 p-4 sm:p-6 dark:bg-neutral-900 dark:border-neutral-700">
           <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={handlePrevMonth}
-              className="p-2 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+              className="p-2 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
               aria-label="Mes anterior"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <h2 className="text-lg sm:text-xl font-semibold text-neutral-900">{monthLabel}</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+              {monthLabel}
+            </h2>
             <button
               type="button"
               onClick={handleNextMonth}
-              className="p-2 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+              className="p-2 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
               aria-label="Proximo mes"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="mt-4 grid grid-cols-7 gap-2 text-xs text-neutral-500">
+          <div className="mt-4 grid grid-cols-7 gap-2 text-xs text-neutral-500 dark:text-neutral-400">
             {WEEKDAYS.map((day) => (
               <div key={day} className="text-center font-semibold uppercase">
                 {day}
@@ -477,14 +493,16 @@ const VisitasClinicas: React.FC = () => {
                       onClick={() => handleDateClick(day)}
                       className={`relative flex items-center justify-center aspect-square rounded-lg border text-sm font-semibold transition-colors
                         ${isSelected
-                          ? 'bg-primary-600 text-white border-primary-600'
+                          ? 'bg-primary-600 text-white border-primary-600 dark:bg-primary-500 dark:border-primary-400'
                           : isToday
-                            ? 'border-primary-500 text-primary-700'
-                            : 'border-neutral-200 text-neutral-700 hover:bg-neutral-50'}`}
+                            ? 'border-primary-500 text-primary-700 dark:border-primary-400 dark:text-primary-200'
+                            : 'border-neutral-200 text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800'}`}
                     >
                       {day.getDate()}
                       {visitCount > 0 && (
-                        <span className={`absolute top-1 right-1 text-[10px] rounded-full px-1.5 py-0.5 ${isSelected ? 'bg-white text-primary-700' : 'bg-primary-100 text-primary-700'}`}>
+                        <span
+                          className={`absolute top-1 right-1 text-[10px] rounded-full px-1.5 py-0.5 ${isSelected ? 'bg-white text-primary-700 dark:bg-neutral-900 dark:text-primary-200' : 'bg-primary-100 text-primary-700 dark:bg-primary-900/60 dark:text-primary-200'}`}
+                        >
                           {visitCount}
                         </span>
                       )}
@@ -496,48 +514,58 @@ const VisitasClinicas: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-md border border-neutral-200 p-4 sm:p-6">
+        <div className="bg-white rounded-xl shadow-md border border-neutral-200 p-4 sm:p-6 dark:bg-neutral-900 dark:border-neutral-700">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg sm:text-xl font-semibold text-neutral-900">Detalhes da visita</h2>
-              <p className="text-sm text-neutral-500">Data selecionada: {selectedDateKey}</p>
+              <h2 className="text-lg sm:text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+                Detalhes da visita
+              </h2>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Data selecionada: {selectedDateKey}
+              </p>
             </div>
           </div>
 
           {loadError && (
-            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-700/60 dark:bg-red-900/40 dark:text-red-200">
               {loadError}
             </div>
           )}
 
           <form onSubmit={handleSave} className="mt-4 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Data</label>
+              <label className="block text-sm font-medium text-neutral-700 mb-1 dark:text-neutral-300">
+                Data
+              </label>
               <input
                 type="date"
                 value={formData.date}
                 onChange={(event) => handleDateChange(event.target.value)}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder-neutral-500"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Servico</label>
+              <label className="block text-sm font-medium text-neutral-700 mb-1 dark:text-neutral-300">
+                Servico
+              </label>
               <input
                 type="text"
                 value={formData.servico}
                 onChange={(event) => handleFormChange('servico', event.target.value)}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder-neutral-500"
                 placeholder="Digite o servico"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Clinica</label>
+              <label className="block text-sm font-medium text-neutral-700 mb-1 dark:text-neutral-300">
+                Clinica
+              </label>
               <select
                 value={formData.clinica}
                 onChange={(event) => handleFormChange('clinica', event.target.value)}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
               >
                 <option value="">Selecione</option>
                 {CLINICAS.map((clinica) => (
@@ -550,11 +578,13 @@ const VisitasClinicas: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Pessoa 1</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1 dark:text-neutral-300">
+                  Pessoa 1
+                </label>
                 <select
                   value={formData.pessoa1}
                   onChange={(event) => handleFormChange('pessoa1', event.target.value)}
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                 >
                   <option value="">Selecione</option>
                   {PESSOAS.map((pessoa) => (
@@ -566,11 +596,13 @@ const VisitasClinicas: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Pessoa 2</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1 dark:text-neutral-300">
+                  Pessoa 2
+                </label>
                 <select
                   value={formData.pessoa2}
                   onChange={(event) => handleFormChange('pessoa2', event.target.value)}
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                 >
                   <option value="">Selecione</option>
                   {PESSOAS.map((pessoa) => (
@@ -582,11 +614,13 @@ const VisitasClinicas: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Pessoa 3</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1 dark:text-neutral-300">
+                  Pessoa 3
+                </label>
                 <select
                   value={formData.pessoa3}
                   onChange={(event) => handleFormChange('pessoa3', event.target.value)}
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                 >
                   <option value="">Selecione</option>
                   {PESSOAS.map((pessoa) => (
@@ -599,11 +633,13 @@ const VisitasClinicas: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Status</label>
+              <label className="block text-sm font-medium text-neutral-700 mb-1 dark:text-neutral-300">
+                Status
+              </label>
               <select
                 value={formData.status}
                 onChange={(event) => handleFormChange('status', event.target.value)}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
               >
                 {STATUS_OPTIONS.map((status) => (
                   <option key={status.value} value={status.value}>
@@ -614,7 +650,7 @@ const VisitasClinicas: React.FC = () => {
             </div>
 
             {formError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-700/60 dark:bg-red-900/40 dark:text-red-200">
                 {formError}
               </div>
             )}
@@ -622,7 +658,7 @@ const VisitasClinicas: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-60"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-60 dark:bg-primary-500 dark:hover:bg-primary-400"
                 disabled={saving}
               >
                 <Save className="h-4 w-4" />
@@ -632,7 +668,7 @@ const VisitasClinicas: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleCancelEdit}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
                 >
                   Cancelar edicao
                 </button>
@@ -640,24 +676,35 @@ const VisitasClinicas: React.FC = () => {
             </div>
           </form>
 
-          <div className="mt-6 border-t border-neutral-200 pt-4">
-            <h3 className="text-sm font-semibold text-neutral-900">
+          <div className="mt-6 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
               Visitas do dia ({selectedVisits.length})
             </h3>
             <div className="mt-3 space-y-3">
               {selectedVisits.length === 0 && (
-                <p className="text-sm text-neutral-500">Nenhuma visita cadastrada para este dia.</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                  Nenhuma visita cadastrada para este dia.
+                </p>
               )}
               {selectedVisits.map((visit) => {
                 const statusInfo = STATUS_OPTIONS.find((item) => item.value === visit.status);
                 const people = [visit.pessoa1, visit.pessoa2, visit.pessoa3].filter(Boolean).join(', ');
                 return (
-                  <div key={visit.id} className="rounded-lg border border-neutral-200 p-3">
+                  <div
+                    key={visit.id}
+                    className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700"
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold text-neutral-900">{visit.servico}</p>
-                        <p className="text-xs text-neutral-500">Clinica: {visit.clinica}</p>
-                        <p className="text-xs text-neutral-500">Pessoas: {people || '-'}</p>
+                        <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                          {visit.servico}
+                        </p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                          Clinica: {visit.clinica}
+                        </p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                          Pessoas: {people || '-'}
+                        </p>
                       </div>
                       {statusInfo && (
                         <span className={`px-2 py-1 text-xs rounded-full ${statusInfo.color}`}>
@@ -669,14 +716,14 @@ const VisitasClinicas: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleEditVisit(visit)}
-                        className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700"
+                        className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 dark:text-primary-300 dark:hover:text-primary-200"
                       >
                         Editar
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteVisit(visit.id)}
-                        className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-red-600"
+                        className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-red-600 dark:text-neutral-400 dark:hover:text-red-400"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                         Excluir
