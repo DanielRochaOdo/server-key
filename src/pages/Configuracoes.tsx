@@ -78,6 +78,7 @@ const Configuracoes: React.FC = () => {
   const getRoleBadgeClass = (role: string) => {
     const normalized = normalizeRole(role);
     if (normalized === 'admin') return 'bg-red-100 text-red-800';
+    if (normalized === 'owner') return 'bg-amber-100 text-amber-800';
     if (normalized === 'financeiro') return 'bg-blue-100 text-blue-800';
     return 'bg-green-100 text-green-800';
   };

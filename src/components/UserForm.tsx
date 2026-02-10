@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Save, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { normalizeRole } from '../utils/roles';
+import { useAuth } from '../contexts/AuthContext';
 
 interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'financeiro' | 'usuario';
+  role: 'admin' | 'owner' | 'financeiro' | 'usuario';
   modules: string[];
   is_active: boolean;
+  auth_uid?: string | null;
 }
 
 interface UserFormProps {
@@ -19,72 +21,62 @@ interface UserFormProps {
 }
 
 const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
+  const { isOwner } = useAuth();
+  const moduleOptions = useMemo(
+    () => [
+      { value: 'usuarios', label: 'Usuarios' },
+      { value: 'acessos', label: 'Acessos' },
+      { value: 'pessoal', label: 'Senhas Pessoais' },
+      { value: 'teams', label: 'Contas Teams' },
+      { value: 'win_users', label: 'Usuarios Windows' },
+      { value: 'rateio_claro', label: 'Rateio Claro' },
+      { value: 'rateio_google', label: 'Rateio Google' },
+      { value: 'rateio_mkm', label: 'Rateio Fatura MKM' },
+      { value: 'contas_a_pagar', label: 'Contas a Pagar' },
+      { value: 'controle_empresas', label: 'Controle Empresas' },
+      { value: 'controle_uber', label: 'Controle Uber' },
+      { value: 'visitas_clinicas', label: 'Visitas as Clinicas' },
+      { value: 'pedidos_de_compra', label: 'Pedidos de Compra' },
+    ],
+    []
+  );
+  const allModules = useMemo(() => moduleOptions.map((option) => option.value), [moduleOptions]);
+
   const [formData, setFormData] = useState({
     email: '',
     name: '',
-    role: 'usuario' as 'admin' | 'financeiro' | 'usuario',
+    role: 'usuario' as 'admin' | 'owner' | 'financeiro' | 'usuario',
     is_active: true,
     password: '',
+    resetPassword: '',
+    modules: [] as string[],
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // Persistência de dados do formulário
+
   const persistenceKey = user ? `userForm_edit_${user.id}` : 'userForm_new';
-  
-  // Carregar dados persistidos
-  useEffect(() => {
-    const savedData = localStorage.getItem(persistenceKey);
-    if (savedData && savedData !== 'undefined') {
-      try {
-        const parsedData = JSON.parse(savedData);
-        // Só usar dados salvos se não estiver vazio
-        if (parsedData && Object.keys(parsedData).length > 0) {
-          setFormData(prev => ({ ...prev, ...parsedData }));
-        }
-        return;
-      } catch (error) {
-        console.error('Error loading saved form data:', error);
-      }
-    }
-    
-    // Só definir dados iniciais se não há dados salvos
-    setFormData(prev => {
-      if (user) {
-        return {
-          email: user.email || '',
-          name: user.name || '',
-          role: (normalizeRole(user.role) || 'usuario') as 'admin' | 'financeiro' | 'usuario',
-          is_active: user.is_active ?? true,
-          password: '', // Never pre-fill password for security
-        };
-      } else {
-        return {
-          email: '',
-          name: '',
-          role: 'usuario',
-          is_active: true,
-          password: '',
-        };
-      }
-    });
-    setError('');
-  }, [user?.id, persistenceKey]); // Usar user.id em vez de user completo
-  
-  // Salvar dados quando formData muda
-  useEffect(() => {
-    // Só salvar se formData não estiver vazio
-    if (formData.email || formData.name) {
-      localStorage.setItem(persistenceKey, JSON.stringify(formData));
-    }
-  }, [formData, persistenceKey]);
 
   const getModulesByRole = (role: string): string[] => {
     switch (normalizeRole(role)) {
+      case 'owner':
+        return allModules;
       case 'admin':
-        return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'contas_a_pagar', 'rateio_mkm'];
+        return [
+          'usuarios',
+          'acessos',
+          'pessoal',
+          'teams',
+          'win_users',
+          'rateio_claro',
+          'rateio_google',
+          'contas_a_pagar',
+          'rateio_mkm',
+          'controle_empresas',
+          'controle_uber',
+          'visitas_clinicas',
+        ];
       case 'financeiro':
-        return ['rateio_claro', 'rateio_google', 'rateio_mkm'];
+        return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas'];
       case 'usuario':
         return ['acessos', 'pessoal', 'teams', 'win_users'];
       default:
@@ -94,17 +86,129 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
   const roleLabels = {
     admin: 'Administrador',
+    owner: 'Owner',
     financeiro: 'Financeiro',
     usuario: 'Usuario',
   };
 
+  useEffect(() => {
+    const savedData = localStorage.getItem(persistenceKey);
+    if (savedData && savedData !== 'undefined') {
+      try {
+        const parsedData = JSON.parse(savedData);
+        if (parsedData && Object.keys(parsedData).length > 0) {
+          setFormData((prev) => ({ ...prev, ...parsedData }));
+        }
+        return;
+      } catch (err) {
+        console.error('Error loading saved form data:', err);
+      }
+    }
+
+    setFormData(() => {
+      if (user) {
+        const resolvedRole = (normalizeRole(user.role) || 'usuario') as
+          | 'admin'
+          | 'owner'
+          | 'financeiro'
+          | 'usuario';
+        return {
+          email: user.email || '',
+          name: user.name || '',
+          role: resolvedRole,
+          is_active: user.is_active ?? true,
+          password: '',
+          resetPassword: '',
+          modules: user.modules?.length ? user.modules : getModulesByRole(resolvedRole),
+        };
+      }
+
+      return {
+        email: '',
+        name: '',
+        role: 'usuario',
+        is_active: true,
+        password: '',
+        resetPassword: '',
+        modules: getModulesByRole('usuario'),
+      };
+    });
+    setError('');
+  }, [user?.id, persistenceKey]);
+
+  useEffect(() => {
+    if (formData.email || formData.name) {
+      localStorage.setItem(persistenceKey, JSON.stringify(formData));
+    }
+  }, [formData, persistenceKey]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
-      setFormData(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
+      return;
+    }
+    if (name === 'role') {
+      setFormData((prev) => ({
+        ...prev,
+        role: value as 'admin' | 'owner' | 'financeiro' | 'usuario',
+        modules: isOwner() ? getModulesByRole(value) : prev.modules,
+      }));
+      return;
+    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const toggleModule = (moduleKey: string) => {
+    setFormData((prev) => {
+      if (prev.modules.includes(moduleKey)) {
+        return { ...prev, modules: prev.modules.filter((module) => module !== moduleKey) };
+      }
+      return { ...prev, modules: [...prev.modules, moduleKey] };
+    });
+  };
+
+  const normalizeModules = (modules: string[]) => {
+    const unique = Array.from(new Set(modules));
+    return unique.sort();
+  };
+
+  const getAccessToken = async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    const token = data.session?.access_token;
+    if (!token) {
+      throw new Error('Sessao expirada. Fa�a login novamente.');
+    }
+    return token;
+  };
+
+  const updateUserAsOwner = async (payload: {
+    user_id: string;
+    email?: string;
+    name?: string;
+    role?: string;
+    modules?: string[];
+    is_active?: boolean;
+    password?: string;
+  }) => {
+    const token = await getAccessToken();
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/owner-update-user`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'apikey': `${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData?.error || 'Erro ao atualizar usuario.');
+    }
+    if (!responseData.success) {
+      throw new Error(responseData?.error || 'Falha ao atualizar usuario.');
     }
   };
 
@@ -114,25 +218,52 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     setError('');
 
     const normalizedRole = normalizeRole(formData.role);
+    const modulesToSave = isOwner()
+      ? normalizeModules(formData.modules)
+      : getModulesByRole(normalizedRole || 'usuario');
+    const existingRole = user ? normalizeRole(user.role) : '';
+    const roleToSend = normalizedRole && normalizedRole !== existingRole ? normalizedRole : undefined;
+
+    if (normalizedRole === 'owner' && !user) {
+      setError('Role owner deve ser definido apenas via banco.');
+      setLoading(false);
+      return;
+    }
+
+    if (roleToSend === 'owner' && existingRole !== 'owner') {
+      setError('Role owner deve ser definido apenas via banco.');
+      setLoading(false);
+      return;
+    }
 
     try {
       if (user) {
-        // For updates, use direct Supabase call to update public.users only
-        const { error } = await supabase
-          .from('users')
-          .update({
+        if (isOwner()) {
+          await updateUserAsOwner({
+            user_id: user.id,
             email: formData.email,
             name: formData.name,
-            role: normalizedRole || 'usuario',
-            modules: getModulesByRole(normalizedRole || 'usuario'),
+            role: roleToSend,
+            modules: modulesToSave,
             is_active: formData.is_active,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', user.id);
+            password: formData.resetPassword?.trim() || undefined,
+          });
+        } else {
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({
+              email: formData.email,
+              name: formData.name,
+              role: normalizedRole || 'usuario',
+              modules: getModulesByRole(normalizedRole || 'usuario'),
+              is_active: formData.is_active,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', user.id);
 
-        if (error) throw error;
+          if (updateError) throw updateError;
+        }
       } else {
-        // For new users, use the Edge Function
         if (!formData.password) {
           throw new Error('Password is required for new users');
         }
@@ -153,39 +284,47 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
         });
 
         const responseData = await response.json();
-        
+
         if (!response.ok) {
-          // Handle specific error cases
           if (response.status === 409) {
-            throw new Error('Usuário com este email já existe no sistema');
-          } else if (response.status === 400) {
-            throw new Error(responseData.error || 'Dados inválidos fornecidos');
-          } else {
-            const details = responseData?.details ? ` (${responseData.details})` : '';
-            throw new Error(`${responseData.error || 'Erro interno do servidor'}${details}`);
+            throw new Error('Usuario com este email ja existe no sistema');
           }
+          if (response.status === 400) {
+            throw new Error(responseData.error || 'Dados invalidos fornecidos');
+          }
+          const details = responseData?.details ? ` (${responseData.details})` : '';
+          throw new Error(`${responseData.error || 'Erro interno do servidor'}${details}`);
         }
-        
+
         if (!responseData.success) {
-          throw new Error(responseData.error || 'Falha ao criar usuário');
+          throw new Error(responseData.error || 'Falha ao criar usuario');
+        }
+
+        if (isOwner() && responseData?.user?.id) {
+          const defaultModules = normalizeModules(getModulesByRole(normalizedRole || 'usuario'));
+          if (JSON.stringify(modulesToSave) !== JSON.stringify(defaultModules)) {
+            await updateUserAsOwner({
+              user_id: responseData.user.id,
+              modules: modulesToSave,
+            });
+          }
         }
       }
 
-      // Limpar dados persistidos após sucesso
       localStorage.removeItem(persistenceKey);
       onSuccess();
     } catch (err: any) {
-      console.error('Erro ao salvar usuário:', err);
-      setError(err.message || 'Erro ao salvar usuário');
+      console.error('Erro ao salvar usuario:', err);
+      setError(err.message || 'Erro ao salvar usuario');
     } finally {
       setLoading(false);
     }
   };
 
   const currentModules = getModulesByRole(formData.role);
-  
+  const isEditingOwner = user ? normalizeRole(user.role) === 'owner' : false;
+
   const handleCancel = () => {
-    // Limpar dados persistidos ao cancelar
     localStorage.removeItem(persistenceKey);
     onCancel();
   };
@@ -195,7 +334,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">
-            {user ? 'Editar Usuário' : 'Novo Usuário'}
+            {user ? 'Editar Usuario' : 'Novo Usuario'}
           </h2>
           <button
             onClick={handleCancel}
@@ -237,8 +376,11 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
+                disabled={loading || (!!user && !isOwner())}
               />
+              {!!user && !isOwner() && (
+                <p className="text-xs text-neutral-500 mt-1">Apenas Owner pode editar o email.</p>
+              )}
             </div>
 
             {!user && (
@@ -253,25 +395,57 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
                   className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   disabled={loading}
                   minLength={6}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Minimo 6 caracteres"
                 />
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">Função *</label>
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                disabled={loading}
-              >
-                <option value="usuario">Usuário</option>
-                <option value="financeiro">Financeiro</option>
-                <option value="admin">Administrador</option>
-              </select>
-            </div>
+            {user && isOwner() && (
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Resetar Senha</label>
+                <input
+                  type="password"
+                  name="resetPassword"
+                  value={formData.resetPassword}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  disabled={loading}
+                  minLength={6}
+                  placeholder="Nova senha para o usuario"
+                />
+                <p className="text-xs text-neutral-500 mt-1">
+                  Informe apenas se quiser redefinir a senha.
+                </p>
+              </div>
+            )}
+
+            {isEditingOwner ? (
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Funcao *</label>
+                <input
+                  type="text"
+                  value="Owner (apenas via banco)"
+                  disabled
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg bg-neutral-50 text-neutral-500"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Funcao *</label>
+                <select
+                  name="role"
+                  value={formData.role}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  disabled={loading}
+                >
+                  <option value="usuario">Usuario</option>
+                  <option value="financeiro">Financeiro</option>
+                  <option value="admin">Administrador</option>
+                </select>
+                <p className="text-xs text-neutral-500 mt-1">Owner apenas via banco.</p>
+              </div>
+            )}
 
             <div className="flex items-center mt-2 md:mt-0">
               <input
@@ -282,25 +456,52 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
                 className="h-4 w-4 text-primary-600 border-neutral-300 rounded"
                 disabled={loading}
               />
-              <label className="ml-2 block text-sm text-neutral-700">Usuário ativo</label>
+              <label className="ml-2 block text-sm text-neutral-700">Usuario ativo</label>
             </div>
           </div>
 
           <div className="mt-6">
-            <h3 className="text-lg font-medium text-neutral-900 mb-2">
-              Módulos Permitidos para {roleLabels[formData.role]}
-            </h3>
-            <div className="bg-neutral-50 p-3 rounded-lg grid grid-cols-2 md:grid-cols-3 gap-2">
-              {currentModules.map(module => (
-                <div key={module} className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm text-neutral-700">{module}</span>
+            {isOwner() ? (
+              <>
+                <h3 className="text-lg font-medium text-neutral-900 mb-2">
+                  Modulos permitidos (personalizado)
+                </h3>
+                <div className="bg-neutral-50 p-3 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {moduleOptions.map((module) => (
+                    <label key={module.value} className="flex items-center space-x-2 text-sm text-neutral-700">
+                      <input
+                        type="checkbox"
+                        checked={formData.modules.includes(module.value)}
+                        onChange={() => toggleModule(module.value)}
+                        className="h-4 w-4 text-primary-600 border-neutral-300 rounded"
+                        disabled={loading}
+                      />
+                      <span>{module.label}</span>
+                    </label>
+                  ))}
                 </div>
-              ))}
-              {currentModules.length === 0 && (
-                <p className="text-sm text-neutral-500">Nenhum módulo permitido.</p>
-              )}
-            </div>
+                <p className="text-xs text-neutral-500 mt-2">
+                  Owner pode definir os modulos independente da funcao.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-medium text-neutral-900 mb-2">
+                  Modulos Permitidos para {roleLabels[formData.role]}
+                </h3>
+                <div className="bg-neutral-50 p-3 rounded-lg grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {currentModules.map((module) => (
+                    <div key={module} className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm text-neutral-700">{module}</span>
+                    </div>
+                  ))}
+                  {currentModules.length === 0 && (
+                    <p className="text-sm text-neutral-500">Nenhum modulo permitido.</p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-neutral-200">

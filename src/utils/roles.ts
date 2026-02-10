@@ -7,6 +7,7 @@ export const normalizeRole = (role?: string | null) => {
     .replace(/[\u0300-\u036f]/g, '');
   if (value === 'administrador') return 'admin';
   if (value === 'admin') return 'admin';
+  if (value === 'owner') return 'owner';
   if (value === 'financeiro') return 'financeiro';
   if (value === 'usuario') return 'usuario';
   return value;
@@ -15,6 +16,7 @@ export const normalizeRole = (role?: string | null) => {
 export const getRoleLabel = (role?: string | null) => {
   const normalized = normalizeRole(role);
   if (normalized === 'admin') return 'Administrador';
+  if (normalized === 'owner') return 'Owner';
   if (normalized === 'financeiro') return 'Financeiro';
   if (normalized === 'usuario') return 'Usuario';
   return role ? role.toString() : '';
