@@ -1,11 +1,28 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-<<<<<<< HEAD
-import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart, ChevronDown, Building2, Car, Calendar } from 'lucide-react';
-=======
-import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart, ChevronDown, Calendar } from 'lucide-react';
->>>>>>> 5367ea213892bbfb5653047b0660e7941be3bf27
+import {
+  LogOut,
+  Network,
+  Users,
+  BarChart3,
+  Key,
+  UserCheck,
+  Monitor,
+  Phone,
+  Menu,
+  Moon,
+  Sun,
+  Lock,
+  Mail,
+  Settings,
+  FileText,
+  ShoppingCart,
+  ChevronDown,
+  Building2,
+  Car,
+  Calendar,
+} from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { normalizeRole, getRoleLabel } from '../utils/roles';
@@ -33,7 +50,7 @@ interface NavSection {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { userProfile, signOut, hasModuleAccess, isUsuario } = useAuth();
+  const { userProfile, signOut, hasModuleAccess, isUsuario, isAdmin } = useAuth();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [extendedProfile, setExtendedProfile] = useState<UserProfileExtended | null>(null);
@@ -41,11 +58,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navRef = React.useRef<HTMLElement | null>(null);
   const sectionPaths = {
     acessos: ['/pessoal', '/acessos', '/teams', '/win-users'],
-<<<<<<< HEAD
-    financeiro: ['/rateio-claro', '/rateio-google', '/rateio-mkm', '/contas-a-pagar', '/pedidos-de-compra', '/controle-empresas', '/controle-uber', '/visitas-clinicas'],
-=======
-    financeiro: ['/rateio-claro', '/rateio-google', '/rateio-mkm', '/visitas-clinicas', '/contas-a-pagar', '/pedidos-de-compra'],
->>>>>>> 5367ea213892bbfb5653047b0660e7941be3bf27
+    financeiro: [
+      '/rateio-claro',
+      '/rateio-google',
+      '/rateio-mkm',
+      '/contas-a-pagar',
+      '/pedidos-de-compra',
+      '/controle-empresas',
+      '/controle-uber',
+      '/visitas-clinicas',
+    ],
     configuracoes: ['/configuracoes', '/usuarios'],
   };
   const [openSections, setOpenSections] = useState<Record<NavSection['key'], boolean>>(() => ({
@@ -152,23 +174,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (hasModuleAccess('rateio_mkm')) {
       financeiroItems.push({ name: 'Rateio Fatura MKM', href: '/rateio-mkm', icon: FileText });
     }
-<<<<<<< HEAD
     if (hasModuleAccess('controle_empresas')) {
       financeiroItems.push({ name: 'Controle Empresas', href: '/controle-empresas', icon: Building2 });
     }
-    if (isAdmin()) {
+    if (hasModuleAccess('controle_uber') || isAdmin()) {
       financeiroItems.push({ name: 'Controle Uber', href: '/controle-uber', icon: Car });
     }
-    if (isAdmin() || hasModuleAccess('visitas_clinicas')) {
-      financeiroItems.push({ name: 'Visitas as Clinicas', href: '/visitas-clinicas', icon: Calendar });
-    }
-    if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
-=======
     if (hasModuleAccess('visitas_clinicas')) {
       financeiroItems.push({ name: 'Visitas as Clinicas', href: '/visitas-clinicas', icon: Calendar });
     }
     if (hasModuleAccess('contas_a_pagar')) {
->>>>>>> 5367ea213892bbfb5653047b0660e7941be3bf27
       financeiroItems.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText });
     }
     if (hasModuleAccess('pedidos_de_compra')) {

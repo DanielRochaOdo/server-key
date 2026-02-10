@@ -61,9 +61,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       case 'owner':
         return allModules;
       case 'admin':
-<<<<<<< HEAD
-        return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'contas_a_pagar', 'rateio_mkm', 'controle_empresas', 'controle_uber', 'visitas_clinicas'];
-=======
         return [
           'usuarios',
           'acessos',
@@ -78,7 +75,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           'controle_uber',
           'visitas_clinicas',
         ];
->>>>>>> 5367ea213892bbfb5653047b0660e7941be3bf27
       case 'financeiro':
         return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas'];
       case 'usuario':
