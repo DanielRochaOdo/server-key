@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart, ChevronDown } from 'lucide-react';
+import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart, ChevronDown, Building2 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { normalizeRole, getRoleLabel } from '../utils/roles';
@@ -37,7 +37,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navRef = React.useRef<HTMLElement | null>(null);
   const sectionPaths = {
     acessos: ['/pessoal', '/acessos', '/teams', '/win-users'],
-    financeiro: ['/rateio-claro', '/rateio-google', '/rateio-mkm', '/contas-a-pagar', '/pedidos-de-compra'],
+    financeiro: ['/rateio-claro', '/rateio-google', '/rateio-mkm', '/contas-a-pagar', '/pedidos-de-compra', '/controle-empresas'],
     configuracoes: ['/configuracoes', '/usuarios'],
   };
   const [openSections, setOpenSections] = useState<Record<NavSection['key'], boolean>>(() => ({
@@ -143,6 +143,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
     if (isAdmin() || hasModuleAccess('rateio_mkm')) {
       financeiroItems.push({ name: 'Rateio Fatura MKM', href: '/rateio-mkm', icon: FileText });
+    }
+    if (hasModuleAccess('controle_empresas')) {
+      financeiroItems.push({ name: 'Controle Empresas', href: '/controle-empresas', icon: Building2 });
     }
     if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
       financeiroItems.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText });
