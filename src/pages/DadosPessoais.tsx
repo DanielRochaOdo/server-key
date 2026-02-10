@@ -163,6 +163,7 @@ const DadosPessoais: React.FC = () => {
     const normalized = normalizeRole(role);
     const badges = {
       admin: { label: 'Administrador', color: 'bg-red-100 text-red-800' },
+      owner: { label: 'Owner', color: 'bg-amber-100 text-amber-800' },
       financeiro: { label: 'Financeiro', color: 'bg-blue-100 text-blue-800' },
       usuario: { label: 'Usuario', color: 'bg-green-100 text-green-800' },
     };

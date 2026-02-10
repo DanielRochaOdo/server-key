@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Pencil, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Loader2, RefreshCcw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import UserForm from '../components/UserForm';
 import { usePersistence } from '../contexts/PersistenceContext';
@@ -9,9 +9,10 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'financeiro' | 'usuario';
+  role: 'admin' | 'owner' | 'financeiro' | 'usuario';
   is_active: boolean;
   modules: string[]; // ajustado para módulos como string[]
+  auth_uid?: string | null;
 }
 
 const Usuarios: React.FC = () => {
@@ -21,6 +22,8 @@ const Usuarios: React.FC = () => {
   
   const [showForm, setShowForm] = useState(() => getState('usuarios_showForm') || false);
   const [selectedUser, setSelectedUser] = useState<User | null>(() => getState('usuarios_selectedUser') || null);
+  const [repairing, setRepairing] = useState(false);
+  const [repairStatus, setRepairStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -74,6 +77,41 @@ const Usuarios: React.FC = () => {
     clearState('usuarios_showForm');
     clearState('usuarios_selectedUser');
   };
+
+  const handleRepairUsers = async () => {
+    setRepairing(true);
+    setRepairStatus(null);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/repair-users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({}),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData?.error || 'Erro ao reparar usuários');
+      }
+
+      const stats = responseData?.stats;
+      const message = stats
+        ? `Reparo concluído: ${stats.scanned} verificados, ${stats.linked} vinculados, ${stats.created} criados, ${stats.updated} atualizados, ${stats.skipped} ignorados, ${stats.errors} erros.`
+        : 'Reparo concluído.';
+
+      setRepairStatus({ type: 'success', message });
+      await fetchUsers();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao reparar usuários';
+      setRepairStatus({ type: 'error', message });
+    } finally {
+      setRepairing(false);
+    }
+  };
   return (
     <div className="space-y-6 sm:space-y-8">
       <div>
@@ -82,7 +120,19 @@ const Usuarios: React.FC = () => {
             <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Usuários</h1>
             <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de usuários do sistema</p>
           </div>
-          <div className="flex">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleRepairUsers}
+              disabled={repairing || loading}
+              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-neutral-300 text-xs sm:text-sm font-medium rounded-lg text-neutral-700 bg-white hover:bg-neutral-50 transition-colors disabled:opacity-60"
+            >
+              {repairing ? (
+                <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+              ) : (
+                <RefreshCcw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              )}
+              {repairing ? 'Reparando...' : 'Reparar usuários'}
+            </button>
             <button
               onClick={handleNew}
               className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover transition-colors"
@@ -92,6 +142,18 @@ const Usuarios: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {repairStatus && (
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            repairStatus.type === 'success'
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}
+        >
+          {repairStatus.message}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center min-h-64">

@@ -129,6 +129,11 @@ Deno.serve(async (req) => {
       autoRefreshToken: false,
       persistSession: false,
     },
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
   });
 
   console.log("send-protocolo-email: validating user");

@@ -162,16 +162,27 @@ const resolveCreatedBy = (id: string | null | undefined, map: Record<string, str
 const Dashboard: React.FC = () => {
   const [modules, setModules] = useState<ModuleSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user, userProfile, hasModuleAccess, isAdmin, isUsuario } = useAuth();
+  const { user, userProfile, hasModuleAccess } = useAuth();
 
   useEffect(() => {
     if (!user || !userProfile) return;
     fetchDashboardData();
   }, [user, userProfile]);
 
-  const canViewModule = (module: string) => {
-    if (isAdmin()) return true;
-    return hasModuleAccess(module);
+  const MODULE_ACCESS_MAP: Record<ModuleKey, string> = {
+    pessoal: 'pessoal',
+    acessos: 'acessos',
+    teams: 'teams',
+    win_users: 'win_users',
+    rateio_claro: 'rateio_claro',
+    rateio_google: 'rateio_google',
+    contas_a_pagar: 'contas_a_pagar',
+    pc_protocolos: 'pedidos_de_compra',
+    pc_mensal: 'pedidos_de_compra',
+  };
+
+  const canViewModule = (module: ModuleKey) => {
+    return hasModuleAccess(MODULE_ACCESS_MAP[module]);
   };
 
   const fetchUsersMap = async (ids: string[]) => {
@@ -335,7 +346,7 @@ const Dashboard: React.FC = () => {
         );
       }
 
-      if (isAdmin() && canViewModule('contas_a_pagar')) {
+      if (canViewModule('contas_a_pagar')) {
         tasks.push(
           fetchModule({
             key: 'contas_a_pagar',
@@ -353,7 +364,7 @@ const Dashboard: React.FC = () => {
         );
       }
 
-      if (!isUsuario()) {
+      if (canViewModule('pc_protocolos')) {
         tasks.push(
           fetchModule({
             key: 'pc_protocolos',

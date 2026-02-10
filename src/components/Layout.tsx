@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+<<<<<<< HEAD
 import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart, ChevronDown, Building2, Car, Calendar } from 'lucide-react';
+=======
+import { LogOut, Network, Users, BarChart3, Key, UserCheck, Monitor, Phone, Menu, Moon, Sun, Lock, Mail, Settings, FileText, ShoppingCart, ChevronDown, Calendar } from 'lucide-react';
+>>>>>>> 5367ea213892bbfb5653047b0660e7941be3bf27
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { normalizeRole, getRoleLabel } from '../utils/roles';
@@ -29,7 +33,7 @@ interface NavSection {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { userProfile, signOut, hasModuleAccess, isAdmin, isUsuario } = useAuth();
+  const { userProfile, signOut, hasModuleAccess, isUsuario } = useAuth();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [extendedProfile, setExtendedProfile] = useState<UserProfileExtended | null>(null);
@@ -37,7 +41,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navRef = React.useRef<HTMLElement | null>(null);
   const sectionPaths = {
     acessos: ['/pessoal', '/acessos', '/teams', '/win-users'],
+<<<<<<< HEAD
     financeiro: ['/rateio-claro', '/rateio-google', '/rateio-mkm', '/contas-a-pagar', '/pedidos-de-compra', '/controle-empresas', '/controle-uber', '/visitas-clinicas'],
+=======
+    financeiro: ['/rateio-claro', '/rateio-google', '/rateio-mkm', '/visitas-clinicas', '/contas-a-pagar', '/pedidos-de-compra'],
+>>>>>>> 5367ea213892bbfb5653047b0660e7941be3bf27
     configuracoes: ['/configuracoes', '/usuarios'],
   };
   const [openSections, setOpenSections] = useState<Record<NavSection['key'], boolean>>(() => ({
@@ -124,13 +132,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (hasModuleAccess('pessoal')) {
       acessosItems.push({ name: 'Senhas Pessoais', href: '/pessoal', icon: Lock });
     }
-    if (hasModuleAccess('acessos') && !isUsuario()) {
+    if (hasModuleAccess('acessos')) {
       acessosItems.push({ name: 'Acessos', href: '/acessos', icon: Key });
     }
-    if (hasModuleAccess('teams') && !isUsuario()) {
+    if (hasModuleAccess('teams')) {
       acessosItems.push({ name: 'Contas Teams', href: '/teams', icon: UserCheck });
     }
-    if (hasModuleAccess('win_users') && !isUsuario()) {
+    if (hasModuleAccess('win_users')) {
       acessosItems.push({ name: 'Usuários Windows', href: '/win-users', icon: Monitor });
     }
 
@@ -141,9 +149,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (hasModuleAccess('rateio_google')) {
       financeiroItems.push({ name: 'Rateio Google', href: '/rateio-google', icon: Mail });
     }
-    if (isAdmin() || hasModuleAccess('rateio_mkm')) {
+    if (hasModuleAccess('rateio_mkm')) {
       financeiroItems.push({ name: 'Rateio Fatura MKM', href: '/rateio-mkm', icon: FileText });
     }
+<<<<<<< HEAD
     if (hasModuleAccess('controle_empresas')) {
       financeiroItems.push({ name: 'Controle Empresas', href: '/controle-empresas', icon: Building2 });
     }
@@ -154,15 +163,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       financeiroItems.push({ name: 'Visitas as Clinicas', href: '/visitas-clinicas', icon: Calendar });
     }
     if (isAdmin() && hasModuleAccess('contas_a_pagar')) {
+=======
+    if (hasModuleAccess('visitas_clinicas')) {
+      financeiroItems.push({ name: 'Visitas as Clinicas', href: '/visitas-clinicas', icon: Calendar });
+    }
+    if (hasModuleAccess('contas_a_pagar')) {
+>>>>>>> 5367ea213892bbfb5653047b0660e7941be3bf27
       financeiroItems.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText });
     }
-    if (!isUsuario()) {
+    if (hasModuleAccess('pedidos_de_compra')) {
       financeiroItems.push({ name: 'Pedidos de Compra', href: '/pedidos-de-compra', icon: ShoppingCart });
     }
 
     const configuracoesItems: NavItem[] = [];
     configuracoesItems.push({ name: 'Configurações', href: '/configuracoes', icon: Settings });
-    if (isAdmin()) {
+    if (hasModuleAccess('usuarios')) {
       configuracoesItems.push({ name: 'Usuários', href: '/usuarios', icon: Users });
     }
 
@@ -179,6 +194,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const normalized = normalizeRole(role);
     const badges = {
       admin: { label: 'Administrador', color: 'bg-red-100 text-red-800' },
+      owner: { label: 'Owner', color: 'bg-amber-100 text-amber-800' },
       financeiro: { label: 'Financeiro', color: 'bg-blue-100 text-blue-800' },
       usuario: { label: 'Usuario', color: 'bg-green-100 text-green-800' },
     };
