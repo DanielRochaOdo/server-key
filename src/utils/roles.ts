@@ -2,6 +2,7 @@ export const normalizeRole = (role?: string | null) => {
   if (!role) return '';
   const value = role
     .toString()
+    .trim()
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');

@@ -46,7 +46,7 @@ function App() {
               <Route
                 path="/usuarios"
                 element={
-                  <ProtectedRoute adminOnly={true}>
+                  <ProtectedRoute requiredModule="usuarios">
                     <Usuarios />
                   </ProtectedRoute>
                 }
@@ -100,7 +100,7 @@ function App() {
               <Route
                 path="/contas-a-pagar"
                 element={
-                  <ProtectedRoute requiredModule="contas_a_pagar" adminOnly={true}>
+                  <ProtectedRoute requiredModule="contas_a_pagar">
                     <ContasAPagar />
                   </ProtectedRoute>
                 }
@@ -141,7 +141,7 @@ function App() {
               <Route
                 path="/pedidos-de-compra"
                 element={
-                  <ProtectedRoute requiredModule="pedidos_de_compra" adminOnly={true}>
+                  <ProtectedRoute requiredModule="pedidos_de_compra">
                     <PedidosDeCompra />
                   </ProtectedRoute>
                 }

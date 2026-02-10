@@ -8,6 +8,7 @@ const corsHeaders = {
 
 const normalizeRole = (role: string) => {
   const value = (role || '')
+    .trim()
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
