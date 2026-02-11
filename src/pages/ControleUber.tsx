@@ -27,6 +27,7 @@ type FormRow = {
 };
 
 const LOCATIONS = ['Administracao', 'Parangaba', 'Bezerra', 'Aguanambi'];
+const LOCATION_FILTERS = ['Bezerra', 'Parangaba', 'Aguanambi'];
 const TIPOS = ['carro', 'moto'];
 const PESSOAS = ['Flash', 'Vinicius', 'Daniel', 'Ryan', 'Cezar'];
 
@@ -148,6 +149,9 @@ const isRowEmpty = (row: FormRow) => {
   return values.every((value) => !String(value || '').trim());
 };
 
+const matchesLocation = (row: ControleUberRow, location: string) =>
+  row.saida_local === location || row.destino === location;
+
 const ControleUber: React.FC = () => {
   const { user, isAdmin } = useAuth();
   const [competencias, setCompetencias] = useState<string[]>([]);
@@ -162,6 +166,7 @@ const ControleUber: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const [locationFilter, setLocationFilter] = useState<string | null>(null);
 
   const loadInitialData = useCallback(async () => {
     try {
@@ -323,7 +328,6 @@ const ControleUber: React.FC = () => {
     }
   };
 
-  const hasData = rows.length > 0;
   const competenciaOptions = useMemo(() => {
     return competencias.map((competencia) => ({
       value: competencia,
@@ -331,12 +335,31 @@ const ControleUber: React.FC = () => {
     }));
   }, [competencias]);
 
+  const filteredRows = useMemo(() => {
+    if (!locationFilter) return rows;
+    return rows.filter((row) => matchesLocation(row, locationFilter));
+  }, [locationFilter, rows]);
+
+  const hasData = filteredRows.length > 0;
+
   const totalMes = useMemo(() => {
-    return rows.reduce((acc, row) => {
+    return filteredRows.reduce((acc, row) => {
       const saida = Number(row.valor_saida || 0);
       const retorno = Number(row.valor_retorno || 0);
       return acc + saida + retorno;
     }, 0);
+  }, [filteredRows]);
+
+  const locationTotals = useMemo(() => {
+    return LOCATION_FILTERS.map((location) => {
+      const total = rows.reduce((acc, row) => {
+        if (!matchesLocation(row, location)) return acc;
+        const saida = Number(row.valor_saida || 0);
+        const retorno = Number(row.valor_retorno || 0);
+        return acc + saida + retorno;
+      }, 0);
+      return { location, total };
+    });
   }, [rows]);
 
   if (loading) {
@@ -363,11 +386,11 @@ const ControleUber: React.FC = () => {
               className="w-full sm:w-48 pl-9 pr-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               {competenciaOptions.length === 0 && (
-                <option value="">Nenhuma competencia</option>
+                <option value="">NENHUMA COMPETENCIA</option>
               )}
               {competenciaOptions.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {option.label.toUpperCase()}
                 </option>
               ))}
             </select>
@@ -395,13 +418,41 @@ const ControleUber: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+        <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {locationTotals.map((item) => {
+            const isActive = locationFilter === item.location;
+            return (
+              <button
+                key={item.location}
+                type="button"
+                onClick={() => setLocationFilter(isActive ? null : item.location)}
+                className={`rounded-lg border px-4 py-3 text-left transition-colors ${
+                  isActive
+                    ? 'border-primary-500 bg-primary-50 text-primary-700'
+                    : 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide">
+                  {item.location.toUpperCase()}
+                </div>
+                <div className="mt-1 text-sm font-semibold">{formatCurrency(item.total)}</div>
+                <div className="text-[11px] text-neutral-500">Saída + Retorno</div>
+              </button>
+            );
+          })}
+        </div>
+
         {rowsLoading ? (
           <div className="flex items-center justify-center min-h-48">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
         ) : !hasData ? (
           <div className="text-center py-12">
-            <p className="text-sm text-neutral-500">Nenhum registro encontrado para esta competencia.</p>
+            <p className="text-sm text-neutral-500">
+              {locationFilter
+                ? 'Nenhum registro encontrado para este filtro.'
+                : 'Nenhum registro encontrado para esta competencia.'}
+            </p>
             {isAdmin() && (
               <button
                 onClick={() => openForm('create')}
@@ -432,7 +483,7 @@ const ControleUber: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {filteredRows.map((row) => (
                   <tr key={row.id} className="border-b border-neutral-100 last:border-b-0">
                     <td className="py-2 pr-4">{formatDate(row.data)}</td>
                     <td className="py-2 pr-4">{row.saida_hora || '-'}</td>
@@ -593,10 +644,10 @@ const ControleUber: React.FC = () => {
                             className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
-                            <option value="">Selecionar</option>
+                            <option value="">SELECIONAR</option>
                             {LOCATIONS.map((local) => (
                               <option key={local} value={local}>
-                                {local}
+                                {local.toUpperCase()}
                               </option>
                             ))}
                           </select>
@@ -608,10 +659,10 @@ const ControleUber: React.FC = () => {
                             className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
-                            <option value="">Selecionar</option>
+                            <option value="">SELECIONAR</option>
                             {LOCATIONS.map((local) => (
                               <option key={local} value={local}>
-                                {local}
+                                {local.toUpperCase()}
                               </option>
                             ))}
                           </select>
@@ -623,10 +674,10 @@ const ControleUber: React.FC = () => {
                             className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
-                            <option value="">Selecionar</option>
+                            <option value="">SELECIONAR</option>
                             {TIPOS.map((tipo) => (
                               <option key={tipo} value={tipo}>
-                                {tipo}
+                                {tipo.toUpperCase()}
                               </option>
                             ))}
                           </select>
@@ -638,10 +689,10 @@ const ControleUber: React.FC = () => {
                             className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
-                            <option value="">Selecionar</option>
+                            <option value="">SELECIONAR</option>
                             {PESSOAS.map((pessoa) => (
                               <option key={pessoa} value={pessoa}>
-                                {pessoa}
+                                {pessoa.toUpperCase()}
                               </option>
                             ))}
                           </select>
@@ -653,10 +704,10 @@ const ControleUber: React.FC = () => {
                             className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
-                            <option value="">Selecionar</option>
+                            <option value="">SELECIONAR</option>
                             {PESSOAS.map((pessoa) => (
                               <option key={pessoa} value={pessoa}>
-                                {pessoa}
+                                {pessoa.toUpperCase()}
                               </option>
                             ))}
                           </select>
@@ -668,10 +719,10 @@ const ControleUber: React.FC = () => {
                             className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
-                            <option value="">Selecionar</option>
+                            <option value="">SELECIONAR</option>
                             {PESSOAS.map((pessoa) => (
                               <option key={pessoa} value={pessoa}>
-                                {pessoa}
+                                {pessoa.toUpperCase()}
                               </option>
                             ))}
                           </select>

@@ -50,7 +50,7 @@ const MONTHS = [
 ];
 
 const CLINICAS = ['Parangaba', 'Bezerra', 'Aguanambi'];
-const PESSOAS = ['Flash', 'Vinicius', 'Daniel', 'Ryan', 'Cezar'];
+const PESSOAS = ['Vinicius', 'Daniel', 'Ryan', 'Cezar'];
 const STATUS_OPTIONS: Array<{ value: VisitStatus; label: string; color: string }> = [
   {
     value: 'concluido',
