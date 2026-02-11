@@ -1113,6 +1113,17 @@ const ContasAPagar: React.FC = () => {
     }).format(numericValue);
   };
 
+  const parseValorNumber = (value: string | number | null) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return value;
+    const cleaned = value.toString().replace(/[^\d,.-]/g, '');
+    if (!cleaned) return null;
+    const hasComma = cleaned.includes(',');
+    const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+    const numeric = Number(normalized);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
   const getNotaFiscalSource = (conta: ContaAPagar) => {
     const value = decodeLatin1IfNeeded(conta.observacoes)?.trim();
     return value && value !== '' ? value : '*';
@@ -1137,6 +1148,7 @@ const ContasAPagar: React.FC = () => {
     const pendenteCount = contas.filter((conta) => conta.status_documento === 'Emitido pendente assinatura').length;
     const enviadoCount = contas.filter((conta) => conta.status_documento === 'Enviado financeiro').length;
     const proximosCount = nextWeekEntries.length;
+    const totalValor = contas.reduce((acc, conta) => acc + (parseValorNumber(conta.valor) ?? 0), 0);
 
     return [
       {
@@ -1147,6 +1159,14 @@ const ContasAPagar: React.FC = () => {
         bgColor: 'bg-primary-100',
         description: `${totalCount} conta${totalCount !== 1 ? 's' : ''} cadastrada${totalCount !== 1 ? 's' : ''}`,
         onClick: () => updateStatusFilter(null),
+      },
+      {
+        title: 'Valor total',
+        value: formatCurrency(totalValor),
+        icon: FileText,
+        color: 'text-emerald-600',
+        bgColor: 'bg-emerald-100',
+        description: 'Soma de todas as contas',
       },
       {
         title: 'Nao emitido',
