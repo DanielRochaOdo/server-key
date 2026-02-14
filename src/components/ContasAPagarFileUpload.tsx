@@ -264,8 +264,8 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">Importar Contas a Pagar</h2>
           <button onClick={handleCancel} className="text-neutral-400 hover:text-neutral-600">
@@ -275,7 +275,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
 
         <div className="p-6">
           {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4 flex items-center space-x-2">
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center space-x-2">
               <AlertCircle className="h-5 w-5 text-red-500" />
               <span className="text-sm text-red-700">{error}</span>
             </div>
@@ -283,7 +283,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
 
           {!showPreview ? (
             <div>
-              <div className="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center">
+              <div className="border-2 border-dashed border-neutral-300 rounded-2xl bg-neutral-50 p-8 text-center">
                 <Upload className="mx-auto h-12 w-12 text-neutral-400" />
                 <div className="mt-4">
                   <label htmlFor="file-upload" className="cursor-pointer">
@@ -314,7 +314,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
                   <button
                     onClick={parseFile}
                     disabled={loading}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50"
                   >
                     {loading ? 'Processando...' : 'Visualizar'}
                   </button>
@@ -328,27 +328,27 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
                 <span className="text-sm">{preview.length} registros prontos para importacao</span>
               </div>
 
-              <div className="overflow-x-auto mb-4">
-                <table className="min-w-full divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
-                  <thead className="bg-neutral-50">
+              <div className="overflow-x-hidden mb-4">
+                <table className="w-full table-fixed divide-y divide-neutral-200 border border-neutral-200 rounded-xl text-xs sm:text-sm lg:text-base uppercase">
+                  <thead className="bg-neutral-50 text-[11px] sm:text-xs lg:text-sm uppercase tracking-wide text-neutral-500">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Status do Documento</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Pagamento</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Fornecedor</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Descricao</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Valor</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Vencimento</th>
+                      <th className="px-4 py-2 lg:px-5 lg:py-3 text-left font-semibold break-words whitespace-normal leading-tight">Status do Documento</th>
+                      <th className="px-4 py-2 lg:px-5 lg:py-3 text-left font-semibold break-words whitespace-normal leading-tight">Pagamento</th>
+                      <th className="px-4 py-2 lg:px-5 lg:py-3 text-left font-semibold break-words whitespace-normal leading-tight">Fornecedor</th>
+                      <th className="px-4 py-2 lg:px-5 lg:py-3 text-left font-semibold break-words whitespace-normal leading-tight">Descricao</th>
+                      <th className="px-4 py-2 lg:px-5 lg:py-3 text-left font-semibold break-words whitespace-normal leading-tight">Valor</th>
+                      <th className="px-4 py-2 lg:px-5 lg:py-3 text-left font-semibold break-words whitespace-normal leading-tight">Vencimento</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-neutral-200">
                     {preview.map((row, index) => (
                       <tr key={index}>
-                        <td className="px-4 py-2 text-sm text-neutral-900">{row.status_documento || '-'}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.tipo_pagto || 'BOLETO'}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.fornecedor || '-'}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.descricao || '-'}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.valor || '-'}</td>
-                        <td className="px-4 py-2 text-sm text-neutral-600">{row.vencimento ?? '-'}</td>
+                        <td className="px-4 py-2 lg:px-5 lg:py-3 text-xs sm:text-sm lg:text-base text-neutral-900 break-words whitespace-normal">{row.status_documento || '-'}</td>
+                        <td className="px-4 py-2 lg:px-5 lg:py-3 text-xs sm:text-sm lg:text-base text-neutral-600 break-words whitespace-normal">{row.tipo_pagto || 'BOLETO'}</td>
+                        <td className="px-4 py-2 lg:px-5 lg:py-3 text-xs sm:text-sm lg:text-base text-neutral-600 break-words whitespace-normal">{row.fornecedor || '-'}</td>
+                        <td className="px-4 py-2 lg:px-5 lg:py-3 text-xs sm:text-sm lg:text-base text-neutral-600 break-words whitespace-normal">{row.descricao || '-'}</td>
+                        <td className="px-4 py-2 lg:px-5 lg:py-3 text-xs sm:text-sm lg:text-base text-neutral-600 break-words whitespace-normal">{row.valor || '-'}</td>
+                        <td className="px-4 py-2 lg:px-5 lg:py-3 text-xs sm:text-sm lg:text-base text-neutral-600 break-words whitespace-normal">{row.vencimento ?? '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -358,14 +358,14 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50"
+                  className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-xl hover:bg-neutral-50"
                 >
                   Voltar
                 </button>
                 <button
                   onClick={handleImport}
                   disabled={loading}
-                  className="px-4 py-2 bg-button text-white rounded-lg hover:bg-button-hover disabled:opacity-50"
+                  className="px-4 py-2 bg-button text-white rounded-xl hover:bg-button-hover disabled:opacity-50"
                 >
                   {loading ? 'Importando...' : `Importar ${preview.length} registros`}
                 </button>
