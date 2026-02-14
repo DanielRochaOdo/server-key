@@ -5,6 +5,7 @@ import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx-js-style/dist/xlsx.bundle.js';
 
@@ -295,6 +296,16 @@ const createId = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
+const isUuid = (value: string | undefined | null) => {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+};
+
+const ensureUuid = (value?: string | null) => {
+  if (isUuid(value)) return value!;
+  return createId();
+};
+
 const normalizeLoteNome = (value: string) => {
   return value.replace(/\s*\(resumido\)\s*$/i, '').trim();
 };
@@ -310,6 +321,18 @@ const getMonthKey = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   return `${year}-${month}`;
+};
+
+const normalizeDateInput = (value?: string | null) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
 };
 
 const loadLotes = (): LoteRegistro[] => {
@@ -358,9 +381,11 @@ const loadLotes = (): LoteRegistro[] => {
             : 0;
         const criadoEm = typeof item.criado_em === 'string' ? item.criado_em : new Date().toISOString();
         const isLegacy = 'tipo' in item && !('resumido' in item) && !('detalhado' in item) && !('resumidoRows' in item) && !('detalhadoRows' in item);
+        const rawId = typeof item.id === 'string' ? item.id : undefined;
+        const normalizedId = isUuid(rawId) ? rawId : createId();
         const key = isLegacy
           ? `${nome}::${origem}::${total}`
-          : (typeof item.id === 'string' ? item.id : createId());
+          : normalizedId;
 
         const resumidoRows = Array.isArray(item.resumidoRows)
           ? item.resumidoRows
@@ -431,7 +456,7 @@ const loadLotes = (): LoteRegistro[] => {
 
         const existing = map.get(key);
         const merged: LoteRegistro = existing ?? {
-          id: typeof item.id === 'string' ? item.id : createId(),
+          id: normalizedId,
           nome,
           total,
           origem,
@@ -513,6 +538,7 @@ const loadExportModalState = (): ExportModalState => {
 const ContasAPagar: React.FC = () => {
   const [contas, setContas] = useState<ContaAPagar[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
   const { getState, setState, clearState } = usePersistence();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => getState('contasAPagar_activeTab') || 'fixa');
@@ -553,6 +579,7 @@ const ContasAPagar: React.FC = () => {
   const [consolidateSelection, setConsolidateSelection] = useState<Set<string>>(new Set());
   const [consolidateError, setConsolidateError] = useState<string | null>(null);
   const [lotes, setLotes] = useState<LoteRegistro[]>(() => loadLotes());
+  const [lotesLoaded, setLotesLoaded] = useState(false);
   const [loteNome, setLoteNome] = useState('');
   const [loteNomeError, setLoteNomeError] = useState<string | null>(null);
   const [currentLoteId, setCurrentLoteId] = useState<string | null>(null);
@@ -609,6 +636,10 @@ const ContasAPagar: React.FC = () => {
       console.error('Erro ao salvar destinatarios de e-mail:', error);
     }
   }, [emailRecipients]);
+
+  useEffect(() => {
+    setLotesLoaded(false);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!toast) return;
@@ -702,9 +733,34 @@ const ContasAPagar: React.FC = () => {
     }).format(numeric);
   };
 
+  const parseValorToNumber = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    const cleaned = value.toString().replace(/[^\d,.-]/g, '');
+    if (!cleaned) return null;
+    const hasComma = cleaned.includes(',');
+    const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+    const numeric = Number(normalized);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
   const normalizeContaTipo = useCallback((value?: ContaTipo | null) => {
     if (value === 'avulsa') return 'avulsa';
     if (value === 'ressarcimento') return 'ressarcimento';
+    return 'fixa';
+  }, []);
+
+  const normalizeContaTipoOptional = useCallback((value?: string | null) => {
+    if (value === 'avulsa') return 'avulsa';
+    if (value === 'ressarcimento') return 'ressarcimento';
+    if (value === 'fixa') return 'fixa';
+    return undefined;
+  }, []);
+
+  const normalizeLoteOrigem = useCallback((value?: string | null): LoteOrigem => {
+    if (value === 'avulsa') return 'avulsa';
+    if (value === 'ressarcimento') return 'ressarcimento';
+    if (value === 'misto') return 'misto';
     return 'fixa';
   }, []);
 
@@ -740,6 +796,241 @@ const ContasAPagar: React.FC = () => {
     if (row.tipoRegistro) return row.tipoRegistro;
     return undefined;
   }, [contasTipoMap, getRowContaId]);
+
+  const buildLoteItensPayload = useCallback((loteId: string, lote: LoteRegistro) => {
+    const items: Array<Record<string, string | number | boolean | null>> = [];
+    const pushRow = (tipo: 'resumido' | 'detalhado', row: LoteRowResumido | LoteRowDetalhado) => {
+      const contaId = getRowContaId(row);
+      const tipoRegistro = getRowTipoRegistro(row)
+        ?? (lote.origem !== 'misto' ? lote.origem : null);
+      const base = {
+        lote_id: loteId,
+        tipo,
+        conta_id: contaId ?? null,
+        tipo_conta: tipoRegistro,
+        fornecedor: row.fornecedor || null,
+        valor: parseValorToNumber(row.valor),
+        vencimento: normalizeDateInput(row.vencimento) ?? null,
+        descricao: row.descricao || null,
+        nota_fiscal: row.notaFiscal || null,
+        user_id: user?.id ?? null,
+      } as Record<string, string | number | boolean | null>;
+
+      if (tipo === 'detalhado') {
+        const detailed = row as LoteRowDetalhado;
+        Object.assign(base, {
+          pagamento: detailed.pagamento || null,
+          empresa: detailed.empresa || null,
+          setor_responsavel: detailed.setorResponsavel || null,
+          banco: detailed.banco || null,
+          agencia: detailed.agencia || null,
+          conta: detailed.conta || null,
+          tipo_de_conta: detailed.tipoConta || null,
+          cpf_cnpj: detailed.cpfCnpj || null,
+          anexos: detailed.anexos || null,
+        });
+      }
+
+      items.push(base);
+    };
+
+    if (lote.resumidoRows?.length) {
+      lote.resumidoRows.forEach((row) => pushRow('resumido', row));
+    }
+    if (lote.detalhadoRows?.length) {
+      lote.detalhadoRows.forEach((row) => pushRow('detalhado', row));
+    }
+
+    return items;
+  }, [getRowContaId, getRowTipoRegistro, parseValorToNumber, user]);
+
+  const persistLoteToDb = useCallback(async (lote: LoteRegistro, options?: { silent?: boolean }) => {
+    if (!user?.id) return;
+    const loteId = ensureUuid(lote.id);
+    const payload = {
+      id: loteId,
+      nome: lote.nome,
+      origem: lote.origem,
+      fechado: lote.fechado ?? false,
+      resumido: lote.resumido ?? false,
+      detalhado: lote.detalhado ?? false,
+      total: lote.total ?? 0,
+      fixas_total: lote.fixasTotal ?? 0,
+      avulsas_total: lote.avulsasTotal ?? 0,
+      ressarcimento_total: lote.ressarcimentoTotal ?? 0,
+      criado_em: lote.criado_em,
+      user_id: user.id,
+    };
+
+    const { error: loteError } = await supabase
+      .from('contas_a_pagar_lotes')
+      .upsert(payload, { onConflict: 'id' });
+    if (loteError) {
+      console.error('Erro ao salvar lote no Supabase:', loteError);
+      if (!options?.silent) {
+        setToast({ type: 'error', message: 'Falha ao salvar o lote no banco.' });
+      }
+      return;
+    }
+
+    const itens = buildLoteItensPayload(loteId, lote);
+    const { error: deleteError } = await supabase
+      .from('contas_a_pagar_lote_itens')
+      .delete()
+      .eq('lote_id', loteId);
+    if (deleteError) {
+      console.error('Erro ao limpar itens do lote:', deleteError);
+      if (!options?.silent) {
+        setToast({ type: 'error', message: 'Falha ao atualizar itens do lote.' });
+      }
+      return;
+    }
+
+    if (itens.length > 0) {
+      const { error: insertError } = await supabase
+        .from('contas_a_pagar_lote_itens')
+        .insert(itens);
+      if (insertError) {
+        console.error('Erro ao inserir itens do lote:', insertError);
+        if (!options?.silent) {
+          setToast({ type: 'error', message: 'Falha ao salvar itens do lote.' });
+        }
+      }
+    }
+  }, [buildLoteItensPayload, user]);
+
+  const deleteLotesFromDb = useCallback(async (ids: string[]) => {
+    if (!user?.id) return;
+    if (ids.length === 0) return;
+    const validIds = ids.filter((id) => isUuid(id));
+    if (validIds.length === 0) return;
+    const { error } = await supabase
+      .from('contas_a_pagar_lotes')
+      .delete()
+      .in('id', validIds);
+    if (error) {
+      console.error('Erro ao remover lotes do Supabase:', error);
+      setToast({ type: 'error', message: 'Falha ao remover lote no banco.' });
+    }
+  }, [user]);
+
+  const fetchLotesFromDb = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data: lotesData, error: lotesError } = await supabase
+        .from('contas_a_pagar_lotes')
+        .select('id, nome, origem, fechado, resumido, detalhado, total, fixas_total, avulsas_total, ressarcimento_total, criado_em')
+        .order('criado_em', { ascending: false });
+
+      if (lotesError) throw lotesError;
+
+      const ids = (lotesData || []).map((row) => row.id);
+      let itensData: Array<Record<string, any>> = [];
+      if (ids.length > 0) {
+        const { data: itens, error: itensError } = await supabase
+          .from('contas_a_pagar_lote_itens')
+          .select('id, lote_id, tipo, conta_id, tipo_conta, fornecedor, valor, vencimento, pagamento, empresa, descricao, nota_fiscal, setor_responsavel, banco, agencia, conta, tipo_de_conta, cpf_cnpj, anexos')
+          .in('lote_id', ids);
+        if (itensError) throw itensError;
+        itensData = itens || [];
+      }
+
+      if (lotesData && lotesData.length > 0) {
+        const itemsByLote = new Map<string, Array<Record<string, any>>>();
+        itensData.forEach((item) => {
+          const list = itemsByLote.get(item.lote_id) ?? [];
+          list.push(item);
+          itemsByLote.set(item.lote_id, list);
+        });
+
+        const mapped = lotesData.map((row) => {
+          const origem = normalizeLoteOrigem(row.origem);
+          const items = itemsByLote.get(row.id) ?? [];
+          const resumidoRows = items
+            .filter((item) => item.tipo === 'resumido')
+            .map((item) => ({
+              id: typeof item.id === 'string' ? item.id : createId(),
+              contaId: typeof item.conta_id === 'string' ? item.conta_id : undefined,
+              fornecedor: item.fornecedor ?? '',
+              valor: item.valor === null || item.valor === undefined ? '' : item.valor.toString(),
+              vencimento: item.vencimento ?? '',
+              descricao: item.descricao ?? '',
+              notaFiscal: item.nota_fiscal ?? '',
+              tipoRegistro: normalizeContaTipoOptional(item.tipo_conta),
+            })) as LoteRowResumido[];
+
+          const detalhadoRows = items
+            .filter((item) => item.tipo === 'detalhado')
+            .map((item) => ({
+              id: typeof item.id === 'string' ? item.id : createId(),
+              contaId: typeof item.conta_id === 'string' ? item.conta_id : undefined,
+              fornecedor: item.fornecedor ?? '',
+              valor: item.valor === null || item.valor === undefined ? '' : item.valor.toString(),
+              vencimento: item.vencimento ?? '',
+              pagamento: item.pagamento ?? '',
+              empresa: item.empresa ?? '',
+              descricao: item.descricao ?? '',
+              notaFiscal: item.nota_fiscal ?? '',
+              setorResponsavel: item.setor_responsavel ?? '',
+              banco: item.banco ?? '',
+              agencia: item.agencia ?? '',
+              conta: item.conta ?? '',
+              tipoConta: item.tipo_de_conta ?? '',
+              cpfCnpj: item.cpf_cnpj ?? '',
+              anexos: item.anexos ?? '',
+              tipoRegistro: normalizeContaTipoOptional(item.tipo_conta),
+            })) as LoteRowDetalhado[];
+
+          const resumido = row.resumido || resumidoRows.length > 0;
+          const detalhado = row.detalhado || detalhadoRows.length > 0;
+
+          return {
+            id: row.id,
+            nome: row.nome,
+            origem,
+            fechado: row.fechado ?? false,
+            total: Number(row.total ?? 0),
+            fixasTotal: Number(row.fixas_total ?? 0),
+            avulsasTotal: Number(row.avulsas_total ?? 0),
+            ressarcimentoTotal: Number(row.ressarcimento_total ?? 0),
+            criado_em: row.criado_em ?? new Date().toISOString(),
+            resumido,
+            detalhado,
+            resumidoRows: resumidoRows.length ? resumidoRows : undefined,
+            detalhadoRows: detalhadoRows.length ? detalhadoRows : undefined,
+          } as LoteRegistro;
+        });
+
+        setLotes(mapped.sort((a, b) => b.criado_em.localeCompare(a.criado_em)));
+        setLotesLoaded(true);
+        return;
+      }
+
+      if (!lotesLoaded) {
+        const local = loadLotes();
+        if (local.length > 0) {
+          const normalizedLocal = local.map((lote) => ({
+            ...lote,
+            id: ensureUuid(lote.id),
+          }));
+          setLotes(normalizedLocal);
+          for (const lote of normalizedLocal) {
+            await persistLoteToDb(lote, { silent: true });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar lotes do Supabase:', error);
+    } finally {
+      setLotesLoaded(true);
+    }
+  }, [lotesLoaded, normalizeContaTipoOptional, normalizeLoteOrigem, persistLoteToDb, user]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    if (lotesLoaded) return;
+    fetchLotesFromDb();
+  }, [fetchLotesFromDb, lotesLoaded, user]);
 
   const getLoteCounts = useCallback((lote: LoteRegistro) => {
     let fixas = lote.fixasTotal ?? 0;
@@ -1648,31 +1939,32 @@ const ContasAPagar: React.FC = () => {
       : activeTab === 'ressarcimento'
         ? 'ressarcimento'
         : 'fixa';
-    const loteId = currentLoteId ?? createId();
+    const loteId = ensureUuid(currentLoteId ?? createId());
     const totalRows = rows.length;
+    const counts = getRowsCounts(rows);
     setCurrentLoteId(loteId);
+    let nextLote: LoteRegistro | null = null;
     setLotes((prev) => {
       const existing = prev.find((lote) => lote.id === loteId);
       if (existing) {
         return prev.map((lote) => {
           if (lote.id !== loteId) return lote;
-          const fixasTotal = origem === 'fixa' ? totalRows : 0;
-          const avulsasTotal = origem === 'avulsa' ? totalRows : 0;
-          const ressarcimentoTotal = origem === 'ressarcimento' ? totalRows : 0;
-          return {
+          const updated = {
             ...lote,
             nome: trimmed,
             origem,
             total: totalRows,
             fechado: lote.fechado ?? false,
-            fixasTotal,
-            avulsasTotal,
-            ressarcimentoTotal,
+            fixasTotal: counts.fixas,
+            avulsasTotal: counts.avulsas,
+            ressarcimentoTotal: counts.ressarcimentos,
             resumido: tipo === 'resumido' ? true : lote.resumido,
             detalhado: tipo === 'detalhado' ? true : lote.detalhado,
             resumidoRows: tipo === 'resumido' ? (rows as LoteRowResumido[]) : lote.resumidoRows,
             detalhadoRows: tipo === 'detalhado' ? (rows as LoteRowDetalhado[]) : lote.detalhadoRows,
           };
+          nextLote = updated;
+          return updated;
         });
       }
 
@@ -1683,22 +1975,26 @@ const ContasAPagar: React.FC = () => {
         origem,
         criado_em: new Date().toISOString(),
         fechado: false,
-        fixasTotal: origem === 'fixa' ? totalRows : 0,
-        avulsasTotal: origem === 'avulsa' ? totalRows : 0,
-        ressarcimentoTotal: origem === 'ressarcimento' ? totalRows : 0,
+        fixasTotal: counts.fixas,
+        avulsasTotal: counts.avulsas,
+        ressarcimentoTotal: counts.ressarcimentos,
         resumido: tipo === 'resumido',
         detalhado: tipo === 'detalhado',
         resumidoRows: tipo === 'resumido' ? (rows as LoteRowResumido[]) : undefined,
         detalhadoRows: tipo === 'detalhado' ? (rows as LoteRowDetalhado[]) : undefined,
       };
+      nextLote = novoLote;
       return [novoLote, ...prev];
     });
+    if (nextLote) {
+      persistLoteToDb(nextLote);
+    }
     setToast({
       type: 'success',
       message: `Lote ${tipo} registrado`,
     });
     return true;
-  }, [activeTab, currentLoteId]);
+  }, [activeTab, currentLoteId, getRowsCounts, persistLoteToDb]);
 
   const handleOpenNovoLoteModal = useCallback(() => {
     setLoteNome(buildDefaultLoteNome());
@@ -1773,22 +2069,31 @@ const ContasAPagar: React.FC = () => {
 
   const handleSaveEditLote = useCallback(() => {
     if (!editingLoteId || !editingLoteType) return;
-    setLotes((prev) => prev.map((lote) => {
-      if (lote.id !== editingLoteId) return lote;
-      if (editingLoteType === 'resumido') {
-        return { ...lote, resumidoRows: editingLoteRows as LoteRowResumido[] };
+    const existing = lotes.find((lote) => lote.id === editingLoteId);
+    if (!existing) return;
+    const updated: LoteRegistro = editingLoteType === 'resumido'
+      ? {
+        ...existing,
+        resumido: true,
+        resumidoRows: editingLoteRows as LoteRowResumido[],
       }
-      return { ...lote, detalhadoRows: editingLoteRows as LoteRowDetalhado[] };
-    }));
+      : {
+        ...existing,
+        detalhado: true,
+        detalhadoRows: editingLoteRows as LoteRowDetalhado[],
+      };
+    setLotes((prev) => prev.map((lote) => (lote.id === editingLoteId ? updated : lote)));
+    persistLoteToDb(updated);
     setToast({ type: 'success', message: 'Lote atualizado' });
     handleCancelEditLote();
-  }, [editingLoteId, editingLoteRows, editingLoteType, handleCancelEditLote]);
+  }, [editingLoteId, editingLoteRows, editingLoteType, handleCancelEditLote, lotes, persistLoteToDb]);
 
   const handleDeleteLote = useCallback((id: string) => {
     if (!confirm('Deseja excluir este lote?')) return;
     setLotes((prev) => prev.filter((lote) => lote.id !== id));
+    deleteLotesFromDb([id]);
     setToast({ type: 'success', message: 'Lote removido' });
-  }, []);
+  }, [deleteLotesFromDb]);
 
   const buildDetalhadoRowsFromContas = useCallback((items: ContaAPagar[], entryMap: Record<string, ExportEntry>) => {
     return items.map((conta) => {
@@ -1881,7 +2186,7 @@ const ContasAPagar: React.FC = () => {
     });
   }, []);
 
-  const handleSaveConsolidatedLote = useCallback(() => {
+  const handleSaveConsolidatedLote = useCallback(async () => {
     const selectedIds = Array.from(consolidateSelection);
     if (selectedIds.length === 0) {
       setConsolidateError('Selecione ao menos um lote.');
@@ -1901,7 +2206,13 @@ const ContasAPagar: React.FC = () => {
       const contaId = row.contaId ?? extractContaIdFromValue(row.id);
       const tipoRegistro = row.tipoRegistro
         ?? getRowTipoRegistro(row)
-        ?? (lote.origem === 'avulsa' ? 'avulsa' : lote.origem === 'fixa' ? 'fixa' : undefined);
+        ?? (lote.origem === 'avulsa'
+          ? 'avulsa'
+          : lote.origem === 'ressarcimento'
+            ? 'ressarcimento'
+            : lote.origem === 'fixa'
+              ? 'fixa'
+              : undefined);
       return {
         ...row,
         contaId,
@@ -1958,6 +2269,8 @@ const ContasAPagar: React.FC = () => {
       const remaining = prev.filter((lote) => !selectedIds.includes(lote.id));
       return [novoLote, ...remaining];
     });
+    await persistLoteToDb(novoLote, { silent: true });
+    await deleteLotesFromDb(selectedIds);
 
     setToast({ type: 'success', message: 'Lote consolidado criado' });
     setShowConsolidateLoteModal(false);
@@ -1972,6 +2285,8 @@ const ContasAPagar: React.FC = () => {
     lotesAbertos,
     mapDetalhadoToResumido,
     mapResumidoToDetalhado,
+    persistLoteToDb,
+    deleteLotesFromDb,
   ]);
 
   const [isMonthClosing, setIsMonthClosing] = useState(false);
@@ -2038,6 +2353,7 @@ const ContasAPagar: React.FC = () => {
       if (error) throw error;
 
       setLotes((prev) => [novoLote, ...prev]);
+      await persistLoteToDb(novoLote, { silent: true });
       setContas((prev) => prev.filter((conta) => !ids.includes(conta.id)));
       localStorage.setItem(MONTH_CLOSE_STORAGE_KEY, currentMonthKey);
       setToast({ type: 'success', message: 'Lotes avulsos e ressarcimentos do mês anterior foram fechados.' });
@@ -2058,6 +2374,7 @@ const ContasAPagar: React.FC = () => {
     normalizeContaTipo,
     isMonthClosing,
     buildUniqueLoteName,
+    persistLoteToDb,
   ]);
 
   useEffect(() => {
