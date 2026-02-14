@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Globe, Download, Search, Users } from 'lucide-react';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
+import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx';
@@ -279,46 +280,43 @@ const RateioGoogle: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Rateio Google</h1>
-            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de usuários Google Workspace</p>
-          </div>
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-            <div className="relative">
-              <button
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
-              >
-                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                Exportar ({filteredRateiosSorted.length})
-              </button>
-              {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
-                  <div className="py-1">
-                    <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
-                      {(searchTerm || selectedStatus || selectedDominio) ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
-                    </div>
-                    <button
-                      onClick={() => exportData('csv')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                    >
-                      Exportar como CSV
-                    </button>
-                    <button
-                      onClick={() => exportData('xlsx')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                    >
-                      Exportar como XLSX
-                    </button>
+      <ModuleHeader
+        sectionLabel="Financeiro"
+        title="Rateio Google"
+        subtitle="Gerenciamento de usuários Google Workspace"
+        actions={(
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+            >
+              <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+              Exportar ({filteredRateiosSorted.length})
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
+                <div className="py-1">
+                  <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
+                    {(searchTerm || selectedStatus || selectedDominio) ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
                   </div>
+                  <button
+                    onClick={() => exportData('csv')}
+                    className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                  >
+                    Exportar como CSV
+                  </button>
+                  <button
+                    onClick={() => exportData('xlsx')}
+                    className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                  >
+                    Exportar como XLSX
+                  </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-        </div>
-      </div>
+        )}
+      />
 
       {/* Dashboard Stats */}
       <DashboardStats stats={dashboardStats} />

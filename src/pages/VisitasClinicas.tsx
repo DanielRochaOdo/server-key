@@ -8,6 +8,7 @@ import {
   listVisitasClinicas,
   updateVisitaClinica,
 } from '../services/visitasClinicas';
+import ModuleHeader from '../components/ModuleHeader';
 
 type VisitStatus = 'concluido' | 'pendente' | 'atrasado';
 
@@ -430,23 +431,20 @@ const VisitasClinicas: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary-900 dark:text-primary-100">
-            Visitas as Clinicas
-          </h1>
-          <p className="mt-1 text-sm text-primary-600 dark:text-neutral-300">
-            Controle mensal de visitas com calendario e detalhes por dia.
-          </p>
-        </div>
-        <button
-          onClick={handleToday}
-          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-        >
-          <Calendar className="h-4 w-4" />
-          Ir para hoje
-        </button>
-      </div>
+      <ModuleHeader
+        sectionLabel="Financeiro"
+        title="Visitas as Clinicas"
+        subtitle="Controle mensal de visitas com calendario e detalhes por dia."
+        actions={(
+          <button
+            onClick={handleToday}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+          >
+            <Calendar className="h-4 w-4" />
+            Ir para hoje
+          </button>
+        )}
+      />
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_1fr] gap-6">
         <div className="bg-white rounded-xl shadow-md border border-neutral-200 p-4 sm:p-6 dark:bg-neutral-900 dark:border-neutral-700">

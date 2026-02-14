@@ -3,6 +3,7 @@ import { AlertCircle, Eye, EyeOff, Lock, Mail, Phone, Save, Settings } from 'luc
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { normalizeRole, getRoleLabel as getRoleLabelText } from '../utils/roles';
+import ModuleHeader from '../components/ModuleHeader';
 
 interface UserProfileData {
   id: string;
@@ -238,12 +239,11 @@ const Configuracoes: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Configuracoes</h1>
-        <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">
-          Gerencie seus dados e credenciais
-        </p>
-      </div>
+      <ModuleHeader
+        sectionLabel="Configuracoes"
+        title="Configuracoes"
+        subtitle="Gerencie seus dados e credenciais"
+      />
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-2">

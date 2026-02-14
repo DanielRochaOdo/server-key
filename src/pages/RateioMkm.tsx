@@ -10,6 +10,7 @@ import {
   RateioMkmCentroCusto,
   RateioMkmLayoutRow,
 } from '../services/rateioMkm';
+import ModuleHeader from '../components/ModuleHeader';
 
 type FormRow = {
   id: number;
@@ -275,52 +276,51 @@ const RateioMkm: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Rateio Fatura MKM</h1>
-          <p className="mt-1 text-xs sm:text-sm text-primary-600">
-            {COMPETENCIA_LABEL}
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-            <select
-              value={selectedCompetencia}
-              onChange={(event) => setSelectedCompetencia(event.target.value)}
-              className="w-full sm:w-48 pl-9 pr-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              {competenciaOptions.length === 0 && (
-                <option value="">Nenhuma competencia</option>
-              )}
-              {competenciaOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          {isAdmin() && (
-            <>
-              {hasData && (
-                <button
-                  onClick={() => openForm('edit')}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-neutral-100 text-neutral-700 text-sm font-medium hover:bg-neutral-200 transition-colors"
-                >
-                  Editar Rateio
-                </button>
-              )}
-              <button
-                onClick={() => openForm('create')}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors"
+      <ModuleHeader
+        sectionLabel="Financeiro"
+        title="Rateio Fatura MKM"
+        subtitle={COMPETENCIA_LABEL}
+        actions={(
+          <>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              <select
+                value={selectedCompetencia}
+                onChange={(event) => setSelectedCompetencia(event.target.value)}
+                className="w-full sm:w-48 pl-9 pr-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
-                <Plus className="h-4 w-4" />
-                Novo Rateio
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+                {competenciaOptions.length === 0 && (
+                  <option value="">Nenhuma competencia</option>
+                )}
+                {competenciaOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {isAdmin() && (
+              <>
+                  {hasData && (
+                    <button
+                      onClick={() => openForm('edit')}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                    >
+                      Editar Rateio
+                    </button>
+                  )}
+                  <button
+                    onClick={() => openForm('create')}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
+                  >
+                    <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                    Novo Rateio
+                  </button>
+              </>
+            )}
+          </>
+        )}
+      />
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
         <p className="text-sm font-semibold text-neutral-700 mb-2">Legenda</p>

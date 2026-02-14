@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart3, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { listControleUberByCompetencia, ControleUberRow } from '../services/controleUber';
+import ModuleHeader from '../components/ModuleHeader';
 
 type ClinicKey = 'AGUANAMBI' | 'BEZERRA' | 'PARANGABA' | 'SOBRAL' | 'MATRIZ';
 
@@ -1003,43 +1004,33 @@ const CustosClinicas: React.FC = () => {
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
-        <div className="flex flex-col gap-3 p-4 sm:p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-neutral-400 dark:text-neutral-500">
-                Financeiro
-              </p>
-              <h1 className="text-xl sm:text-2xl font-bold text-primary-900 dark:text-primary-100">
-                Custos das Clinicas
-              </h1>
-              <p className="mt-1 text-xs sm:text-sm text-primary-600 dark:text-neutral-300">
-                Transporte, insumos e comparativos mensais
-              </p>
+      <ModuleHeader
+        sectionLabel="Financeiro"
+        title="Custos das Clinicas"
+        subtitle="Transporte, insumos e comparativos mensais"
+        actions={(
+          <>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+              <input
+                type="month"
+                value={monthKey}
+                onChange={(event) => setMonthKey(event.target.value)}
+                className="w-full sm:w-44 pl-9 pr-3 py-1.5 text-xs border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+              />
             </div>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
-                <input
-                  type="month"
-                  value={monthKey}
-                  onChange={(event) => setMonthKey(event.target.value)}
-                  className="w-full sm:w-44 pl-9 pr-3 py-1.5 text-xs border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => setMonthKey(toMonthKey(new Date()))}
-                className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-600 uppercase transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                aria-label="Voltar para o mes atual"
-              >
-                <BarChart3 className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500" />
-                Mes atual
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+            <button
+              type="button"
+              onClick={() => setMonthKey(toMonthKey(new Date()))}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+              aria-label="Voltar para o mes atual"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Mes atual
+            </button>
+          </>
+        )}
+      />
 
       {loading ? (
         <div className="flex items-center justify-center min-h-64">

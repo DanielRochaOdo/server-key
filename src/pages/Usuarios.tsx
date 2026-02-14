@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import UserForm from '../components/UserForm';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { getRoleLabel, normalizeRole } from '../utils/roles';
+import ModuleHeader from '../components/ModuleHeader';
 
 interface User {
   id: string;
@@ -114,34 +115,33 @@ const Usuarios: React.FC = () => {
   };
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Usuários</h1>
-            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de usuários do sistema</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+      <ModuleHeader
+        sectionLabel="Configuracoes"
+        title="Usuarios"
+        subtitle="Gerenciamento de usuarios do sistema"
+        actions={(
+          <>
             <button
               onClick={handleRepairUsers}
               disabled={repairing || loading}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-neutral-300 text-xs sm:text-sm font-medium rounded-lg text-neutral-700 bg-white hover:bg-neutral-50 transition-colors disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 disabled:opacity-60 sm:w-auto"
             >
               {repairing ? (
-                <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
               ) : (
-                <RefreshCcw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <RefreshCcw className="h-3 w-3 sm:h-4 sm:w-4" />
               )}
-              {repairing ? 'Reparando...' : 'Reparar usuários'}
+              {repairing ? 'Reparando...' : 'Reparar usuarios'}
             </button>
             <button
               onClick={handleNew}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover transition-colors"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
             >
-              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" /> Novo Usuário
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4" /> Novo Usuario
             </button>
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       {repairStatus && (
         <div
