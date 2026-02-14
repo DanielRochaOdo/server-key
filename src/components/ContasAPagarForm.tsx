@@ -13,9 +13,9 @@ interface ContaAPagar {
   valor: string | number;
   vencimento?: number | null;
   observacoes?: string | null;
-  tipo_conta?: 'fixa' | 'avulsa' | null;
+  tipo_conta?: 'fixa' | 'avulsa' | 'ressarcimento' | null;
 }
-type ContaTipo = 'fixa' | 'avulsa';
+type ContaTipo = 'fixa' | 'avulsa' | 'ressarcimento';
 interface ContasAPagarFormProps {
   conta?: ContaAPagar | null;
   tipoConta?: ContaTipo;
@@ -37,7 +37,11 @@ const PAGTO_OPTIONS = [
 ];
 
 const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, onSuccess, onCancel }) => {
-  const defaultTipoConta: ContaTipo = conta?.tipo_conta === 'avulsa' ? 'avulsa' : (tipoConta ?? 'fixa');
+  const defaultTipoConta: ContaTipo = conta?.tipo_conta === 'avulsa'
+    ? 'avulsa'
+    : conta?.tipo_conta === 'ressarcimento'
+      ? 'ressarcimento'
+      : (tipoConta ?? 'fixa');
   const [formData, setFormData] = useState({
     status_documento: STATUS_OPTIONS[0],
     fornecedor: '',
@@ -107,7 +111,11 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
       const parsedValor = parseBRLToNumber(String(conta.valor));
       const storedTipo = (conta.tipo_pagto || '').trim().toUpperCase();
       const normalizedTipoPagto = PAGTO_OPTIONS.includes(storedTipo as any) ? storedTipo : PAGTO_OPTIONS[0];
-      const contaTipo: ContaTipo = conta.tipo_conta === 'avulsa' ? 'avulsa' : 'fixa';
+      const contaTipo: ContaTipo = conta.tipo_conta === 'avulsa'
+        ? 'avulsa'
+        : conta.tipo_conta === 'ressarcimento'
+          ? 'ressarcimento'
+          : 'fixa';
       setFormData({
         status_documento: conta.status_documento || STATUS_OPTIONS[0],
         fornecedor: conta.fornecedor || '',
@@ -229,7 +237,11 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">
-            {conta ? 'Editar Conta a Pagar' : `Nova Conta ${formData.tipo_conta === 'avulsa' ? 'Avulsa' : 'Fixa'}`}
+            {conta ? 'Editar Conta a Pagar' : `Nova Conta ${formData.tipo_conta === 'avulsa'
+              ? 'Avulsa'
+              : formData.tipo_conta === 'ressarcimento'
+                ? 'Ressarcimento'
+                : 'Fixa'}`}
           </h2>
           <button
             onClick={handleCancel}
@@ -263,6 +275,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
               >
                 <option value="fixa">Fixa</option>
                 <option value="avulsa">Avulsa</option>
+                <option value="ressarcimento">Ressarcimento</option>
               </select>
             </div>
             <div>

@@ -126,6 +126,10 @@ const formatCellValue = (column: string, value: unknown) => {
   return escapeHtml(value.toString());
 };
 
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -206,7 +210,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, error: "Forbidden" }, 403);
   }
 
-  let body: { subject?: string; columns?: unknown; rows?: unknown; meta?: unknown };
+  let body: { subject?: string; columns?: unknown; rows?: unknown; meta?: unknown; recipients?: unknown };
   try {
     body = await req.json();
   } catch (error) {
@@ -222,6 +226,13 @@ Deno.serve(async (req) => {
   if (!columns.length) {
     return jsonResponse({ ok: false, error: "Missing columns" }, 400);
   }
+
+  const recipientsRaw = Array.isArray(body?.recipients) ? body.recipients : [];
+  const recipients = recipientsRaw
+    .map((recipient) => (recipient ?? "").toString())
+    .map(normalizeEmail)
+    .filter((recipient) => recipient.length > 0)
+    .filter(isValidEmail);
 
   if (!Array.isArray(body?.rows)) {
     return jsonResponse({ ok: false, error: "Missing rows" }, 400);
@@ -307,10 +318,13 @@ Deno.serve(async (req) => {
   });
 
   console.log("send-contas-a-pagar-xlsx-email: sending email");
+  const defaultRecipient = "daniel.rocha@odontoart.com";
+  const toRecipients = recipients.length ? recipients : [defaultRecipient];
+
   try {
     await transporter.sendMail({
       from: smtpFrom,
-      to: "daniel.rocha@odontoart.com",
+      to: toRecipients,
       subject,
       html: htmlBody,
     });
