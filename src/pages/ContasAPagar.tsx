@@ -5,10 +5,60 @@ import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
-import * as XLSX from 'xlsx-js-style';
+import * as XLSX from 'xlsx-js-style/dist/xlsx.bundle.js';
 
-type ContaTipo = 'fixa' | 'avulsa';
+type ContaTipo = 'fixa' | 'avulsa' | 'ressarcimento';
+type LoteOrigem = ContaTipo | 'misto';
+type ActiveTab = ContaTipo | 'lotes' | 'lotes_fechados';
+
+type LoteRowDetalhado = {
+  id: string;
+  contaId?: string;
+  fornecedor: string;
+  valor: string;
+  vencimento: string;
+  pagamento: string;
+  empresa: string;
+  descricao: string;
+  notaFiscal: string;
+  setorResponsavel: string;
+  banco: string;
+  agencia: string;
+  conta: string;
+  tipoConta: string;
+  cpfCnpj: string;
+  anexos: string;
+  tipoRegistro?: ContaTipo;
+};
+
+type LoteRowResumido = {
+  id: string;
+  contaId?: string;
+  fornecedor: string;
+  valor: string;
+  vencimento: string;
+  descricao: string;
+  notaFiscal: string;
+  tipoRegistro?: ContaTipo;
+};
+
+interface LoteRegistro {
+  id: string;
+  nome: string;
+  resumido?: boolean;
+  detalhado?: boolean;
+  fechado?: boolean;
+  total: number;
+  origem: LoteOrigem;
+  fixasTotal?: number;
+  avulsasTotal?: number;
+  ressarcimentoTotal?: number;
+  criado_em: string;
+  resumidoRows?: LoteRowResumido[];
+  detalhadoRows?: LoteRowDetalhado[];
+}
 
 interface ContaAPagar {
   id: string;
@@ -165,25 +215,297 @@ const EXPORT_TABLE_COLUMNS: {
 
 
 
+const LOTE_DETALHADO_COLUMNS: {
+  label: string;
+  field: keyof LoteRowDetalhado;
+  type?: 'text' | 'date';
+  readonly?: boolean;
+  align?: 'left' | 'center' | 'right';
+}[] = [
+  { label: 'FORNECEDOR', field: 'fornecedor', align: 'left' },
+  { label: 'VALOR', field: 'valor', align: 'right' },
+  { label: 'VENCIMENTO', field: 'vencimento', type: 'date', align: 'center' },
+  { label: 'PAGAMENTO', field: 'pagamento', align: 'center' },
+  { label: 'EMPRESA', field: 'empresa', align: 'left' },
+  { label: 'DESCRIÇÃO', field: 'descricao', align: 'left' },
+  { label: 'NOTA FISCAL', field: 'notaFiscal', align: 'left' },
+  { label: 'SETOR RESPONSÁVEL', field: 'setorResponsavel', align: 'left' },
+  { label: 'NOME DO BANCO', field: 'banco', align: 'left' },
+  { label: 'AGÊNCIA', field: 'agencia', align: 'left' },
+  { label: 'CONTA', field: 'conta', align: 'left' },
+  { label: 'TIPO DE CONTA', field: 'tipoConta', align: 'left' },
+  { label: 'CPF/CNPJ', field: 'cpfCnpj', align: 'left' },
+  { label: 'ANEXOS (SIM/NÃO)', field: 'anexos', align: 'center' },
+];
+
+const LOTE_RESUMIDO_COLUMNS: {
+  label: string;
+  field: keyof LoteRowResumido;
+  type?: 'text' | 'date';
+  readonly?: boolean;
+  align?: 'left' | 'center' | 'right';
+}[] = [
+  { label: 'FORNECEDOR', field: 'fornecedor', align: 'left' },
+  { label: 'VALOR', field: 'valor', align: 'right' },
+  { label: 'VENCIMENTO', field: 'vencimento', type: 'date', align: 'center' },
+  { label: 'DESCRIÇÃO', field: 'descricao', align: 'left' },
+  { label: 'NF', field: 'notaFiscal', align: 'left' },
+];
 
 const EXPORT_MODAL_STORAGE_KEY = 'serverkey:contas_apagar_export_state';
+const EMAIL_RECIPIENTS_STORAGE_KEY = 'serverkey:contas_apagar_email_recipients';
+const LOTES_STORAGE_KEY = 'serverkey:contas_apagar_lotes';
+const MONTH_CLOSE_STORAGE_KEY = 'serverkey:contas_apagar_last_closed_month';
+const CONSOLIDADO_FEVEREIRO_2026 = 'LOTE CONSOLIDADO FEVEREIRO/2026';
+const DEFAULT_EMAIL_RECIPIENTS = ['daniel.rocha@odontoart.com'];
 
 interface ExportModalState {
-  showExportQuestion: boolean;
   showExportNfModal: boolean;
-  pendingExportFormat: ExportFormat | null;
   exportEntries: Record<string, ExportEntry>;
-  resumidoSyncVisible: boolean;
 }
 
 const DEFAULT_EXPORT_MODAL_STATE: ExportModalState = {
-  showExportQuestion: false,
   showExportNfModal: false,
-  pendingExportFormat: null,
   exportEntries: {},
-  resumidoSyncVisible: false,
 };
 
+const loadEmailRecipients = (): string[] => {
+  if (typeof window === 'undefined') return [];
+  const normalize = (value: string) => value.trim().toLowerCase();
+  const defaultRecipients = DEFAULT_EMAIL_RECIPIENTS
+    .map((value) => (typeof value === 'string' ? normalize(value) : ''))
+    .filter((value) => value.length > 0);
+  try {
+    const raw = localStorage.getItem(EMAIL_RECIPIENTS_STORAGE_KEY);
+    if (!raw) return Array.from(new Set(defaultRecipients));
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const normalized = parsed
+      .map((value) => (typeof value === 'string' ? normalize(value) : ''))
+      .filter((value) => value.length > 0);
+    return Array.from(new Set([...defaultRecipients, ...normalized]));
+  } catch {
+    return Array.from(new Set(defaultRecipients));
+  }
+};
+
+const createId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const isUuid = (value: string | undefined | null) => {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+};
+
+const ensureUuid = (value?: string | null) => {
+  if (isUuid(value)) return value!;
+  return createId();
+};
+
+const normalizeLoteNome = (value: string) => {
+  return value.replace(/\s*\(resumido\)\s*$/i, '').trim();
+};
+
+const extractUuidFromString = (value?: string) => {
+  if (!value) return undefined;
+  const matches = value.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi);
+  if (!matches || matches.length === 0) return undefined;
+  return matches[matches.length - 1];
+};
+
+const getMonthKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
+const normalizeDateInput = (value?: string | null) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+};
+
+const loadLotes = (): LoteRegistro[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LOTES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const map = new Map<string, LoteRegistro>();
+    parsed
+      .filter((item) => item && typeof item === 'object')
+      .filter((item) => {
+        const nome = typeof item.nome === 'string' ? item.nome : '';
+        return nome !== CONSOLIDADO_FEVEREIRO_2026;
+      })
+      .forEach((item) => {
+        const nomeRaw = typeof item.nome === 'string' ? item.nome : 'Lote';
+        const nome = normalizeLoteNome(nomeRaw);
+        const origem: LoteOrigem = item.origem === 'avulsa'
+          ? 'avulsa'
+          : item.origem === 'ressarcimento'
+            ? 'ressarcimento'
+            : item.origem === 'misto'
+              ? 'misto'
+              : 'fixa';
+        const total = Number.isFinite(Number(item.total)) ? Number(item.total) : 0;
+        const fechado = item.fechado === true;
+        const fixasTotalRaw = Number.isFinite(Number(item.fixasTotal)) ? Number(item.fixasTotal) : null;
+        const avulsasTotalRaw = Number.isFinite(Number(item.avulsasTotal)) ? Number(item.avulsasTotal) : null;
+        const ressarcimentoTotalRaw = Number.isFinite(Number(item.ressarcimentoTotal)) ? Number(item.ressarcimentoTotal) : null;
+        const fixasTotal = fixasTotalRaw !== null
+          ? fixasTotalRaw
+          : origem === 'fixa'
+            ? total
+            : 0;
+        const avulsasTotal = avulsasTotalRaw !== null
+          ? avulsasTotalRaw
+          : origem === 'avulsa'
+            ? total
+            : 0;
+        const ressarcimentoTotal = ressarcimentoTotalRaw !== null
+          ? ressarcimentoTotalRaw
+          : origem === 'ressarcimento'
+            ? total
+            : 0;
+        const criadoEm = typeof item.criado_em === 'string' ? item.criado_em : new Date().toISOString();
+        const isLegacy = 'tipo' in item && !('resumido' in item) && !('detalhado' in item) && !('resumidoRows' in item) && !('detalhadoRows' in item);
+        const rawId = typeof item.id === 'string' ? item.id : undefined;
+        const normalizedId = isUuid(rawId) ? rawId : createId();
+        const key = isLegacy
+          ? `${nome}::${origem}::${total}`
+          : normalizedId;
+
+        const resumidoRows = Array.isArray(item.resumidoRows)
+          ? item.resumidoRows
+            .filter((row: any) => row && typeof row === 'object')
+            .map((row: any) => ({
+              id: typeof row.id === 'string' ? row.id : createId(),
+              contaId: typeof row.contaId === 'string'
+                ? row.contaId
+                : extractUuidFromString(typeof row.id === 'string' ? row.id : undefined),
+              fornecedor: typeof row.fornecedor === 'string' ? row.fornecedor : '',
+              valor: typeof row.valor === 'string' ? row.valor : '',
+              vencimento: typeof row.vencimento === 'string' ? row.vencimento : '',
+              descricao: typeof row.descricao === 'string' ? row.descricao : '',
+              notaFiscal: typeof row.notaFiscal === 'string' ? row.notaFiscal : '',
+              tipoRegistro: row.tipoRegistro === 'avulsa'
+                ? 'avulsa'
+                : row.tipoRegistro === 'ressarcimento'
+                  ? 'ressarcimento'
+                  : row.tipoRegistro === 'fixa'
+                    ? 'fixa'
+                    : origem === 'avulsa'
+                      ? 'avulsa'
+                      : origem === 'ressarcimento'
+                        ? 'ressarcimento'
+                        : origem === 'fixa'
+                          ? 'fixa'
+                          : undefined,
+            }))
+          : undefined;
+
+        const detalhadoRows = Array.isArray(item.detalhadoRows)
+          ? item.detalhadoRows
+            .filter((row: any) => row && typeof row === 'object')
+            .map((row: any) => ({
+              id: typeof row.id === 'string' ? row.id : createId(),
+              contaId: typeof row.contaId === 'string'
+                ? row.contaId
+                : extractUuidFromString(typeof row.id === 'string' ? row.id : undefined),
+              fornecedor: typeof row.fornecedor === 'string' ? row.fornecedor : '',
+              valor: typeof row.valor === 'string' ? row.valor : '',
+              vencimento: typeof row.vencimento === 'string' ? row.vencimento : '',
+              pagamento: typeof row.pagamento === 'string' ? row.pagamento : '',
+              empresa: typeof row.empresa === 'string' ? row.empresa : '',
+              descricao: typeof row.descricao === 'string' ? row.descricao : '',
+              notaFiscal: typeof row.notaFiscal === 'string' ? row.notaFiscal : '',
+              setorResponsavel: typeof row.setorResponsavel === 'string' ? row.setorResponsavel : '',
+              banco: typeof row.banco === 'string' ? row.banco : '',
+              agencia: typeof row.agencia === 'string' ? row.agencia : '',
+              conta: typeof row.conta === 'string' ? row.conta : '',
+              tipoConta: typeof row.tipoConta === 'string' ? row.tipoConta : '',
+              cpfCnpj: typeof row.cpfCnpj === 'string' ? row.cpfCnpj : '',
+              anexos: typeof row.anexos === 'string' ? row.anexos : '',
+              tipoRegistro: row.tipoRegistro === 'avulsa'
+                ? 'avulsa'
+                : row.tipoRegistro === 'ressarcimento'
+                  ? 'ressarcimento'
+                  : row.tipoRegistro === 'fixa'
+                    ? 'fixa'
+                    : origem === 'avulsa'
+                      ? 'avulsa'
+                      : origem === 'ressarcimento'
+                        ? 'ressarcimento'
+                        : origem === 'fixa'
+                          ? 'fixa'
+                          : undefined,
+            }))
+          : undefined;
+
+        const existing = map.get(key);
+        const merged: LoteRegistro = existing ?? {
+          id: normalizedId,
+          nome,
+          total,
+          origem,
+          criado_em: criadoEm,
+          fechado,
+          fixasTotal,
+          avulsasTotal,
+          ressarcimentoTotal,
+          resumido: false,
+          detalhado: false,
+          resumidoRows,
+          detalhadoRows,
+        };
+
+        if ('tipo' in item) {
+          if (item.tipo === 'resumido') merged.resumido = true;
+          if (item.tipo === 'detalhado') merged.detalhado = true;
+        }
+        if (item.resumido) merged.resumido = true;
+        if (item.detalhado) merged.detalhado = true;
+        if (resumidoRows && resumidoRows.length) merged.resumido = true;
+        if (detalhadoRows && detalhadoRows.length) merged.detalhado = true;
+
+        if (resumidoRows) merged.resumidoRows = resumidoRows;
+        if (detalhadoRows) merged.detalhadoRows = detalhadoRows;
+        if (fechado) merged.fechado = true;
+        if (merged.fechado === undefined) merged.fechado = false;
+        if (fixasTotal !== null) {
+          merged.fixasTotal = Math.max(merged.fixasTotal ?? 0, fixasTotal);
+        }
+        if (avulsasTotal !== null) {
+          merged.avulsasTotal = Math.max(merged.avulsasTotal ?? 0, avulsasTotal);
+        }
+        if (ressarcimentoTotal !== null) {
+          merged.ressarcimentoTotal = Math.max(merged.ressarcimentoTotal ?? 0, ressarcimentoTotal);
+        }
+
+        if (criadoEm < merged.criado_em) {
+          merged.criado_em = criadoEm;
+        }
+
+        map.set(key, merged);
+      });
+
+    return Array.from(map.values()).sort((a, b) => b.criado_em.localeCompare(a.criado_em));
+  } catch {
+    return [];
+  }
+};
 const loadExportModalState = (): ExportModalState => {
   if (typeof window === 'undefined') return DEFAULT_EXPORT_MODAL_STATE;
   try {
@@ -204,11 +526,8 @@ const loadExportModalState = (): ExportModalState => {
 
     const sanitizedEntries = normalizeEntriesMap(storedEntries);
     return {
-      showExportQuestion: parsed.showExportQuestion ?? DEFAULT_EXPORT_MODAL_STATE.showExportQuestion,
       showExportNfModal: parsed.showExportNfModal ?? DEFAULT_EXPORT_MODAL_STATE.showExportNfModal,
-      pendingExportFormat: parsed.pendingExportFormat ?? DEFAULT_EXPORT_MODAL_STATE.pendingExportFormat,
       exportEntries: sanitizedEntries,
-      resumidoSyncVisible: parsed.resumidoSyncVisible ?? DEFAULT_EXPORT_MODAL_STATE.resumidoSyncVisible,
     };
   } catch (error) {
     console.error('Erro ao carregar estado do export modal:', error);
@@ -219,20 +538,21 @@ const loadExportModalState = (): ExportModalState => {
 const ContasAPagar: React.FC = () => {
   const [contas, setContas] = useState<ContaAPagar[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
   const { getState, setState, clearState } = usePersistence();
 
-  const [activeTab, setActiveTab] = useState<ContaTipo>(() => getState('contasAPagar_activeTab') || 'fixa');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => getState('contasAPagar_activeTab') || 'fixa');
   const [newContaTipo, setNewContaTipo] = useState<ContaTipo>(() => getState('contasAPagar_newContaTipo') || 'fixa');
   const [showForm, setShowForm] = useState(() => getState('contasAPagar_showForm') || false);
   const [showUpload, setShowUpload] = useState(() => getState('contasAPagar_showUpload') || false);
   const [editingConta, setEditingConta] = useState<ContaAPagar | null>(() => getState('contasAPagar_editingConta') || null);
   const [searchTerm, setSearchTerm] = useState(() => getState('contasAPagar_searchTerm') || '');
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [sortConfig, setSortConfig] = useState<{
     key: 'fornecedor' | 'status_documento' | 'valor' | 'vencimento' | null;
     direction: 'asc' | 'desc';
   }>({ key: 'vencimento', direction: 'asc' });
   const [viewingConta, setViewingConta] = useState<ContaAPagar | null>(() => getState('contasAPagar_viewingConta') || null);
-  const [showExportMenu, setShowExportMenu] = useState(false);
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
   const [pendingActionConta, setPendingActionConta] = useState<ContaAPagar | null>(null);
@@ -243,29 +563,83 @@ const ContasAPagar: React.FC = () => {
   const savedExportState = useMemo(() => loadExportModalState(), []);
 
   const [showNextWeekModal, setShowNextWeekModal] = useState(false);
-  const [showExportQuestion, setShowExportQuestion] = useState(savedExportState.showExportQuestion);
   const [showExportNfModal, setShowExportNfModal] = useState(savedExportState.showExportNfModal);
-  const [pendingExportFormat, setPendingExportFormat] = useState<ExportFormat | null>(savedExportState.pendingExportFormat);
   const [exportEntries, setExportEntries] = useState<Record<string, ExportEntry>>(savedExportState.exportEntries);
-  const [resumidoSyncVisible, setResumidoSyncVisible] = useState(savedExportState.resumidoSyncVisible);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [showEmailRecipientsModal, setShowEmailRecipientsModal] = useState(false);
+  const [emailRecipientInput, setEmailRecipientInput] = useState('');
+  const [emailRecipientsError, setEmailRecipientsError] = useState<string | null>(null);
+  const [emailRecipients, setEmailRecipients] = useState<string[]>(() => loadEmailRecipients());
+  const [emailContext, setEmailContext] = useState<{
+    columns: string[];
+    rows: Array<Array<string | number | Date | null>>;
+  } | null>(null);
+  const [showConsolidateLoteModal, setShowConsolidateLoteModal] = useState(false);
+  const [consolidateSelection, setConsolidateSelection] = useState<Set<string>>(new Set());
+  const [consolidateError, setConsolidateError] = useState<string | null>(null);
+  const [lotes, setLotes] = useState<LoteRegistro[]>(() => loadLotes());
+  const [lotesLoaded, setLotesLoaded] = useState(false);
+  const [loteNome, setLoteNome] = useState('');
+  const [loteNomeError, setLoteNomeError] = useState<string | null>(null);
+  const [currentLoteId, setCurrentLoteId] = useState<string | null>(null);
+  const [editingLoteId, setEditingLoteId] = useState<string | null>(null);
+  const [editingLoteType, setEditingLoteType] = useState<'resumido' | 'detalhado' | null>(null);
+  const [editingLoteNome, setEditingLoteNome] = useState('');
+  const [editingLoteRows, setEditingLoteRows] = useState<Array<LoteRowDetalhado | LoteRowResumido>>([]);
+  const [editingLoteReadOnly, setEditingLoteReadOnly] = useState(false);
+  const [editingLoteTab, setEditingLoteTab] = useState<ContaTipo>('fixa');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const payload = {
-      showExportQuestion,
       showExportNfModal,
-      pendingExportFormat,
       exportEntries,
-      resumidoSyncVisible,
     };
     try {
       localStorage.setItem(EXPORT_MODAL_STORAGE_KEY, JSON.stringify(payload));
     } catch (error) {
       console.error('Erro ao salvar estado do export modal:', error);
     }
-  }, [showExportQuestion, showExportNfModal, pendingExportFormat, exportEntries, resumidoSyncVisible]);
+  }, [showExportNfModal, exportEntries]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(LOTES_STORAGE_KEY, JSON.stringify(lotes));
+    } catch (error) {
+      console.error('Erro ao salvar lotes:', error);
+    }
+  }, [lotes]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(LOTES_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      const filtered = parsed.filter((item) => item?.nome !== CONSOLIDADO_FEVEREIRO_2026);
+      if (filtered.length !== parsed.length) {
+        localStorage.setItem(LOTES_STORAGE_KEY, JSON.stringify(filtered));
+      }
+    } catch (error) {
+      console.error('Erro ao limpar lote consolidado antigo:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(EMAIL_RECIPIENTS_STORAGE_KEY, JSON.stringify(emailRecipients));
+    } catch (error) {
+      console.error('Erro ao salvar destinatarios de e-mail:', error);
+    }
+  }, [emailRecipients]);
+
+  useEffect(() => {
+    setLotesLoaded(false);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!toast) return;
@@ -337,17 +711,386 @@ const ContasAPagar: React.FC = () => {
     setState('contasAPagar_statusFilter', value);
   }, [clearState, setState]);
 
+  const normalizeEmail = (value: string) => value.trim().toLowerCase();
+  const defaultEmailRecipients = useMemo(
+    () => DEFAULT_EMAIL_RECIPIENTS.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0),
+    []
+  );
+
+  const isValidEmail = (value: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  };
+
+  const formatBRLFromInput = (input: string) => {
+    const cleaned = input.replace(/[^\d,.-]/g, '');
+    if (!cleaned) return '';
+    const normalized = cleaned.replace(/\./g, '').replace(',', '.');
+    const numeric = Number(normalized);
+    if (!Number.isFinite(numeric)) return '';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(numeric);
+  };
+
+  const parseValorToNumber = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    const cleaned = value.toString().replace(/[^\d,.-]/g, '');
+    if (!cleaned) return null;
+    const hasComma = cleaned.includes(',');
+    const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+    const numeric = Number(normalized);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
+  const normalizeContaTipo = useCallback((value?: ContaTipo | null) => {
+    if (value === 'avulsa') return 'avulsa';
+    if (value === 'ressarcimento') return 'ressarcimento';
+    return 'fixa';
+  }, []);
+
+  const normalizeContaTipoOptional = useCallback((value?: string | null) => {
+    if (value === 'avulsa') return 'avulsa';
+    if (value === 'ressarcimento') return 'ressarcimento';
+    if (value === 'fixa') return 'fixa';
+    return undefined;
+  }, []);
+
+  const normalizeLoteOrigem = useCallback((value?: string | null): LoteOrigem => {
+    if (value === 'avulsa') return 'avulsa';
+    if (value === 'ressarcimento') return 'ressarcimento';
+    if (value === 'misto') return 'misto';
+    return 'fixa';
+  }, []);
+
+
   const contasByTab = useMemo(() => {
-    return contas.filter((conta) => (conta.tipo_conta === 'avulsa' ? 'avulsa' : 'fixa') === activeTab);
-  }, [contas, activeTab]);
+    if (activeTab === 'lotes' || activeTab === 'lotes_fechados') return [];
+    return contas.filter((conta) => normalizeContaTipo(conta.tipo_conta) === activeTab);
+  }, [contas, activeTab, normalizeContaTipo]);
+
+  const contasTipoMap = useMemo(() => {
+    return new Map(
+      contas.map((conta) => [
+        conta.id,
+        normalizeContaTipo(conta.tipo_conta),
+      ])
+    );
+  }, [contas, normalizeContaTipo]);
+
+  const extractContaIdFromValue = useCallback((value?: string) => {
+    return extractUuidFromString(value);
+  }, []);
+
+  const getRowContaId = useCallback((row: LoteRowDetalhado | LoteRowResumido) => {
+    if (row.contaId) return row.contaId;
+    return extractContaIdFromValue(row.id);
+  }, [extractContaIdFromValue]);
+
+  const getRowTipoRegistro = useCallback((row: LoteRowDetalhado | LoteRowResumido) => {
+    const contaId = getRowContaId(row);
+    if (contaId && contasTipoMap.has(contaId)) {
+      return contasTipoMap.get(contaId);
+    }
+    if (row.tipoRegistro) return row.tipoRegistro;
+    return undefined;
+  }, [contasTipoMap, getRowContaId]);
+
+  const buildLoteItensPayload = useCallback((loteId: string, lote: LoteRegistro) => {
+    const items: Array<Record<string, string | number | boolean | null>> = [];
+    const pushRow = (tipo: 'resumido' | 'detalhado', row: LoteRowResumido | LoteRowDetalhado) => {
+      const contaId = getRowContaId(row);
+      const tipoRegistro = getRowTipoRegistro(row)
+        ?? (lote.origem !== 'misto' ? lote.origem : null);
+      const base = {
+        lote_id: loteId,
+        tipo,
+        conta_id: contaId ?? null,
+        tipo_conta: tipoRegistro,
+        fornecedor: row.fornecedor || null,
+        valor: parseValorToNumber(row.valor),
+        vencimento: normalizeDateInput(row.vencimento) ?? null,
+        descricao: row.descricao || null,
+        nota_fiscal: row.notaFiscal || null,
+        user_id: user?.id ?? null,
+      } as Record<string, string | number | boolean | null>;
+
+      if (tipo === 'detalhado') {
+        const detailed = row as LoteRowDetalhado;
+        Object.assign(base, {
+          pagamento: detailed.pagamento || null,
+          empresa: detailed.empresa || null,
+          setor_responsavel: detailed.setorResponsavel || null,
+          banco: detailed.banco || null,
+          agencia: detailed.agencia || null,
+          conta: detailed.conta || null,
+          tipo_de_conta: detailed.tipoConta || null,
+          cpf_cnpj: detailed.cpfCnpj || null,
+          anexos: detailed.anexos || null,
+        });
+      }
+
+      items.push(base);
+    };
+
+    if (lote.resumidoRows?.length) {
+      lote.resumidoRows.forEach((row) => pushRow('resumido', row));
+    }
+    if (lote.detalhadoRows?.length) {
+      lote.detalhadoRows.forEach((row) => pushRow('detalhado', row));
+    }
+
+    return items;
+  }, [getRowContaId, getRowTipoRegistro, parseValorToNumber, user]);
+
+  const persistLoteToDb = useCallback(async (lote: LoteRegistro, options?: { silent?: boolean }) => {
+    if (!user?.id) return;
+    const loteId = ensureUuid(lote.id);
+    const payload = {
+      id: loteId,
+      nome: lote.nome,
+      origem: lote.origem,
+      fechado: lote.fechado ?? false,
+      resumido: lote.resumido ?? false,
+      detalhado: lote.detalhado ?? false,
+      total: lote.total ?? 0,
+      fixas_total: lote.fixasTotal ?? 0,
+      avulsas_total: lote.avulsasTotal ?? 0,
+      ressarcimento_total: lote.ressarcimentoTotal ?? 0,
+      criado_em: lote.criado_em,
+      user_id: user.id,
+    };
+
+    const { error: loteError } = await supabase
+      .from('contas_a_pagar_lotes')
+      .upsert(payload, { onConflict: 'id' });
+    if (loteError) {
+      console.error('Erro ao salvar lote no Supabase:', loteError);
+      if (!options?.silent) {
+        setToast({ type: 'error', message: 'Falha ao salvar o lote no banco.' });
+      }
+      return;
+    }
+
+    const itens = buildLoteItensPayload(loteId, lote);
+    const { error: deleteError } = await supabase
+      .from('contas_a_pagar_lote_itens')
+      .delete()
+      .eq('lote_id', loteId);
+    if (deleteError) {
+      console.error('Erro ao limpar itens do lote:', deleteError);
+      if (!options?.silent) {
+        setToast({ type: 'error', message: 'Falha ao atualizar itens do lote.' });
+      }
+      return;
+    }
+
+    if (itens.length > 0) {
+      const { error: insertError } = await supabase
+        .from('contas_a_pagar_lote_itens')
+        .insert(itens);
+      if (insertError) {
+        console.error('Erro ao inserir itens do lote:', insertError);
+        if (!options?.silent) {
+          setToast({ type: 'error', message: 'Falha ao salvar itens do lote.' });
+        }
+      }
+    }
+  }, [buildLoteItensPayload, user]);
+
+  const deleteLotesFromDb = useCallback(async (ids: string[]) => {
+    if (!user?.id) return;
+    if (ids.length === 0) return;
+    const validIds = ids.filter((id) => isUuid(id));
+    if (validIds.length === 0) return;
+    const { error } = await supabase
+      .from('contas_a_pagar_lotes')
+      .delete()
+      .in('id', validIds);
+    if (error) {
+      console.error('Erro ao remover lotes do Supabase:', error);
+      setToast({ type: 'error', message: 'Falha ao remover lote no banco.' });
+    }
+  }, [user]);
+
+  const fetchLotesFromDb = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data: lotesData, error: lotesError } = await supabase
+        .from('contas_a_pagar_lotes')
+        .select('id, nome, origem, fechado, resumido, detalhado, total, fixas_total, avulsas_total, ressarcimento_total, criado_em')
+        .order('criado_em', { ascending: false });
+
+      if (lotesError) throw lotesError;
+
+      const ids = (lotesData || []).map((row) => row.id);
+      let itensData: Array<Record<string, any>> = [];
+      if (ids.length > 0) {
+        const { data: itens, error: itensError } = await supabase
+          .from('contas_a_pagar_lote_itens')
+          .select('id, lote_id, tipo, conta_id, tipo_conta, fornecedor, valor, vencimento, pagamento, empresa, descricao, nota_fiscal, setor_responsavel, banco, agencia, conta, tipo_de_conta, cpf_cnpj, anexos')
+          .in('lote_id', ids);
+        if (itensError) throw itensError;
+        itensData = itens || [];
+      }
+
+      if (lotesData && lotesData.length > 0) {
+        const itemsByLote = new Map<string, Array<Record<string, any>>>();
+        itensData.forEach((item) => {
+          const list = itemsByLote.get(item.lote_id) ?? [];
+          list.push(item);
+          itemsByLote.set(item.lote_id, list);
+        });
+
+        const mapped = lotesData.map((row) => {
+          const origem = normalizeLoteOrigem(row.origem);
+          const items = itemsByLote.get(row.id) ?? [];
+          const resumidoRows = items
+            .filter((item) => item.tipo === 'resumido')
+            .map((item) => ({
+              id: typeof item.id === 'string' ? item.id : createId(),
+              contaId: typeof item.conta_id === 'string' ? item.conta_id : undefined,
+              fornecedor: item.fornecedor ?? '',
+              valor: item.valor === null || item.valor === undefined ? '' : item.valor.toString(),
+              vencimento: item.vencimento ?? '',
+              descricao: item.descricao ?? '',
+              notaFiscal: item.nota_fiscal ?? '',
+              tipoRegistro: normalizeContaTipoOptional(item.tipo_conta),
+            })) as LoteRowResumido[];
+
+          const detalhadoRows = items
+            .filter((item) => item.tipo === 'detalhado')
+            .map((item) => ({
+              id: typeof item.id === 'string' ? item.id : createId(),
+              contaId: typeof item.conta_id === 'string' ? item.conta_id : undefined,
+              fornecedor: item.fornecedor ?? '',
+              valor: item.valor === null || item.valor === undefined ? '' : item.valor.toString(),
+              vencimento: item.vencimento ?? '',
+              pagamento: item.pagamento ?? '',
+              empresa: item.empresa ?? '',
+              descricao: item.descricao ?? '',
+              notaFiscal: item.nota_fiscal ?? '',
+              setorResponsavel: item.setor_responsavel ?? '',
+              banco: item.banco ?? '',
+              agencia: item.agencia ?? '',
+              conta: item.conta ?? '',
+              tipoConta: item.tipo_de_conta ?? '',
+              cpfCnpj: item.cpf_cnpj ?? '',
+              anexos: item.anexos ?? '',
+              tipoRegistro: normalizeContaTipoOptional(item.tipo_conta),
+            })) as LoteRowDetalhado[];
+
+          const resumido = row.resumido || resumidoRows.length > 0;
+          const detalhado = row.detalhado || detalhadoRows.length > 0;
+
+          return {
+            id: row.id,
+            nome: row.nome,
+            origem,
+            fechado: row.fechado ?? false,
+            total: Number(row.total ?? 0),
+            fixasTotal: Number(row.fixas_total ?? 0),
+            avulsasTotal: Number(row.avulsas_total ?? 0),
+            ressarcimentoTotal: Number(row.ressarcimento_total ?? 0),
+            criado_em: row.criado_em ?? new Date().toISOString(),
+            resumido,
+            detalhado,
+            resumidoRows: resumidoRows.length ? resumidoRows : undefined,
+            detalhadoRows: detalhadoRows.length ? detalhadoRows : undefined,
+          } as LoteRegistro;
+        });
+
+        setLotes(mapped.sort((a, b) => b.criado_em.localeCompare(a.criado_em)));
+        setLotesLoaded(true);
+        return;
+      }
+
+      if (!lotesLoaded) {
+        const local = loadLotes();
+        if (local.length > 0) {
+          const normalizedLocal = local.map((lote) => ({
+            ...lote,
+            id: ensureUuid(lote.id),
+          }));
+          setLotes(normalizedLocal);
+          for (const lote of normalizedLocal) {
+            await persistLoteToDb(lote, { silent: true });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar lotes do Supabase:', error);
+    } finally {
+      setLotesLoaded(true);
+    }
+  }, [lotesLoaded, normalizeContaTipoOptional, normalizeLoteOrigem, persistLoteToDb, user]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    if (lotesLoaded) return;
+    fetchLotesFromDb();
+  }, [fetchLotesFromDb, lotesLoaded, user]);
+
+  const getLoteCounts = useCallback((lote: LoteRegistro) => {
+    let fixas = lote.fixasTotal ?? 0;
+    let avulsas = lote.avulsasTotal ?? 0;
+    let ressarcimentos = lote.ressarcimentoTotal ?? 0;
+
+    if (fixas === 0 && avulsas === 0 && ressarcimentos === 0) {
+      const rows = lote.detalhadoRows ?? lote.resumidoRows ?? [];
+      if (rows.length > 0) {
+        rows.forEach((row) => {
+          const tipo = getRowTipoRegistro(row as LoteRowDetalhado | LoteRowResumido);
+          if (tipo === 'avulsa') avulsas += 1;
+          else if (tipo === 'fixa') fixas += 1;
+          else if (tipo === 'ressarcimento') ressarcimentos += 1;
+        });
+      } else if (lote.origem === 'fixa') {
+        fixas = lote.total;
+      } else if (lote.origem === 'avulsa') {
+        avulsas = lote.total;
+      } else if (lote.origem === 'ressarcimento') {
+        ressarcimentos = lote.total;
+      }
+    }
+
+    return { fixas, avulsas, ressarcimentos };
+  }, [getRowTipoRegistro]);
+
+  const getRowsCounts = useCallback((rows: Array<LoteRowDetalhado | LoteRowResumido>) => {
+    return rows.reduce(
+      (acc, row) => {
+        const tipo = getRowTipoRegistro(row);
+        if (tipo === 'fixa') acc.fixas += 1;
+        else if (tipo === 'avulsa') acc.avulsas += 1;
+        else if (tipo === 'ressarcimento') acc.ressarcimentos += 1;
+        return acc;
+      },
+      { fixas: 0, avulsas: 0, ressarcimentos: 0 }
+    );
+  }, [getRowTipoRegistro]);
 
   const contasFixasCount = useMemo(() => {
-    return contas.filter((conta) => (conta.tipo_conta === 'avulsa' ? 'avulsa' : 'fixa') === 'fixa').length;
-  }, [contas]);
+    return contas.filter((conta) => normalizeContaTipo(conta.tipo_conta) === 'fixa').length;
+  }, [contas, normalizeContaTipo]);
 
   const contasAvulsasCount = useMemo(() => {
-    return contas.filter((conta) => (conta.tipo_conta === 'avulsa' ? 'avulsa' : 'fixa') === 'avulsa').length;
-  }, [contas]);
+    return contas.filter((conta) => normalizeContaTipo(conta.tipo_conta) === 'avulsa').length;
+  }, [contas, normalizeContaTipo]);
+
+  const contasRessarcimentoCount = useMemo(() => {
+    return contas.filter((conta) => normalizeContaTipo(conta.tipo_conta) === 'ressarcimento').length;
+  }, [contas, normalizeContaTipo]);
+
+  const lotesFechados = useMemo(() => lotes.filter((lote) => lote.fechado), [lotes]);
+  const lotesAbertos = useMemo(() => lotes.filter((lote) => !lote.fechado), [lotes]);
+  const lotesCount = useMemo(() => lotesAbertos.length, [lotesAbertos]);
+  const lotesFechadosCount = useMemo(() => lotesFechados.length, [lotesFechados]);
+  const lotesVisiveis = useMemo(
+    () => (activeTab === 'lotes_fechados' ? lotesFechados : lotesAbertos),
+    [activeTab, lotesAbertos, lotesFechados]
+  );
 
 
   const getDayValue = (value: number | null | undefined) => {
@@ -599,6 +1342,119 @@ const ContasAPagar: React.FC = () => {
     });
     return merged;
   };
+
+  const buildDetalhadoRows = useCallback((): LoteRowDetalhado[] => {
+    return filteredContasSorted.map((conta) => {
+      const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
+      return {
+        id: conta.id,
+        contaId: conta.id,
+        fornecedor: entry.fornecedor ?? '',
+        valor: conta.valor === null || conta.valor === undefined ? '' : conta.valor.toString(),
+        vencimento: entry.vencimento ?? '',
+        pagamento: entry.pagamento ?? '',
+        empresa: entry.empresa ?? '',
+        descricao: entry.descricao ?? '',
+        notaFiscal: entry.notaFiscal ?? '',
+        setorResponsavel: entry.setorResponsavel ?? '',
+        banco: entry.banco ?? '',
+        agencia: entry.agencia ?? '',
+        conta: entry.conta ?? '',
+        tipoConta: entry.tipoConta ?? '',
+        cpfCnpj: entry.cpfCnpj ?? '',
+        anexos: entry.anexos ?? '',
+        tipoRegistro: normalizeContaTipo(conta.tipo_conta),
+      };
+    });
+  }, [exportEntries, filteredContasSorted, mergeExportEntryWithDefaults, normalizeContaTipo]);
+
+  const buildResumidoRows = useCallback((): LoteRowResumido[] => {
+    return filteredContasSorted.map((conta) => {
+      const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
+      return {
+        id: conta.id,
+        contaId: conta.id,
+        fornecedor: entry.fornecedor ?? '',
+        valor: conta.valor === null || conta.valor === undefined ? '' : conta.valor.toString(),
+        vencimento: entry.vencimento ?? '',
+        descricao: entry.descricao ?? '',
+        notaFiscal: entry.notaFiscal ?? '',
+        tipoRegistro: normalizeContaTipo(conta.tipo_conta),
+      };
+    });
+  }, [exportEntries, filteredContasSorted, mergeExportEntryWithDefaults, normalizeContaTipo]);
+
+  const buildDetalhadoEmailRows = useCallback((rows: LoteRowDetalhado[]) => {
+    const parseValor = (value: string | number | null | undefined) => {
+      if (value === null || value === undefined || value === '') return null;
+      if (typeof value === 'number') return value;
+      const cleaned = value.toString().replace(/[^\d,.-]/g, '');
+      if (!cleaned) return null;
+      const normalized = cleaned.replace(/\./g, '').replace(',', '.');
+      const numeric = Number(normalized);
+      return Number.isFinite(numeric) ? numeric : null;
+    };
+
+    return rows.map((row) => {
+      const valorNum = parseValor(row.valor);
+      let vencDate: Date | null = null;
+      if (row.vencimento) {
+        const parsedDate = new Date(row.vencimento);
+        vencDate = Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+      }
+      return [
+        row.fornecedor,
+        valorNum ?? null,
+        vencDate,
+        row.pagamento,
+        row.empresa,
+        row.descricao,
+        row.notaFiscal,
+        row.setorResponsavel,
+        row.banco,
+        row.agencia,
+        row.conta,
+        row.tipoConta,
+        row.cpfCnpj,
+        row.anexos,
+      ];
+    });
+  }, []);
+
+  const mapDetalhadoToResumido = useCallback((rows: LoteRowDetalhado[]): LoteRowResumido[] => {
+    return rows.map((row) => ({
+      id: row.id,
+      contaId: row.contaId,
+      fornecedor: row.fornecedor ?? '',
+      valor: row.valor ?? '',
+      vencimento: row.vencimento ?? '',
+      descricao: row.descricao ?? '',
+      notaFiscal: row.notaFiscal ?? '',
+      tipoRegistro: row.tipoRegistro,
+    }));
+  }, []);
+
+  const mapResumidoToDetalhado = useCallback((rows: LoteRowResumido[]): LoteRowDetalhado[] => {
+    return rows.map((row) => ({
+      id: row.id,
+      contaId: row.contaId,
+      fornecedor: row.fornecedor ?? '',
+      valor: row.valor ?? '',
+      vencimento: row.vencimento ?? '',
+      pagamento: '',
+      empresa: '',
+      descricao: row.descricao ?? '',
+      notaFiscal: row.notaFiscal ?? '',
+      setorResponsavel: '',
+      banco: '',
+      agencia: '',
+      conta: '',
+      tipoConta: '',
+      cpfCnpj: '',
+      anexos: '',
+      tipoRegistro: row.tipoRegistro,
+    }));
+  }, []);
 
   const buildXlsxDataRows = useCallback((entryMap: Record<string, ExportEntry>) => {
     const parseValor = (value: string | number | null) => {
@@ -859,8 +1715,6 @@ const ContasAPagar: React.FC = () => {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Planilha 3'); // igual ao anexo
       XLSX.writeFile(wb, `PROTOCOLO_FINANCEIRO_RESUMIDO_${new Date().toISOString().slice(0, 10)}.xlsx`);
-
-      setShowExportMenu(false);
       return;
     }
 
@@ -936,75 +1790,12 @@ const ContasAPagar: React.FC = () => {
       : `PROTOCOLO_FINANCEIRO_${new Date().toISOString().slice(0, 10)}`;
 
     XLSX.writeFile(wb, `${filenameBase}.xlsx`);
-    setShowExportMenu(false);
-  }, [buildXlsxDataRows, filteredContasSorted, setShowExportMenu]);
-
-  const resetExportFlow = useCallback(() => {
-    setShowExportQuestion(false);
-    setShowExportNfModal(false);
-    setPendingExportFormat(null);
-    setExportEntries({});
-    setResumidoSyncVisible(false);
-  }, []);
+  }, [buildXlsxDataRows, filteredContasSorted]);
 
   const handleExportSelection = useCallback((format: ExportFormat) => {
-    if (format === 'xlsx' || format === 'xlsx_resumido') {
-      setPendingExportFormat(format);
-      setShowExportMenu(false);
-      setShowExportQuestion(true);
-      return;
-    }
     exportData(format);
+    setShowExportMenu(false);
   }, [exportData]);
-
-  const handleExportQuestionNo = useCallback(() => {
-    if (pendingExportFormat) {
-      exportData(pendingExportFormat);
-    }
-    resetExportFlow();
-  }, [pendingExportFormat, exportData, resetExportFlow]);
-
-  const handleExportQuestionYes = useCallback(() => {
-    setShowExportQuestion(false);
-    setShowExportNfModal(true);
-    setExportEntries((prev) => {
-      const next = { ...prev };
-      filteredContasSorted.forEach((conta) => {
-        next[conta.id] = mergeExportEntryWithDefaults(conta, prev[conta.id]);
-      });
-      return next;
-    });
-  }, [filteredContasSorted, mergeExportEntryWithDefaults]);
-
-  const handleSyncNotasFiscais = useCallback(() => {
-    setExportEntries((prev) => {
-      const next = { ...prev };
-      filteredContasSorted.forEach((conta) => {
-        const merged = mergeExportEntryWithDefaults(conta, prev[conta.id]);
-        const existingValor = prev[conta.id]?.notaFiscal;
-        const trimmedValor = existingValor?.trim() ?? '';
-        const shouldSyncNota = trimmedValor === '' || trimmedValor === '*';
-        if (shouldSyncNota) {
-          merged.notaFiscal = getNotaFiscalSource(conta);
-        }
-        next[conta.id] = merged;
-      });
-      return next;
-    });
-    setResumidoSyncVisible(true);
-  }, [filteredContasSorted, mergeExportEntryWithDefaults]);
-
-  const handleExportWithNf = useCallback(() => {
-    if (pendingExportFormat) {
-      exportData(pendingExportFormat, exportEntries);
-    }
-    resetExportFlow();
-  }, [pendingExportFormat, exportEntries, exportData, resetExportFlow]);
-
-  const handleExportResumidoWithNf = useCallback(() => {
-    if (!resumidoSyncVisible) return;
-    exportData('xlsx_resumido', exportEntries);
-  }, [exportEntries, exportData, resumidoSyncVisible]);
 
   const handleExportEntryChange = (conta: ContaAPagar, field: ExportEntryField, value: string) => {
     setExportEntries((prev) => {
@@ -1018,10 +1809,18 @@ const ContasAPagar: React.FC = () => {
     });
   };
 
-  const handleSendXlsxEmail = useCallback(async () => {
-    if (sendingEmail || pendingExportFormat !== 'xlsx') return;
+  const handleSendXlsxEmail = useCallback(async (
+    recipients: string[] = [],
+    context?: { columns: string[]; rows: Array<Array<string | number | Date | null>> }
+  ) => {
+    if (sendingEmail) return false;
 
-  const dataRows = buildXlsxDataRows(exportEntries);
+    const normalizedRecipients = recipients
+      .map((recipient) => normalizeEmail(recipient))
+      .filter((recipient) => recipient.length > 0);
+
+    const dataRows = context?.rows ?? buildXlsxDataRows(exportEntries);
+    const columns = context?.columns ?? XLSX_EXPORT_HEADERS;
     const rows = dataRows.map((row) =>
       row.map((value) => {
         if (value instanceof Date) {
@@ -1039,8 +1838,9 @@ const ContasAPagar: React.FC = () => {
     try {
       const { data, error } = await supabase.functions.invoke('send-contas-a-pagar-xlsx-email', {
         body: {
-          columns: XLSX_EXPORT_HEADERS,
+          columns,
           rows,
+          recipients: normalizedRecipients,
         }
       });
 
@@ -1059,23 +1859,557 @@ const ContasAPagar: React.FC = () => {
         }
         console.error('Erro ao enviar e-mail:', error);
         setToast({ type: 'error', message: errorMessage });
-        return;
+        return false;
       }
 
       if (!data?.ok) {
         console.error('Resposta inesperada da function:', data);
         setToast({ type: 'error', message: 'Falha ao enviar e-mail.' });
-        return;
+        return false;
       }
 
       setToast({ type: 'success', message: 'E-mail enviado com sucesso' });
+      return true;
     } catch (err) {
       console.error('Erro inesperado ao enviar e-mail:', err);
       setToast({ type: 'error', message: 'Falha ao enviar e-mail.' });
+      return false;
     } finally {
       setSendingEmail(false);
     }
-  }, [buildXlsxDataRows, exportEntries, pendingExportFormat, sendingEmail]);
+  }, [buildXlsxDataRows, exportEntries, normalizeEmail, sendingEmail]);
+
+  const handleOpenEmailRecipientsModal = useCallback((context?: { columns: string[]; rows: Array<Array<string | number | Date | null>> }) => {
+    setEmailRecipientInput('');
+    setEmailRecipientsError(null);
+    setEmailContext(context ?? null);
+    setShowEmailRecipientsModal(true);
+  }, []);
+
+  const handleAddEmailRecipient = useCallback(() => {
+    const normalized = normalizeEmail(emailRecipientInput);
+    if (!normalized) {
+      setEmailRecipientsError('Informe um e-mail valido.');
+      return;
+    }
+    if (!isValidEmail(normalized)) {
+      setEmailRecipientsError('Informe um e-mail valido.');
+      return;
+    }
+    setEmailRecipients((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
+    setEmailRecipientInput('');
+    setEmailRecipientsError(null);
+  }, [emailRecipientInput, isValidEmail, normalizeEmail]);
+
+  const handleRemoveEmailRecipient = useCallback((recipient: string) => {
+    const normalized = normalizeEmail(recipient);
+    if (defaultEmailRecipients.includes(normalized)) return;
+    setEmailRecipients((prev) => prev.filter((item) => item !== recipient));
+  }, [defaultEmailRecipients, normalizeEmail]);
+
+  const handleConfirmSendEmail = useCallback(async () => {
+    if (emailRecipients.length === 0) {
+      setEmailRecipientsError('Adicione ao menos um destinatario.');
+      return;
+    }
+    if (!emailRecipients.every((recipient) => isValidEmail(recipient))) {
+      setEmailRecipientsError('Existe um destinatario invalido.');
+      return;
+    }
+    const success = await handleSendXlsxEmail(emailRecipients, emailContext ?? undefined);
+    if (success) {
+      setShowEmailRecipientsModal(false);
+      setEmailContext(null);
+    }
+  }, [emailContext, emailRecipients, handleSendXlsxEmail, isValidEmail]);
+
+  const buildDefaultLoteNome = useCallback(() => {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    return `PROTOCLO TI CONTAS A PAGAR ${day}-${month}-${year}`;
+  }, []);
+
+  const upsertLote = useCallback((tipo: 'resumido' | 'detalhado', nome: string, rows: LoteRowDetalhado[] | LoteRowResumido[]) => {
+    const trimmed = nome.trim();
+    if (!trimmed) return false;
+    const origem: ContaTipo = activeTab === 'avulsa'
+      ? 'avulsa'
+      : activeTab === 'ressarcimento'
+        ? 'ressarcimento'
+        : 'fixa';
+    const loteId = ensureUuid(currentLoteId ?? createId());
+    const totalRows = rows.length;
+    const counts = getRowsCounts(rows);
+    setCurrentLoteId(loteId);
+    let nextLote: LoteRegistro | null = null;
+    setLotes((prev) => {
+      const existing = prev.find((lote) => lote.id === loteId);
+      if (existing) {
+        return prev.map((lote) => {
+          if (lote.id !== loteId) return lote;
+          const updated = {
+            ...lote,
+            nome: trimmed,
+            origem,
+            total: totalRows,
+            fechado: lote.fechado ?? false,
+            fixasTotal: counts.fixas,
+            avulsasTotal: counts.avulsas,
+            ressarcimentoTotal: counts.ressarcimentos,
+            resumido: tipo === 'resumido' ? true : lote.resumido,
+            detalhado: tipo === 'detalhado' ? true : lote.detalhado,
+            resumidoRows: tipo === 'resumido' ? (rows as LoteRowResumido[]) : lote.resumidoRows,
+            detalhadoRows: tipo === 'detalhado' ? (rows as LoteRowDetalhado[]) : lote.detalhadoRows,
+          };
+          nextLote = updated;
+          return updated;
+        });
+      }
+
+      const novoLote: LoteRegistro = {
+        id: loteId,
+        nome: trimmed,
+        total: totalRows,
+        origem,
+        criado_em: new Date().toISOString(),
+        fechado: false,
+        fixasTotal: counts.fixas,
+        avulsasTotal: counts.avulsas,
+        ressarcimentoTotal: counts.ressarcimentos,
+        resumido: tipo === 'resumido',
+        detalhado: tipo === 'detalhado',
+        resumidoRows: tipo === 'resumido' ? (rows as LoteRowResumido[]) : undefined,
+        detalhadoRows: tipo === 'detalhado' ? (rows as LoteRowDetalhado[]) : undefined,
+      };
+      nextLote = novoLote;
+      return [novoLote, ...prev];
+    });
+    if (nextLote) {
+      persistLoteToDb(nextLote);
+    }
+    setToast({
+      type: 'success',
+      message: `Lote ${tipo} registrado`,
+    });
+    return true;
+  }, [activeTab, currentLoteId, getRowsCounts, persistLoteToDb]);
+
+  const handleOpenNovoLoteModal = useCallback(() => {
+    setLoteNome(buildDefaultLoteNome());
+    setLoteNomeError(null);
+    setCurrentLoteId(createId());
+    setExportEntries((prev) => {
+      const next = { ...prev };
+      filteredContasSorted.forEach((conta) => {
+        next[conta.id] = mergeExportEntryWithDefaults(conta, prev[conta.id]);
+      });
+      return next;
+    });
+    setShowExportNfModal(true);
+  }, [buildDefaultLoteNome, filteredContasSorted, mergeExportEntryWithDefaults]);
+
+  const handleSaveLoteDetalhado = useCallback(() => {
+    const trimmed = loteNome.trim();
+    if (!trimmed) {
+      setLoteNomeError('Informe o nome do lote.');
+      return;
+    }
+    const rows = buildDetalhadoRows();
+    const saved = upsertLote('detalhado', trimmed, rows);
+    if (saved) {
+      setShowExportNfModal(false);
+      setLoteNomeError(null);
+      setCurrentLoteId(null);
+    }
+  }, [buildDetalhadoRows, loteNome, upsertLote]);
+
+  const handleCreateResumidoLote = useCallback(() => {
+    const nome = loteNome.trim();
+    if (!nome) {
+      setLoteNomeError('Informe o nome do lote.');
+      return;
+    }
+    const rows = buildResumidoRows();
+    upsertLote('resumido', nome, rows);
+  }, [buildResumidoRows, loteNome, upsertLote]);
+
+  const handleStartEditLote = useCallback((lote: LoteRegistro, tipo: 'resumido' | 'detalhado', readOnly = false) => {
+    setEditingLoteId(lote.id);
+    setEditingLoteNome(lote.nome);
+    setEditingLoteType(tipo);
+    setEditingLoteReadOnly(readOnly);
+    const rows = tipo === 'resumido'
+      ? (lote.resumidoRows ? [...lote.resumidoRows] : [])
+      : (lote.detalhadoRows ? [...lote.detalhadoRows] : []);
+    setEditingLoteRows(rows);
+    const counts = getRowsCounts(rows);
+    if (readOnly) {
+      if (counts.fixas === 0 && counts.avulsas === 0 && counts.ressarcimentos > 0) {
+        setEditingLoteTab('ressarcimento');
+      } else if (counts.fixas === 0 && counts.avulsas > 0) {
+        setEditingLoteTab('avulsa');
+      } else {
+        setEditingLoteTab('fixa');
+      }
+    } else {
+      setEditingLoteTab('fixa');
+    }
+  }, [getRowsCounts]);
+
+  const handleCancelEditLote = useCallback(() => {
+    setEditingLoteId(null);
+    setEditingLoteNome('');
+    setEditingLoteType(null);
+    setEditingLoteRows([]);
+    setEditingLoteReadOnly(false);
+    setEditingLoteTab('fixa');
+  }, []);
+
+  const handleSaveEditLote = useCallback(() => {
+    if (!editingLoteId || !editingLoteType) return;
+    const existing = lotes.find((lote) => lote.id === editingLoteId);
+    if (!existing) return;
+    const updated: LoteRegistro = editingLoteType === 'resumido'
+      ? {
+        ...existing,
+        resumido: true,
+        resumidoRows: editingLoteRows as LoteRowResumido[],
+      }
+      : {
+        ...existing,
+        detalhado: true,
+        detalhadoRows: editingLoteRows as LoteRowDetalhado[],
+      };
+    setLotes((prev) => prev.map((lote) => (lote.id === editingLoteId ? updated : lote)));
+    persistLoteToDb(updated);
+    setToast({ type: 'success', message: 'Lote atualizado' });
+    handleCancelEditLote();
+  }, [editingLoteId, editingLoteRows, editingLoteType, handleCancelEditLote, lotes, persistLoteToDb]);
+
+  const handleDeleteLote = useCallback((id: string) => {
+    if (!confirm('Deseja excluir este lote?')) return;
+    setLotes((prev) => prev.filter((lote) => lote.id !== id));
+    deleteLotesFromDb([id]);
+    setToast({ type: 'success', message: 'Lote removido' });
+  }, [deleteLotesFromDb]);
+
+  const buildDetalhadoRowsFromContas = useCallback((items: ContaAPagar[], entryMap: Record<string, ExportEntry>) => {
+    return items.map((conta) => {
+      const entry = mergeExportEntryWithDefaults(conta, entryMap[conta.id]);
+      return {
+        id: conta.id,
+        contaId: conta.id,
+        fornecedor: entry.fornecedor ?? '',
+        valor: conta.valor === null || conta.valor === undefined ? '' : conta.valor.toString(),
+        vencimento: entry.vencimento ?? '',
+        pagamento: entry.pagamento ?? '',
+        empresa: entry.empresa ?? '',
+        descricao: entry.descricao ?? '',
+        notaFiscal: entry.notaFiscal ?? '',
+        setorResponsavel: entry.setorResponsavel ?? '',
+        banco: entry.banco ?? '',
+        agencia: entry.agencia ?? '',
+        conta: entry.conta ?? '',
+        tipoConta: entry.tipoConta ?? '',
+        cpfCnpj: entry.cpfCnpj ?? '',
+        anexos: entry.anexos ?? '',
+        tipoRegistro: normalizeContaTipo(conta.tipo_conta),
+      };
+    });
+  }, [mergeExportEntryWithDefaults, normalizeContaTipo]);
+
+  const buildResumidoRowsFromContas = useCallback((items: ContaAPagar[], entryMap: Record<string, ExportEntry>) => {
+    return items.map((conta) => {
+      const entry = mergeExportEntryWithDefaults(conta, entryMap[conta.id]);
+      return {
+        id: conta.id,
+        contaId: conta.id,
+        fornecedor: entry.fornecedor ?? '',
+        valor: conta.valor === null || conta.valor === undefined ? '' : conta.valor.toString(),
+        vencimento: entry.vencimento ?? '',
+        descricao: entry.descricao ?? '',
+        notaFiscal: entry.notaFiscal ?? '',
+        tipoRegistro: normalizeContaTipo(conta.tipo_conta),
+      };
+    });
+  }, [mergeExportEntryWithDefaults, normalizeContaTipo]);
+
+  const buildUniqueLoteName = useCallback((baseName: string, existing: LoteRegistro[]) => {
+    let name = baseName;
+    let counter = 2;
+    const exists = (value: string) => existing.some((lote) => lote.nome === value);
+    while (exists(name)) {
+      name = `${baseName} (${counter})`;
+      counter += 1;
+    }
+    return name;
+  }, []);
+
+  const getMesVigenteLabel = () => {
+    const now = new Date();
+    try {
+      const month = now.toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase();
+      return `${month}/${now.getFullYear()}`;
+    } catch {
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      return `${month}/${now.getFullYear()}`;
+    }
+  };
+
+  const getMesLabel = (date: Date) => {
+    try {
+      const month = date.toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase();
+      return `${month}/${date.getFullYear()}`;
+    } catch {
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      return `${month}/${date.getFullYear()}`;
+    }
+  };
+
+  const handleOpenConsolidateModal = useCallback(() => {
+    setConsolidateSelection(new Set());
+    setConsolidateError(null);
+    setShowConsolidateLoteModal(true);
+  }, []);
+
+  const handleToggleConsolidateSelection = useCallback((id: string) => {
+    setConsolidateSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSaveConsolidatedLote = useCallback(async () => {
+    const selectedIds = Array.from(consolidateSelection);
+    if (selectedIds.length === 0) {
+      setConsolidateError('Selecione ao menos um lote.');
+      return;
+    }
+    const selectedLotes = lotesAbertos.filter((lote) => selectedIds.includes(lote.id));
+    if (selectedLotes.length === 0) {
+      setConsolidateError('Nenhum lote valido selecionado.');
+      return;
+    }
+    const origemSet = new Set(selectedLotes.map((lote) => lote.origem));
+
+    let resumidoRows: LoteRowResumido[] = [];
+    let detalhadoRows: LoteRowDetalhado[] = [];
+
+    const normalizeRow = <T extends LoteRowResumido | LoteRowDetalhado>(row: T, lote: LoteRegistro): T => {
+      const contaId = row.contaId ?? extractContaIdFromValue(row.id);
+      const tipoRegistro = row.tipoRegistro
+        ?? getRowTipoRegistro(row)
+        ?? (lote.origem === 'avulsa'
+          ? 'avulsa'
+          : lote.origem === 'ressarcimento'
+            ? 'ressarcimento'
+            : lote.origem === 'fixa'
+              ? 'fixa'
+              : undefined);
+      return {
+        ...row,
+        contaId,
+        tipoRegistro,
+        id: `${lote.id}-${row.id}`,
+      };
+    };
+
+    selectedLotes.forEach((lote) => {
+      if (lote.resumidoRows && lote.resumidoRows.length > 0) {
+        resumidoRows = resumidoRows.concat(
+          lote.resumidoRows.map((row) => normalizeRow(row, lote))
+        );
+      }
+      if (lote.detalhadoRows && lote.detalhadoRows.length > 0) {
+        detalhadoRows = detalhadoRows.concat(
+          lote.detalhadoRows.map((row) => normalizeRow(row, lote))
+        );
+      }
+    });
+
+    if (resumidoRows.length === 0 && detalhadoRows.length === 0) {
+      setConsolidateError('Os lotes selecionados nao possuem registros.');
+      return;
+    }
+    if (resumidoRows.length === 0 && detalhadoRows.length > 0) {
+      resumidoRows = mapDetalhadoToResumido(detalhadoRows);
+    }
+    if (detalhadoRows.length === 0 && resumidoRows.length > 0) {
+      detalhadoRows = mapResumidoToDetalhado(resumidoRows);
+    }
+
+    const origem: LoteOrigem = origemSet.size > 1 ? 'misto' : selectedLotes[0].origem;
+    const nome = `LOTE CONSOLIDADO ${getMesVigenteLabel()}`;
+    const total = detalhadoRows.length > 0 ? detalhadoRows.length : resumidoRows.length;
+    const counts = getRowsCounts(detalhadoRows.length > 0 ? detalhadoRows : resumidoRows);
+    const novoLote: LoteRegistro = {
+      id: createId(),
+      nome,
+      origem,
+      total,
+      criado_em: new Date().toISOString(),
+      fechado: true,
+      fixasTotal: counts.fixas,
+      avulsasTotal: counts.avulsas,
+      ressarcimentoTotal: counts.ressarcimentos,
+      resumido: resumidoRows.length > 0,
+      detalhado: detalhadoRows.length > 0,
+      resumidoRows,
+      detalhadoRows,
+    };
+
+    setLotes((prev) => {
+      const remaining = prev.filter((lote) => !selectedIds.includes(lote.id));
+      return [novoLote, ...remaining];
+    });
+    await persistLoteToDb(novoLote, { silent: true });
+    await deleteLotesFromDb(selectedIds);
+
+    setToast({ type: 'success', message: 'Lote consolidado criado' });
+    setShowConsolidateLoteModal(false);
+    setConsolidateSelection(new Set());
+    setConsolidateError(null);
+  }, [
+    consolidateSelection,
+    extractContaIdFromValue,
+    getMesVigenteLabel,
+    getRowTipoRegistro,
+    getRowsCounts,
+    lotesAbertos,
+    mapDetalhadoToResumido,
+    mapResumidoToDetalhado,
+    persistLoteToDb,
+    deleteLotesFromDb,
+  ]);
+
+  const [isMonthClosing, setIsMonthClosing] = useState(false);
+
+  const handleMonthlyClose = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    if (isMonthClosing) return;
+    const now = new Date();
+    const currentMonthKey = getMonthKey(now);
+    const lastClosed = localStorage.getItem(MONTH_CLOSE_STORAGE_KEY);
+    if (!lastClosed) {
+      localStorage.setItem(MONTH_CLOSE_STORAGE_KEY, currentMonthKey);
+      return;
+    }
+    if (lastClosed === currentMonthKey) return;
+
+    const contasParaFechar = contas.filter((conta) => {
+      const tipo = normalizeContaTipo(conta.tipo_conta);
+      return tipo === 'avulsa' || tipo === 'ressarcimento';
+    });
+
+    if (contasParaFechar.length === 0) {
+      localStorage.setItem(MONTH_CLOSE_STORAGE_KEY, currentMonthKey);
+      return;
+    }
+
+    setIsMonthClosing(true);
+    try {
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const baseName = `LOTE CONSOLIDADO ${getMesLabel(prevMonth)}`;
+      const nome = buildUniqueLoteName(baseName, lotes);
+
+      const detalhadoRows = buildDetalhadoRowsFromContas(contasParaFechar, exportEntries);
+      const resumidoRows = buildResumidoRowsFromContas(contasParaFechar, exportEntries);
+      const counts = getRowsCounts(detalhadoRows.length > 0 ? detalhadoRows : resumidoRows);
+
+      const tiposPresentes = new Set(contasParaFechar.map((conta) => normalizeContaTipo(conta.tipo_conta)));
+      const origem: LoteOrigem = tiposPresentes.size > 1
+        ? 'misto'
+        : (tiposPresentes.has('ressarcimento')
+          ? 'ressarcimento'
+          : tiposPresentes.has('avulsa')
+            ? 'avulsa'
+            : 'fixa');
+
+      const novoLote: LoteRegistro = {
+        id: createId(),
+        nome,
+        origem,
+        total: contasParaFechar.length,
+        criado_em: new Date().toISOString(),
+        fechado: true,
+        resumido: resumidoRows.length > 0,
+        detalhado: detalhadoRows.length > 0,
+        fixasTotal: counts.fixas,
+        avulsasTotal: counts.avulsas,
+        ressarcimentoTotal: counts.ressarcimentos,
+        resumidoRows,
+        detalhadoRows,
+      };
+
+      const ids = contasParaFechar.map((conta) => conta.id);
+      const { error } = await supabase.from('contas_a_pagar').delete().in('id', ids);
+      if (error) throw error;
+
+      setLotes((prev) => [novoLote, ...prev]);
+      await persistLoteToDb(novoLote, { silent: true });
+      setContas((prev) => prev.filter((conta) => !ids.includes(conta.id)));
+      localStorage.setItem(MONTH_CLOSE_STORAGE_KEY, currentMonthKey);
+      setToast({ type: 'success', message: 'Lotes avulsos e ressarcimentos do mês anterior foram fechados.' });
+    } catch (error) {
+      console.error('Erro ao fechar mês automaticamente:', error);
+      setToast({ type: 'error', message: 'Falha ao fechar contas do mês anterior.' });
+    } finally {
+      setIsMonthClosing(false);
+    }
+  }, [
+    contas,
+    exportEntries,
+    getMesLabel,
+    buildDetalhadoRowsFromContas,
+    buildResumidoRowsFromContas,
+    getRowsCounts,
+    lotes,
+    normalizeContaTipo,
+    isMonthClosing,
+    buildUniqueLoteName,
+    persistLoteToDb,
+  ]);
+
+  useEffect(() => {
+    if (loading) return;
+    handleMonthlyClose();
+  }, [handleMonthlyClose, loading]);
+
+  const handleEditLoteFieldChange = useCallback((rowId: string, field: string, value: string) => {
+    setEditingLoteRows((prev) => prev.map((row) => (
+      row.id === rowId ? { ...row, [field]: value } : row
+    )));
+  }, []);
+
+  const handleExportEditingLote = useCallback(() => {
+    if (!editingLoteType) return;
+    const columns = editingLoteType === 'resumido' ? LOTE_RESUMIDO_COLUMNS : LOTE_DETALHADO_COLUMNS;
+    const rows = [
+      columns.map((column) => column.label),
+      ...editingLoteRows.map((row) =>
+        columns.map((column) => (row as Record<string, string>)[column.field as string] ?? '')
+      ),
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lote');
+
+    const safeName = (editingLoteNome || 'lote')
+      .replace(/[^\w\d-]+/g, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 40);
+    const suffix = editingLoteType === 'resumido' ? 'RESUMIDO' : 'DETALHADO';
+    const filename = `${safeName}_${suffix}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  }, [editingLoteNome, editingLoteRows, editingLoteType]);
 
 
   const handleNewContaClick = useCallback(() => {
@@ -1128,6 +2462,19 @@ const ContasAPagar: React.FC = () => {
     return value.toString();
   };
 
+  const formatDateTime = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    try {
+      return new Intl.DateTimeFormat('pt-BR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(date);
+    } catch {
+      return date.toLocaleString('pt-BR');
+    }
+  };
+
   const getSortIcon = (key: 'fornecedor' | 'status_documento' | 'valor' | 'vencimento') => {
     if (sortConfig.key !== key) {
       return <ArrowUpDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-neutral-400" />;
@@ -1160,11 +2507,6 @@ const ContasAPagar: React.FC = () => {
     const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
     const numeric = Number(normalized);
     return Number.isFinite(numeric) ? numeric : null;
-  };
-
-  const getNotaFiscalSource = (conta: ContaAPagar) => {
-    const value = decodeLatin1IfNeeded(conta.observacoes)?.trim();
-    return value && value !== '' ? value : '*';
   };
 
   const getStatusColorClasses = (status: string | null) => {
@@ -1279,65 +2621,66 @@ const ContasAPagar: React.FC = () => {
               <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               Importar
             </button>
-            <div className="relative">
-              <button
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
-              >
-                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                Exportar ({filteredContasSorted.length})
-              </button>
-              {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
-                  <div className="py-1">
-                    <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
-                      {searchTerm ? `Exportando ${filteredContasSorted.length} registros filtrados` : `Exportando todos os ${filteredContasSorted.length} registros`}
+            {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
+              <>
+                <button
+                  onClick={handleOpenNovoLoteModal}
+                  className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+                >
+                  <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  Gerar Lote
+                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+                  >
+                    <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    Exportar ({filteredContasSorted.length})
+                  </button>
+                  {showExportMenu && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
+                      <div className="py-1">
+                        <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
+                          {searchTerm ? `Exportando ${filteredContasSorted.length} registros filtrados` : `Exportando todos os ${filteredContasSorted.length} registros`}
+                        </div>
+                        <button
+                          onClick={() => handleExportSelection('xlsx')}
+                          className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                        >
+                          Exportar XLSX
+                        </button>
+                        <button
+                          onClick={() => handleExportSelection('xlsx_resumido')}
+                          className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                        >
+                          Exportar Resumido (XLSX)
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => handleExportSelection('csv')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                    >
-                      Exportar como CSV
-                    </button>
-                    <button
-                      onClick={() => handleExportSelection('xlsx')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                    >
-                      Exportar como XLSX
-                    </button>
-                    <button
-                      onClick={() => handleExportSelection('xlsx_resumido')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                    >
-                      Exportar Resumido (XLSX)
-                    </button>
-                    <button
-                      onClick={() => handleExportSelection('template')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 border-t border-neutral-200 hidden"
-                    >
-                      Baixar Modelo
-                    </button>
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <button
-              onClick={handleNewContaClick}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
-            >
-              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              Nova Conta
-            </button>
+                <button
+                  onClick={handleNewContaClick}
+                  className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
+                >
+                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  Nova Conta
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      <DashboardStats
-        stats={dashboardStats}
-        layout="row"
-        className="no-scrollbar"
-        cardClassName="min-w-[220px]"
-      />
+      {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
+        <DashboardStats
+          stats={dashboardStats}
+          layout="row"
+          className="no-scrollbar"
+          cardClassName="min-w-[220px]"
+        />
+      )}
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden hide-scrollbar">
         <div className="border-b border-neutral-200 bg-neutral-50">
@@ -1376,177 +2719,364 @@ const ContasAPagar: React.FC = () => {
                 {contasAvulsasCount}
               </span>
             </button>
+            <button
+              onClick={() => setActiveTab('ressarcimento')}
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+                activeTab === 'ressarcimento'
+                  ? 'border-primary-600 text-primary-700 bg-white'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              Ressarcimento
+              <span
+                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs ${
+                  activeTab === 'ressarcimento' ? 'bg-primary-100 text-primary-700' : 'bg-neutral-200 text-neutral-600'
+                }`}
+              >
+                {contasRessarcimentoCount}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('lotes')}
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+                activeTab === 'lotes'
+                  ? 'border-primary-600 text-primary-700 bg-white'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              Lotes
+              <span
+                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs ${
+                  activeTab === 'lotes' ? 'bg-primary-100 text-primary-700' : 'bg-neutral-200 text-neutral-600'
+                }`}
+              >
+                {lotesCount}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('lotes_fechados')}
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+                activeTab === 'lotes_fechados'
+                  ? 'border-primary-600 text-primary-700 bg-white'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              Lotes Fechados
+              <span
+                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs ${
+                  activeTab === 'lotes_fechados' ? 'bg-primary-100 text-primary-700' : 'bg-neutral-200 text-neutral-600'
+                }`}
+              >
+                {lotesFechadosCount}
+              </span>
+            </button>
           </div>
         </div>
-        <div className="p-4 sm:p-6 border-b border-neutral-200">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-            <div className="relative flex-1 max-w-md">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+        {activeTab === 'lotes' || activeTab === 'lotes_fechados' ? (
+          <div className="p-4 sm:p-6">
+            {activeTab === 'lotes_fechados' && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-neutral-700">
+                  Consolide lotes abertos em um lote fechado.
+                </div>
+                <button
+                  onClick={handleOpenConsolidateModal}
+                  disabled={lotesAbertos.length === 0}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    lotesAbertos.length === 0
+                      ? 'border-neutral-200 text-neutral-300 cursor-not-allowed'
+                      : 'border-primary-200 text-primary-700 hover:bg-primary-50'
+                  }`}
+                >
+                  Fechar Lote
+                </button>
               </div>
-              <input
-                type="text"
-                placeholder="Buscar contas..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
-              <span className="text-xs sm:text-sm text-neutral-600">{filteredContasSorted.length} contas</span>
-            </div>
+            )}
+            {lotesVisiveis.length === 0 ? (
+              <div className="text-center py-8 sm:py-12">
+                <FileText className="mx-auto h-8 w-8 sm:h-12 sm:w-12 text-neutral-400" />
+                <h3 className="mt-2 text-sm font-medium text-neutral-900">
+                  {activeTab === 'lotes' ? 'Nenhum lote em aberto' : 'Nenhum lote fechado'}
+                </h3>
+                <p className="mt-1 text-xs sm:text-sm text-neutral-500">
+                  {activeTab === 'lotes'
+                    ? 'Crie um lote detalhado para aparecer aqui.'
+                    : 'Finalize um lote detalhado e resumido para aparecer aqui.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {lotesVisiveis.map((lote) => (
+                  <div
+                    key={lote.id}
+                    className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm sm:text-base font-semibold text-neutral-900">
+                            {lote.nome}
+                          </span>
+                          <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
+                            {lote.origem === 'avulsa'
+                              ? 'Avulsas'
+                              : lote.origem === 'ressarcimento'
+                                ? 'Ressarcimento'
+                                : lote.origem === 'misto'
+                                  ? 'Misto'
+                                  : 'Fixas'}
+                          </span>
+                          {lote.fechado && (
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                              Fechado
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-[11px] text-neutral-500">
+                          <span className="inline-flex items-center gap-1">
+                            Itens:
+                            <strong className="font-semibold text-neutral-700">{lote.total}</strong>
+                          </span>
+                          <span className="hidden sm:inline text-neutral-300">•</span>
+                          <span>
+                            Criado em: <strong className="font-semibold text-neutral-700">{formatDateTime(lote.criado_em)}</strong>
+                          </span>
+                          {lote.fechado && (() => {
+                            const counts = getLoteCounts(lote);
+                            return (
+                              <>
+                                <span className="hidden sm:inline text-neutral-300">•</span>
+                                <span className="inline-flex items-center gap-1">
+                                  Fixas:
+                                  <strong className="font-semibold text-neutral-700">{counts.fixas}</strong>
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                  Avulsas:
+                                  <strong className="font-semibold text-neutral-700">{counts.avulsas}</strong>
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                  Ressarcimento:
+                                  <strong className="font-semibold text-neutral-700">{counts.ressarcimentos}</strong>
+                                </span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => lote.resumido && handleStartEditLote(lote, 'resumido', lote.fechado)}
+                          disabled={!lote.resumido}
+                          className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                            lote.resumido
+                              ? 'border-primary-200 text-primary-700 hover:bg-primary-50'
+                              : 'border-neutral-200 text-neutral-300 cursor-not-allowed'
+                          }`}
+                        >
+                          Resumido
+                        </button>
+                        <button
+                          onClick={() => lote.detalhado && handleStartEditLote(lote, 'detalhado', lote.fechado)}
+                          disabled={!lote.detalhado}
+                          className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                            lote.detalhado
+                              ? 'border-primary-200 text-primary-700 hover:bg-primary-50'
+                              : 'border-neutral-200 text-neutral-300 cursor-not-allowed'
+                          }`}
+                        >
+                          Detalhado
+                        </button>
+                        <div className="h-6 w-px bg-neutral-200 mx-1 hidden sm:block" />
+                        {!lote.fechado && (
+                          <button
+                            onClick={() => handleDeleteLote(lote.id)}
+                            className="inline-flex items-center gap-1 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-600 hover:border-red-200 hover:bg-red-100"
+                            title="Excluir lote"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Excluir
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-neutral-200 text-[11px]">
-            <thead className="bg-neutral-50">
-              <tr>
-                <th
-                  onClick={() => toggleSort('fornecedor')}
-                  className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
-                >
-                  <div className="flex items-center">
-                    Fornecedor
-                    {getSortIcon('fornecedor')}
+        ) : (
+          <>
+            <div className="p-4 sm:p-6 border-b border-neutral-200">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+                <div className="relative flex-1 max-w-md">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
                   </div>
-                </th>
-                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-24">
-                  Pagamento
-                </th>
-                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-12">
-                  Link
-                </th>
-                <th
-                  onClick={() => toggleSort('status_documento')}
-                  className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-36"
-                >
-                  <div className="flex items-center">
-                    Status
-                    {getSortIcon('status_documento')}
-                  </div>
-                </th>
-                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-32">Descricao</th>
-                <th
-                  onClick={() => toggleSort('valor')}
-                  className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
-                >
-                  <div className="flex items-center">
-                    Valor
-                    {getSortIcon('valor')}
-                  </div>
-                </th>
-                <th
-                  onClick={() => toggleSort('vencimento')}
-                  className="hidden sm:table-cell px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-20"
-                >
-                  <div className="flex items-center">
-                    Vencimento
-                    {getSortIcon('vencimento')}
-                  </div>
-                </th>
-                <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-28">
-                  Acoes
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-neutral-200">
-              {currentItems.map((conta) => (
-                <tr key={conta.id} className="group hover:bg-neutral-50 transition-colors duration-150">
-                  <td className="px-2 py-2">
-                    <div className="font-medium text-neutral-900 truncate max-w-[140px] sm:max-w-none">
-                      {decodeLatin1IfNeeded(conta.fornecedor) || '-'}
-                    </div>
-                  </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-24 text-center">
-                    {conta.tipo_pagto ? conta.tipo_pagto.toUpperCase() : '-'}
-                  </td>
-                  <td className="px-2 py-2 text-center w-12">
-                    {conta.link ? (
-                      <a
-                        href={conta.link}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center text-primary-600 hover:text-primary-900"
-                        title="Abrir link"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    ) : (
-                      <span
-                        className="inline-flex items-center justify-center text-neutral-300"
-                        title="Sem link"
-                        aria-hidden="true"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-36">
-                    <select
-                      value={conta.status_documento || 'Nao emitido'}
-                      onChange={(e) => handleStatusChange(conta.id, e.target.value)}
-                      disabled={updatingStatusIds.has(conta.id)}
-                      className={`border rounded-lg px-2 py-1 w-36 disabled:opacity-60 ${getStatusColorClasses(conta.status_documento || 'Nao emitido')}`}
-                      aria-label="Status do documento"
-                    >
-                      {STATUS_OPTIONS.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-2 py-2 w-32">
-                    <div className="text-neutral-600 truncate max-w-[120px] sm:max-w-none">
-                      {decodeLatin1IfNeeded(conta.descricao) || '-'}
-                    </div>
-                  </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-neutral-600">{formatCurrency(conta.valor)}</td>
-                  <td className="hidden sm:table-cell px-2 py-2 whitespace-nowrap text-neutral-600 w-20 text-center">
-                    {formatDay(conta.vencimento)}
-                  </td>
-                  <td className="px-2 py-2 whitespace-nowrap font-medium w-28">
-                    <div className="flex items-center space-x-1 sm:space-x-2">
-                      <button
-                        onClick={() => requestActionVerification('view', conta)}
-                        className="text-neutral-600 hover:text-neutral-900"
-                        title="Visualizar"
-                      >
-                        <Search className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
-                      </button>
-                      <button
-                        onClick={() => requestActionVerification('edit', conta)}
-                        className="text-primary-600 hover:text-primary-900"
-                        title="Editar"
-                      >
-                        <Edit className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
-                      </button>
-                      <button
-                        onClick={() => requestActionVerification('delete', conta)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Excluir"
-                      >
-                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {filteredContasSorted.length === 0 && (
-            <div className="text-center py-8 sm:py-12">
-              <FileText className="mx-auto h-8 w-8 sm:h-12 sm:w-12 text-neutral-400" />
-              <h3 className="mt-2 text-sm font-medium text-neutral-900">Nenhuma conta encontrada</h3>
-              <p className="mt-1 text-xs sm:text-sm text-neutral-500">
-                {searchTerm ? 'Tente ajustar sua busca' : 'Comece adicionando uma nova conta'}
-              </p>
+                  <input
+                    type="text"
+                    placeholder="Buscar contas..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+                  <span className="text-xs sm:text-sm text-neutral-600">{filteredContasSorted.length} contas</span>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-neutral-200 text-[11px]">
+                <thead className="bg-neutral-50">
+                  <tr>
+                    <th
+                      onClick={() => toggleSort('fornecedor')}
+                      className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
+                    >
+                      <div className="flex items-center">
+                        Fornecedor
+                        {getSortIcon('fornecedor')}
+                      </div>
+                    </th>
+                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-24">
+                      Pagamento
+                    </th>
+                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-12">
+                      Link
+                    </th>
+                    <th
+                      onClick={() => toggleSort('status_documento')}
+                      className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-36"
+                    >
+                      <div className="flex items-center">
+                        Status
+                        {getSortIcon('status_documento')}
+                      </div>
+                    </th>
+                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-32">Descricao</th>
+                    <th
+                      onClick={() => toggleSort('valor')}
+                      className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
+                    >
+                      <div className="flex items-center">
+                        Valor
+                        {getSortIcon('valor')}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => toggleSort('vencimento')}
+                      className="hidden sm:table-cell px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-20"
+                    >
+                      <div className="flex items-center">
+                        Vencimento
+                        {getSortIcon('vencimento')}
+                      </div>
+                    </th>
+                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-28">
+                      Acoes
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-neutral-200">
+                  {currentItems.map((conta) => (
+                    <tr key={conta.id} className="group hover:bg-neutral-50 transition-colors duration-150">
+                      <td className="px-2 py-2">
+                        <div className="font-medium text-neutral-900 truncate max-w-[140px] sm:max-w-none">
+                          {decodeLatin1IfNeeded(conta.fornecedor) || '-'}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-24 text-center">
+                        {conta.tipo_pagto ? conta.tipo_pagto.toUpperCase() : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-center w-12">
+                        {conta.link ? (
+                          <a
+                            href={conta.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center text-primary-600 hover:text-primary-900"
+                            title="Abrir link"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        ) : (
+                          <span
+                            className="inline-flex items-center justify-center text-neutral-300"
+                            title="Sem link"
+                            aria-hidden="true"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-36">
+                        <select
+                          value={conta.status_documento || 'Nao emitido'}
+                          onChange={(e) => handleStatusChange(conta.id, e.target.value)}
+                          disabled={updatingStatusIds.has(conta.id)}
+                          className={`border rounded-lg px-2 py-1 w-36 disabled:opacity-60 ${getStatusColorClasses(conta.status_documento || 'Nao emitido')}`}
+                          aria-label="Status do documento"
+                        >
+                          {STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-2 py-2 w-32">
+                        <div className="text-neutral-600 truncate max-w-[120px] sm:max-w-none">
+                          {decodeLatin1IfNeeded(conta.descricao) || '-'}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap text-neutral-600">{formatCurrency(conta.valor)}</td>
+                      <td className="hidden sm:table-cell px-2 py-2 whitespace-nowrap text-neutral-600 w-20 text-center">
+                        {formatDay(conta.vencimento)}
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap font-medium w-28">
+                        <div className="flex items-center space-x-1 sm:space-x-2">
+                          <button
+                            onClick={() => requestActionVerification('view', conta)}
+                            className="text-neutral-600 hover:text-neutral-900"
+                            title="Visualizar"
+                          >
+                            <Search className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
+                          </button>
+                          <button
+                            onClick={() => requestActionVerification('edit', conta)}
+                            className="text-primary-600 hover:text-primary-900"
+                            title="Editar"
+                          >
+                            <Edit className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
+                          </button>
+                          <button
+                            onClick={() => requestActionVerification('delete', conta)}
+                            className="text-red-600 hover:text-red-900"
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {filteredContasSorted.length === 0 && (
+                <div className="text-center py-8 sm:py-12">
+                  <FileText className="mx-auto h-8 w-8 sm:h-12 sm:w-12 text-neutral-400" />
+                  <h3 className="mt-2 text-sm font-medium text-neutral-900">Nenhuma conta encontrada</h3>
+                  <p className="mt-1 text-xs sm:text-sm text-neutral-500">
+                    {searchTerm ? 'Tente ajustar sua busca' : 'Comece adicionando uma nova conta'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
       </div>
 
@@ -1569,6 +3099,12 @@ const ContasAPagar: React.FC = () => {
                 className="w-full px-4 py-2 rounded-lg border border-neutral-300 text-neutral-700 text-sm font-semibold hover:bg-neutral-50 transition-colors"
               >
                 Conta Avulsa
+              </button>
+              <button
+                onClick={() => handleSelectContaTipo('ressarcimento')}
+                className="w-full px-4 py-2 rounded-lg border border-neutral-300 text-neutral-700 text-sm font-semibold hover:bg-neutral-50 transition-colors"
+              >
+                Ressarcimento
               </button>
             </div>
             <div className="mt-4 text-right">
@@ -1667,70 +3203,56 @@ const ContasAPagar: React.FC = () => {
         />
       )}
 
-      {showExportQuestion && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-lg">
-            <h3 className="text-lg font-semibold text-neutral-900">Há NFs para serem inseridas?</h3>
-            <p className="text-sm text-neutral-600 mt-2">
-              {filteredContasSorted.length} {filteredContasSorted.length === 1 ? 'registro será' : 'registros serão'} exportados.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={handleExportQuestionNo}
-                className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-              >
-                Não
-              </button>
-              <button
-                onClick={handleExportQuestionYes}
-                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
-              >
-                Sim
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showExportNfModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-[calc(100vw-2rem)] shadow-xl border border-neutral-200">
+          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-[calc(100vw-2rem)] shadow-xl border border-neutral-200">
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-neutral-900">Notas Fiscais</h3>
+                <h3 className="text-lg font-semibold text-neutral-900">Novo Lote</h3>
                 <span className="text-xs text-neutral-500">{filteredContasSorted.length} itens</span>
               </div>
               <p className="text-sm text-neutral-600">
-                Preencha ou sincronize a NF para cada fornecedor; se não houver, será usado <code>*</code>.
+                Defina o nome do lote detalhado e revise os dados antes de salvar.
               </p>
+              <div className="mt-3">
+                <label htmlFor="lote_nome" className="block text-sm font-medium text-neutral-700 mb-2">
+                  Nome do Lote *
+                </label>
+                <input
+                  id="lote_nome"
+                  type="text"
+                  value={loteNome}
+                  onChange={(event) => {
+                    setLoteNome(event.target.value);
+                    if (loteNomeError) setLoteNomeError(null);
+                  }}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  placeholder="Ex: Lote Detalhado Fevereiro"
+                />
+                {loteNomeError && (
+                  <div className="mt-2 text-xs text-red-600">
+                    {loteNomeError}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
-                onClick={handleSyncNotasFiscais}
+                onClick={handleCreateResumidoLote}
                 className="px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 hover:bg-primary-50 transition-colors"
               >
-                Sincronizar NF
+                Resumido
               </button>
-              {pendingExportFormat === 'xlsx' && (
-                <button
-                  onClick={handleSendXlsxEmail}
-                  disabled={sendingEmail}
-                  className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 transition-colors ${
-                    sendingEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
-                  }`}
-                >
-                  <Mail className="h-3 w-3" />
-                  {sendingEmail ? 'ENVIANDO...' : 'ENVIAR EMAIL'}
-                </button>
-              )}
-              {resumidoSyncVisible && (
-                <button
-                  onClick={handleExportResumidoWithNf}
-                  className="px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 hover:bg-primary-50 transition-colors"
-                >
-                  Exportar resumido com NF
-                </button>
-              )}
+              <button
+                onClick={handleOpenEmailRecipientsModal}
+                disabled={sendingEmail}
+                className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 transition-colors ${
+                  sendingEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
+                }`}
+              >
+                <Mail className="h-3 w-3" />
+                {sendingEmail ? 'ENVIANDO...' : 'ENVIAR EMAIL'}
+              </button>
             </div>
             <div className="mt-4 border-t border-dashed border-neutral-200 pt-4">
               <div className="max-h-[72vh] overflow-y-auto pr-2">
@@ -1825,17 +3347,475 @@ const ContasAPagar: React.FC = () => {
             </div>
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
-                onClick={resetExportFlow}
+                onClick={() => {
+                  setShowExportNfModal(false);
+                  setLoteNomeError(null);
+                  setCurrentLoteId(null);
+                }}
                 className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
               >
                 Cancelar
               </button>
               <button
-                onClick={handleExportWithNf}
+                onClick={handleSaveLoteDetalhado}
                 className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+              >
+                Salvar Lote
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEmailRecipientsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-xl p-5 w-full max-w-lg shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutral-900">Enviar E-mail</h3>
+              <button
+                onClick={() => {
+                  setShowEmailRecipientsModal(false);
+                  setEmailRecipientsError(null);
+                  setEmailContext(null);
+                }}
+                className="text-neutral-400 hover:text-neutral-600"
+                disabled={sendingEmail}
+              >
+                Fechar
+              </button>
+            </div>
+            <p className="text-sm text-neutral-600 mt-2">
+              Gerencie os destinatarios. Os e-mails adicionados ficam salvos para os proximos envios.
+            </p>
+            <div className="mt-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                  Destinatarios cadastrados
+                </span>
+                <span className="text-[11px] text-neutral-400">{emailRecipients.length}</span>
+              </div>
+              <div className="mt-2 max-h-24 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+                {emailRecipients.length === 0 ? (
+                  <div className="text-xs text-neutral-500">
+                    Nenhum destinatario cadastrado.
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {emailRecipients.map((recipient) => {
+                      const isDefaultRecipient = defaultEmailRecipients.includes(recipient);
+                      return (
+                        <span
+                          key={recipient}
+                          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm"
+                        >
+                          {recipient}
+                          {isDefaultRecipient ? (
+                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold uppercase text-emerald-700">
+                              Padrao
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleRemoveEmailRecipient(recipient)}
+                              className="text-neutral-400 hover:text-neutral-600"
+                              disabled={sendingEmail}
+                              aria-label={`Remover ${recipient}`}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+            </div>
+            </div>
+            <div className="mt-4 flex flex-col sm:flex-row gap-2">
+              <input
+                type="email"
+                value={emailRecipientInput}
+                onChange={(event) => setEmailRecipientInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleAddEmailRecipient();
+                  }
+                }}
+                className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                placeholder="email@exemplo.com"
+                disabled={sendingEmail}
+              />
+              <button
+                onClick={handleAddEmailRecipient}
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700"
+                disabled={sendingEmail}
+              >
+                Adicionar
+              </button>
+            </div>
+            {emailRecipientsError && (
+              <div className="mt-2 text-xs text-red-600">
+                {emailRecipientsError}
+              </div>
+            )}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowEmailRecipientsModal(false);
+                  setEmailRecipientsError(null);
+                  setEmailContext(null);
+                }}
+                className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                disabled={sendingEmail}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmSendEmail}
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+                disabled={sendingEmail}
+              >
+                {sendingEmail ? 'Enviando...' : 'Enviar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showConsolidateLoteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-2xl p-5 w-full max-w-2xl shadow-xl border border-neutral-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutral-900">Fechar Lote</h3>
+              <button
+                onClick={() => {
+                  setShowConsolidateLoteModal(false);
+                  setConsolidateError(null);
+                  setConsolidateSelection(new Set());
+                }}
+                className="text-neutral-400 hover:text-neutral-600"
+              >
+                Fechar
+              </button>
+            </div>
+            <p className="text-sm text-neutral-600 mt-2">
+              Selecione os lotes em aberto para consolidar. O novo lote sera salvo como{' '}
+              <strong className="text-neutral-800">LOTE CONSOLIDADO {getMesVigenteLabel()}</strong>.
+            </p>
+            <div className="mt-4 max-h-[50vh] overflow-y-auto space-y-3 pr-1">
+              {lotesAbertos.length === 0 ? (
+                <div className="text-xs text-neutral-500 border border-dashed rounded-lg px-3 py-4 text-center">
+                  Nenhum lote em aberto disponivel.
+                </div>
+              ) : (
+                lotesAbertos.map((lote) => {
+                  const checked = consolidateSelection.has(lote.id);
+                  const hasResumido = lote.resumidoRows && lote.resumidoRows.length > 0;
+                  const hasDetalhado = lote.detalhadoRows && lote.detalhadoRows.length > 0;
+                  return (
+                    <label
+                      key={lote.id}
+                      className={`flex items-start gap-3 rounded-xl border px-3 py-3 transition-colors cursor-pointer ${
+                        checked ? 'border-primary-300 bg-primary-50' : 'border-neutral-200 hover:bg-neutral-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => handleToggleConsolidateSelection(lote.id)}
+                        className="mt-1 h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-neutral-900">{lote.nome}</span>
+                          <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
+                            {lote.origem === 'avulsa'
+                              ? 'Avulsas'
+                              : lote.origem === 'ressarcimento'
+                                ? 'Ressarcimento'
+                                : lote.origem === 'misto'
+                                  ? 'Misto'
+                                  : 'Fixas'}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-neutral-500">
+                          <span>Itens: <strong className="font-semibold text-neutral-700">{lote.total}</strong></span>
+                          <span className="text-neutral-300">•</span>
+                          <span>Criado em: <strong className="font-semibold text-neutral-700">{formatDateTime(lote.criado_em)}</strong></span>
+                          <span className="text-neutral-300">•</span>
+                          <span className="inline-flex items-center gap-2">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                              hasResumido ? 'bg-primary-50 text-primary-700' : 'bg-neutral-100 text-neutral-400'
+                            }`}>
+                              Resumido
+                            </span>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                              hasDetalhado ? 'bg-primary-50 text-primary-700' : 'bg-neutral-100 text-neutral-400'
+                            }`}>
+                              Detalhado
+                            </span>
+                          </span>
+                          {lote.fechado && (() => {
+                            const counts = getLoteCounts(lote);
+                            return (
+                              <>
+                                <span className="text-neutral-300">•</span>
+                                <span>Fixas: <strong className="font-semibold text-neutral-700">{counts.fixas}</strong></span>
+                                <span>Avulsas: <strong className="font-semibold text-neutral-700">{counts.avulsas}</strong></span>
+                                <span>Ressarcimento: <strong className="font-semibold text-neutral-700">{counts.ressarcimentos}</strong></span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            {consolidateError && (
+              <div className="mt-3 text-xs text-red-600">
+                {consolidateError}
+              </div>
+            )}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowConsolidateLoteModal(false);
+                  setConsolidateError(null);
+                  setConsolidateSelection(new Set());
+                }}
+                className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveConsolidatedLote}
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingLoteId && editingLoteType && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-5 w-full max-w-[calc(100vw-2rem)] shadow-lg border border-neutral-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-neutral-900">
+                  {editingLoteNome} - {editingLoteType === 'resumido' ? 'Resumido' : 'Detalhado'}
+                </h3>
+                <p className="text-sm text-neutral-600 mt-1">
+                  {editingLoteReadOnly
+                    ? 'VisualizaÃ§Ã£o do lote. EdiÃ§Ãµes estÃ£o bloqueadas.'
+                    : 'Edite os dados do lote. Todos os campos sÃ£o editÃ¡veis.'}
+                </p>
+              </div>
+              <button
+                onClick={handleCancelEditLote}
+                className="text-neutral-400 hover:text-neutral-600"
+              >
+                Fechar
+              </button>
+            </div>
+            {editingLoteReadOnly && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(() => {
+                  const counts = getRowsCounts(editingLoteRows);
+                  const tabBase =
+                    'px-3 py-1 text-[11px] font-semibold uppercase rounded-full border transition-colors';
+                  return (
+                    <>
+                      <button
+                        onClick={() => setEditingLoteTab('fixa')}
+                        disabled={counts.fixas === 0}
+                        className={`${tabBase} ${
+                          editingLoteTab === 'fixa'
+                            ? 'border-primary-200 text-primary-700 bg-primary-50'
+                            : 'border-neutral-200 text-neutral-400'
+                        } ${counts.fixas === 0 ? 'cursor-not-allowed' : 'hover:bg-primary-50'}`}
+                      >
+                        Fixas ({counts.fixas})
+                      </button>
+                      <button
+                        onClick={() => setEditingLoteTab('avulsa')}
+                        disabled={counts.avulsas === 0}
+                        className={`${tabBase} ${
+                          editingLoteTab === 'avulsa'
+                            ? 'border-primary-200 text-primary-700 bg-primary-50'
+                            : 'border-neutral-200 text-neutral-400'
+                        } ${counts.avulsas === 0 ? 'cursor-not-allowed' : 'hover:bg-primary-50'}`}
+                      >
+                        Avulsas ({counts.avulsas})
+                      </button>
+                      <button
+                        onClick={() => setEditingLoteTab('ressarcimento')}
+                        disabled={counts.ressarcimentos === 0}
+                        className={`${tabBase} ${
+                          editingLoteTab === 'ressarcimento'
+                            ? 'border-primary-200 text-primary-700 bg-primary-50'
+                            : 'border-neutral-200 text-neutral-400'
+                        } ${counts.ressarcimentos === 0 ? 'cursor-not-allowed' : 'hover:bg-primary-50'}`}
+                      >
+                        Ressarcimento ({counts.ressarcimentos})
+                      </button>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+            <div className="mt-4 overflow-x-auto">
+              {(() => {
+                const rowsToRender = editingLoteReadOnly
+                  ? editingLoteRows.filter((row) => {
+                    const tipo = getRowTipoRegistro(row as LoteRowDetalhado | LoteRowResumido);
+                    if (editingLoteTab === 'avulsa') return tipo === 'avulsa';
+                    if (editingLoteTab === 'ressarcimento') return tipo === 'ressarcimento';
+                    return tipo === 'fixa';
+                  })
+                  : editingLoteRows;
+                if (rowsToRender.length === 0) {
+                  return (
+                <div className="text-xs text-neutral-500 text-center py-6 border border-dashed rounded-lg">
+                  {editingLoteReadOnly
+                    ? `Nenhuma conta ${editingLoteTab === 'avulsa' ? 'avulsa' : editingLoteTab === 'ressarcimento' ? 'ressarcimento' : 'fixa'} no lote.`
+                    : 'Nenhum registro no lote.'}
+                </div>
+                  );
+                }
+                return (
+                <table className="w-full min-w-[1100px] border border-neutral-200 text-[9px] sm:text-[10px] rounded-lg bg-white">
+                  <thead className="bg-neutral-100 text-[9px] uppercase tracking-wide text-neutral-500">
+                    {editingLoteReadOnly && (
+                      <tr className="bg-white">
+                        <th
+                          colSpan={(editingLoteType === 'resumido' ? LOTE_RESUMIDO_COLUMNS : LOTE_DETALHADO_COLUMNS).length}
+                          className="px-2 py-2 text-left text-[10px] font-semibold text-neutral-700"
+                        >
+                          {(() => {
+                            const counts = getRowsCounts(editingLoteRows);
+                            return `Fixas: ${counts.fixas} | Avulsas: ${counts.avulsas} | Ressarcimento: ${counts.ressarcimentos}`;
+                          })()}
+                        </th>
+                      </tr>
+                    )}
+                    <tr>
+                      {(editingLoteType === 'resumido' ? LOTE_RESUMIDO_COLUMNS : LOTE_DETALHADO_COLUMNS).map((column) => {
+                        const headerAlignClass =
+                          column.align === 'center'
+                            ? 'text-center'
+                            : column.align === 'right'
+                              ? 'text-right'
+                              : 'text-left';
+                        return (
+                          <th
+                            key={column.label}
+                            className={`px-2 py-1 whitespace-nowrap font-semibold ${headerAlignClass}`}
+                          >
+                            {column.label}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-200 bg-white">
+                    {rowsToRender.map((row) => (
+                      <tr key={row.id} className="even:bg-neutral-50">
+                        {(editingLoteType === 'resumido' ? LOTE_RESUMIDO_COLUMNS : LOTE_DETALHADO_COLUMNS).map((column) => {
+                          const bodyAlignClass =
+                            column.align === 'center'
+                              ? 'text-center'
+                              : column.align === 'right'
+                                ? 'text-right'
+                                : 'text-left';
+                          const rawValue = (row as Record<string, string>)[column.field as string] ?? '';
+                          const baseValue = decodeLatin1IfNeeded(rawValue) ?? rawValue;
+                          const isReadOnlyColumn = column.readonly;
+                          const isValorField = column.field === 'valor';
+                          const value = isValorField
+                            ? formatBRLFromInput(baseValue)
+                            : baseValue;
+                          const inputType = column.type === 'date' ? 'date' : 'text';
+                          const inputAlignClass =
+                            column.align === 'center'
+                              ? 'text-center'
+                              : column.align === 'right'
+                                ? 'text-right'
+                                : 'text-left';
+                          return (
+                            <td
+                              key={`${row.id}-${column.label}`}
+                              className={`px-2 py-1 ${bodyAlignClass}`}
+                            >
+                              {isReadOnlyColumn ? (
+                                <span className="inline-flex min-h-[24px] items-center px-2 text-[10px] sm:text-xs text-neutral-700">
+                                  {value || '—'}
+                                </span>
+                              ) : (
+                                <input
+                                  type={inputType}
+                                  value={value}
+                                  onChange={(event) => {
+                                    const nextValue = isValorField ? formatBRLFromInput(event.target.value) : event.target.value;
+                                    if (!editingLoteReadOnly) {
+                                      handleEditLoteFieldChange(row.id, column.field as string, nextValue);
+                                    }
+                                  }}
+                                  readOnly={editingLoteReadOnly}
+                                  className={`w-full border border-neutral-200 rounded px-2 py-1 text-[10px] sm:text-xs focus:border-primary-500 focus:outline-none ${inputAlignClass} ${
+                                    editingLoteReadOnly ? 'bg-neutral-100 text-neutral-500' : ''
+                                  }`}
+                                />
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                );
+              })()}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={handleCancelEditLote}
+                className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Cancelar
+              </button>
+              {editingLoteType === 'detalhado' && !editingLoteReadOnly && (
+                <button
+                  onClick={() => {
+                    const rows = buildDetalhadoEmailRows(editingLoteRows as LoteRowDetalhado[]);
+                    handleOpenEmailRecipientsModal({ columns: XLSX_EXPORT_HEADERS, rows });
+                  }}
+                  disabled={sendingEmail}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-primary-200 text-sm font-medium text-primary-700 transition-colors ${
+                    sendingEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
+                  }`}
+                >
+                  <Mail className="h-4 w-4" />
+                  {sendingEmail ? 'Enviando...' : 'Enviar Email'}
+                </button>
+              )}
+              <button
+                onClick={handleExportEditingLote}
+                className="px-4 py-2 rounded-lg border border-primary-200 text-sm font-medium text-primary-700 hover:bg-primary-50"
               >
                 Exportar
               </button>
+              {!editingLoteReadOnly && (
+                <button
+                  onClick={handleSaveEditLote}
+                  className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+                >
+                  Salvar
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1891,3 +3871,7 @@ const ContasAPagar: React.FC = () => {
 };
 
 export default ContasAPagar;
+
+
+
+
