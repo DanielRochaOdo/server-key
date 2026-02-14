@@ -1928,7 +1928,7 @@ const ContasAPagar: React.FC = () => {
     const day = String(now.getDate()).padStart(2, '0');
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const year = now.getFullYear();
-    return `PROTOCLO TI CONTAS A PAGAR ${day}-${month}-${year}`;
+    return `PROTOCOLO TI CONTAS A PAGAR ${day}-${month}-${year}`;
   }, []);
 
   const upsertLote = useCallback((tipo: 'resumido' | 'detalhado', nome: string, rows: LoteRowDetalhado[] | LoteRowResumido[]) => {
@@ -2596,10 +2596,10 @@ const ContasAPagar: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-5 sm:space-y-6">
       {toast && (
         <div
-          className={`fixed right-4 top-4 z-50 rounded-2xl px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-lg ${
+          className={`fixed right-4 top-4 z-50 rounded-2xl px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-2xl backdrop-blur ${
             toast.type === 'success' ? 'bg-emerald-500/90' : 'bg-red-500/90'
           }`}
           role="status"
@@ -2607,95 +2607,100 @@ const ContasAPagar: React.FC = () => {
           {toast.message}
         </div>
       )}
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Contas a Pagar</h1>
-            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Controle de contas e documentos financeiros</p>
-          </div>
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-            <button
-              onClick={() => setShowUpload(true)}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50 hidden"
-            >
-              <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              Importar
-            </button>
-            {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
-              <>
-                <button
-                  onClick={handleOpenNovoLoteModal}
-                  className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
-                >
-                  <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  Gerar Lote
-                </button>
-                <div className="relative">
+      <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 p-4 sm:p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-neutral-400">Financeiro</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-primary-900">Contas a Pagar</h1>
+              <p className="mt-1 text-xs sm:text-sm text-primary-600">Controle de contas e documentos financeiros</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => setShowUpload(true)}
+                className="hidden inline-flex items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50"
+              >
+                <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+                Importar
+              </button>
+              {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
+                <>
                   <button
-                    onClick={() => setShowExportMenu(!showExportMenu)}
-                    className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+                    onClick={handleOpenNovoLoteModal}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
                   >
-                    <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    Exportar ({filteredContasSorted.length})
+                    <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+                    Gerar Lote
                   </button>
-                  {showExportMenu && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
-                      <div className="py-1">
-                        <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
-                          {searchTerm ? `Exportando ${filteredContasSorted.length} registros filtrados` : `Exportando todos os ${filteredContasSorted.length} registros`}
+                  <div className="relative w-full sm:w-auto">
+                    <button
+                      onClick={() => setShowExportMenu(!showExportMenu)}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                    >
+                      <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+                      Exportar ({filteredContasSorted.length})
+                    </button>
+                    {showExportMenu && (
+                      <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl z-10">
+                        <div className="py-2">
+                          <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
+                            {searchTerm ? `Exportando ${filteredContasSorted.length} registros filtrados` : `Exportando todos os ${filteredContasSorted.length} registros`}
+                          </div>
+                          <button
+                            onClick={() => handleExportSelection('xlsx')}
+                            className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                          >
+                            Exportar XLSX
+                          </button>
+                          <button
+                            onClick={() => handleExportSelection('xlsx_resumido')}
+                            className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                          >
+                            Exportar Resumido (XLSX)
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleExportSelection('xlsx')}
-                          className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                        >
-                          Exportar XLSX
-                        </button>
-                        <button
-                          onClick={() => handleExportSelection('xlsx_resumido')}
-                          className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                        >
-                          Exportar Resumido (XLSX)
-                        </button>
                       </div>
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={handleNewContaClick}
-                  className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
-                >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  Nova Conta
-                </button>
-              </>
-            )}
+                    )}
+                  </div>
+                  <button
+                    onClick={handleNewContaClick}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
+                  >
+                    <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                    Nova Conta
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
-        <DashboardStats
-          stats={dashboardStats}
-          layout="row"
-          className="no-scrollbar"
-          cardClassName="min-w-[220px]"
-        />
+        <div className="rounded-2xl border border-neutral-200 bg-white p-3 sm:p-4 shadow-sm">
+          <DashboardStats
+            stats={dashboardStats}
+            layout="row"
+            className="no-scrollbar mb-0 !gap-3"
+            cardClassName="min-w-[160px] sm:min-w-[170px] lg:min-w-[180px] !p-3 sm:!p-4 border border-neutral-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
+          />
+        </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-md overflow-hidden hide-scrollbar">
+      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden hide-scrollbar">
         <div className="border-b border-neutral-200 bg-neutral-50">
-          <div className="flex">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar px-2.5 py-2 sm:px-3 sm:py-2.5">
             <button
               onClick={() => setActiveTab('fixa')}
-              className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+              className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                 activeTab === 'fixa'
-                  ? 'border-primary-600 text-primary-700 bg-white'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-200'
+                  : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
               }`}
             >
               Contas Fixas
               <span
-                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs ${
+                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] ${
                   activeTab === 'fixa' ? 'bg-primary-100 text-primary-700' : 'bg-neutral-200 text-neutral-600'
                 }`}
               >
@@ -2704,15 +2709,15 @@ const ContasAPagar: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('avulsa')}
-              className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+              className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                 activeTab === 'avulsa'
-                  ? 'border-primary-600 text-primary-700 bg-white'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-200'
+                  : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
               }`}
             >
               Contas Avulsas
               <span
-                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs ${
+                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] ${
                   activeTab === 'avulsa' ? 'bg-primary-100 text-primary-700' : 'bg-neutral-200 text-neutral-600'
                 }`}
               >
@@ -2721,15 +2726,15 @@ const ContasAPagar: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('ressarcimento')}
-              className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+              className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                 activeTab === 'ressarcimento'
-                  ? 'border-primary-600 text-primary-700 bg-white'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-200'
+                  : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
               }`}
             >
               Ressarcimento
               <span
-                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs ${
+                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] ${
                   activeTab === 'ressarcimento' ? 'bg-primary-100 text-primary-700' : 'bg-neutral-200 text-neutral-600'
                 }`}
               >
@@ -2738,15 +2743,15 @@ const ContasAPagar: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('lotes')}
-              className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+              className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                 activeTab === 'lotes'
-                  ? 'border-primary-600 text-primary-700 bg-white'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-200'
+                  : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
               }`}
             >
               Lotes
               <span
-                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs ${
+                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] ${
                   activeTab === 'lotes' ? 'bg-primary-100 text-primary-700' : 'bg-neutral-200 text-neutral-600'
                 }`}
               >
@@ -2755,15 +2760,15 @@ const ContasAPagar: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('lotes_fechados')}
-              className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+              className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                 activeTab === 'lotes_fechados'
-                  ? 'border-primary-600 text-primary-700 bg-white'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-200'
+                  : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
               }`}
             >
               Lotes Fechados
               <span
-                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs ${
+                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] ${
                   activeTab === 'lotes_fechados' ? 'bg-primary-100 text-primary-700' : 'bg-neutral-200 text-neutral-600'
                 }`}
               >
@@ -2814,7 +2819,7 @@ const ContasAPagar: React.FC = () => {
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm sm:text-base font-semibold text-neutral-900">
+                          <span className="text-sm sm:text-base font-semibold text-neutral-900 uppercase break-words">
                             {lote.nome}
                           </span>
                           <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
@@ -2906,8 +2911,8 @@ const ContasAPagar: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="p-4 sm:p-6 border-b border-neutral-200">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+            <div className="p-3 sm:p-4 border-b border-neutral-200 bg-neutral-50">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="relative flex-1 max-w-md">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
@@ -2917,153 +2922,244 @@ const ContasAPagar: React.FC = () => {
                     placeholder="Buscar contas..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
+                    className="w-full rounded-xl border border-neutral-200 bg-white pl-9 sm:pl-10 pr-3 py-2 text-xs sm:text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500 placeholder:text-neutral-400"
                   />
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] sm:text-xs text-neutral-600 uppercase">
                   <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
-                  <span className="text-xs sm:text-sm text-neutral-600">{filteredContasSorted.length} contas</span>
+                  <span>{filteredContasSorted.length} contas</span>
                 </div>
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-neutral-200 text-[11px]">
-                <thead className="bg-neutral-50">
-                  <tr>
-                    <th
-                      onClick={() => toggleSort('fornecedor')}
-                      className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
-                    >
-                      <div className="flex items-center">
-                        Fornecedor
-                        {getSortIcon('fornecedor')}
-                      </div>
-                    </th>
-                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-24">
-                      Pagamento
-                    </th>
-                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-12">
-                      Link
-                    </th>
-                    <th
-                      onClick={() => toggleSort('status_documento')}
-                      className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-36"
-                    >
-                      <div className="flex items-center">
-                        Status
-                        {getSortIcon('status_documento')}
-                      </div>
-                    </th>
-                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-32">Descricao</th>
-                    <th
-                      onClick={() => toggleSort('valor')}
-                      className="px-2 py-2 text-left font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none"
-                    >
-                      <div className="flex items-center">
-                        Valor
-                        {getSortIcon('valor')}
-                      </div>
-                    </th>
-                    <th
-                      onClick={() => toggleSort('vencimento')}
-                      className="hidden sm:table-cell px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider cursor-pointer select-none w-20"
-                    >
-                      <div className="flex items-center">
-                        Vencimento
-                        {getSortIcon('vencimento')}
-                      </div>
-                    </th>
-                    <th className="px-2 py-2 text-center font-medium text-neutral-500 uppercase tracking-wider w-28">
-                      Acoes
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-neutral-200">
-                  {currentItems.map((conta) => (
-                    <tr key={conta.id} className="group hover:bg-neutral-50 transition-colors duration-150">
-                      <td className="px-2 py-2">
-                        <div className="font-medium text-neutral-900 truncate max-w-[140px] sm:max-w-none">
+            <div className="overflow-hidden">
+              <div className="hidden sm:block overflow-x-hidden">
+                <table className="min-w-full table-fixed divide-y divide-neutral-200 text-[10px] sm:text-[11px] lg:text-xs">
+                  <colgroup>
+                    <col style={{ width: '22%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '4%' }} />
+                    <col style={{ width: '16%' }} />
+                    <col style={{ width: '25%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '6%' }} />
+                    <col style={{ width: '8%' }} />
+                  </colgroup>
+                  <thead className="bg-neutral-50 text-[9px] sm:text-[10px] lg:text-[11px] uppercase tracking-wider text-neutral-500">
+                    <tr>
+                      <th
+                        onClick={() => toggleSort('fornecedor')}
+                        className="px-2 py-2 text-left font-semibold cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-1">
+                          Fornecedor
+                          {getSortIcon('fornecedor')}
+                        </div>
+                      </th>
+                      <th className="px-2 py-2 text-center font-semibold">
+                        Pagamento
+                      </th>
+                      <th className="px-2 py-2 text-center font-semibold">
+                        Link
+                      </th>
+                      <th
+                        onClick={() => toggleSort('status_documento')}
+                        className="px-2 py-2 text-left font-semibold cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-1">
+                          Status
+                          {getSortIcon('status_documento')}
+                        </div>
+                      </th>
+                      <th className="px-2 py-2 text-left font-semibold">Descricao</th>
+                      <th
+                        onClick={() => toggleSort('valor')}
+                        className="px-2 py-2 text-left font-semibold cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-1">
+                          Valor
+                          {getSortIcon('valor')}
+                        </div>
+                      </th>
+                      <th
+                        onClick={() => toggleSort('vencimento')}
+                        className="hidden sm:table-cell px-2 py-2 text-center font-semibold cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-1 justify-center">
+                          Vencimento
+                          {getSortIcon('vencimento')}
+                        </div>
+                      </th>
+                      <th className="px-2 py-2 text-center font-semibold">
+                        Acoes
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-neutral-200 uppercase">
+                    {currentItems.map((conta) => (
+                      <tr key={conta.id} className="group hover:bg-neutral-50 transition-colors duration-150">
+                        <td className="px-2 py-2 align-top">
+                          <div className="font-semibold text-neutral-900 break-words whitespace-normal leading-snug">
+                            {decodeLatin1IfNeeded(conta.fornecedor) || '-'}
+                          </div>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-neutral-600 text-center">
+                          {conta.tipo_pagto ? conta.tipo_pagto.toUpperCase() : '-'}
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          {conta.link ? (
+                            <a
+                              href={conta.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center justify-center rounded-md p-1 text-primary-600 hover:bg-primary-50 hover:text-primary-900"
+                              title="Abrir link"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : (
+                            <span
+                              className="inline-flex items-center justify-center rounded-md p-1 text-neutral-300"
+                              title="Sem link"
+                              aria-hidden="true"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-neutral-600">
+                          <select
+                            value={conta.status_documento || 'Nao emitido'}
+                            onChange={(e) => handleStatusChange(conta.id, e.target.value)}
+                            disabled={updatingStatusIds.has(conta.id)}
+                            className={`w-full rounded-lg border px-2 py-1 text-[10px] font-semibold uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 disabled:opacity-60 ${getStatusColorClasses(conta.status_documento || 'Nao emitido')}`}
+                            aria-label="Status do documento"
+                          >
+                            {STATUS_OPTIONS.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-2 py-2 align-top">
+                          <div className="text-neutral-600 break-words whitespace-normal leading-snug">
+                            {decodeLatin1IfNeeded(conta.descricao) || '-'}
+                          </div>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-neutral-700 font-semibold text-right">
+                          {formatCurrency(conta.valor)}
+                        </td>
+                        <td className="hidden sm:table-cell px-2 py-2 whitespace-nowrap text-neutral-600 text-center">
+                          {formatDay(conta.vencimento)}
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap font-medium">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => requestActionVerification('view', conta)}
+                              className="inline-flex items-center justify-center rounded-md p-1 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+                              title="Visualizar"
+                            >
+                              <Search className="h-3.5 w-3.5 item-center" />
+                            </button>
+                            <button
+                              onClick={() => requestActionVerification('edit', conta)}
+                              className="inline-flex items-center justify-center rounded-md p-1 text-primary-600 hover:bg-primary-50 hover:text-primary-900"
+                              title="Editar"
+                            >
+                              <Edit className="h-3.5 w-3.5 item-center" />
+                            </button>
+                            <button
+                              onClick={() => requestActionVerification('delete', conta)}
+                              className="inline-flex items-center justify-center rounded-md p-1 text-red-600 hover:bg-red-50 hover:text-red-900"
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 item-center" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="sm:hidden divide-y divide-neutral-200 bg-white uppercase">
+                {currentItems.map((conta) => (
+                  <div key={conta.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 min-w-0">
+                        <div className="text-sm font-semibold text-neutral-900 truncate">
                           {decodeLatin1IfNeeded(conta.fornecedor) || '-'}
                         </div>
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-24 text-center">
-                        {conta.tipo_pagto ? conta.tipo_pagto.toUpperCase() : '-'}
-                      </td>
-                      <td className="px-2 py-2 text-center w-12">
-                        {conta.link ? (
-                          <a
-                            href={conta.link}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center justify-center text-primary-600 hover:text-primary-900"
-                            title="Abrir link"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        ) : (
-                          <span
-                            className="inline-flex items-center justify-center text-neutral-300"
-                            title="Sem link"
-                            aria-hidden="true"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap text-neutral-600 w-36">
-                        <select
-                          value={conta.status_documento || 'Nao emitido'}
-                          onChange={(e) => handleStatusChange(conta.id, e.target.value)}
-                          disabled={updatingStatusIds.has(conta.id)}
-                          className={`border rounded-lg px-2 py-1 w-36 disabled:opacity-60 ${getStatusColorClasses(conta.status_documento || 'Nao emitido')}`}
-                          aria-label="Status do documento"
-                        >
-                          {STATUS_OPTIONS.map((status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-2 py-2 w-32">
-                        <div className="text-neutral-600 truncate max-w-[120px] sm:max-w-none">
+                        <div className="text-xs text-neutral-500 truncate">
                           {decodeLatin1IfNeeded(conta.descricao) || '-'}
                         </div>
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap text-neutral-600">{formatCurrency(conta.valor)}</td>
-                      <td className="hidden sm:table-cell px-2 py-2 whitespace-nowrap text-neutral-600 w-20 text-center">
-                        {formatDay(conta.vencimento)}
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap font-medium w-28">
-                        <div className="flex items-center space-x-1 sm:space-x-2">
-                          <button
-                            onClick={() => requestActionVerification('view', conta)}
-                            className="text-neutral-600 hover:text-neutral-900"
-                            title="Visualizar"
-                          >
-                            <Search className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
-                          </button>
-                          <button
-                            onClick={() => requestActionVerification('edit', conta)}
-                            className="text-primary-600 hover:text-primary-900"
-                            title="Editar"
-                          >
-                            <Edit className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
-                          </button>
-                          <button
-                            onClick={() => requestActionVerification('delete', conta)}
-                            className="text-red-600 hover:text-red-900"
-                            title="Excluir"
-                          >
-                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 item-center" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-semibold text-neutral-900">{formatCurrency(conta.valor)}</div>
+                        <div className="text-xs text-neutral-500">Venc. {formatDay(conta.vencimento)}</div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-500">
+                      <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 font-semibold uppercase tracking-wide text-neutral-600">
+                        {conta.tipo_pagto ? conta.tipo_pagto.toUpperCase() : 'N/A'}
+                      </span>
+                      {conta.link ? (
+                        <a
+                          href={conta.link}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-900"
+                        >
+                          Link
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="text-neutral-400">Sem link</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <select
+                        value={conta.status_documento || 'Nao emitido'}
+                        onChange={(e) => handleStatusChange(conta.id, e.target.value)}
+                        disabled={updatingStatusIds.has(conta.id)}
+                        className={`flex-1 rounded-lg border px-2 py-2 text-xs font-semibold uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 disabled:opacity-60 ${getStatusColorClasses(conta.status_documento || 'Nao emitido')}`}
+                        aria-label="Status do documento"
+                      >
+                        {STATUS_OPTIONS.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => requestActionVerification('view', conta)}
+                          className="inline-flex items-center justify-center rounded-md p-2 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+                          title="Visualizar"
+                        >
+                          <Search className="h-4 w-4 item-center" />
+                        </button>
+                        <button
+                          onClick={() => requestActionVerification('edit', conta)}
+                          className="inline-flex items-center justify-center rounded-md p-2 text-primary-600 hover:bg-primary-50 hover:text-primary-900"
+                          title="Editar"
+                        >
+                          <Edit className="h-4 w-4 item-center" />
+                        </button>
+                        <button
+                          onClick={() => requestActionVerification('delete', conta)}
+                          className="inline-flex items-center justify-center rounded-md p-2 text-red-600 hover:bg-red-50 hover:text-red-900"
+                          title="Excluir"
+                        >
+                          <Trash2 className="h-4 w-4 item-center" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
               {filteredContasSorted.length === 0 && (
                 <div className="text-center py-8 sm:py-12">
@@ -3081,8 +3177,8 @@ const ContasAPagar: React.FC = () => {
       </div>
 
       {showContaTipoModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-lg">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl border border-neutral-200 p-5 sm:p-6 w-full max-w-sm shadow-2xl">
             <h3 className="text-lg font-semibold text-neutral-900">Nova Conta</h3>
             <p className="text-sm text-neutral-600 mt-2">
               Selecione o tipo de conta que deseja cadastrar.
@@ -3090,19 +3186,19 @@ const ContasAPagar: React.FC = () => {
             <div className="mt-4 grid grid-cols-1 gap-2">
               <button
                 onClick={() => handleSelectContaTipo('fixa')}
-                className="w-full px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors"
+                className="w-full px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors"
               >
                 Conta Fixa
               </button>
               <button
                 onClick={() => handleSelectContaTipo('avulsa')}
-                className="w-full px-4 py-2 rounded-lg border border-neutral-300 text-neutral-700 text-sm font-semibold hover:bg-neutral-50 transition-colors"
+                className="w-full px-4 py-2 rounded-xl border border-neutral-300 text-neutral-700 text-sm font-semibold hover:bg-neutral-50 transition-colors"
               >
                 Conta Avulsa
               </button>
               <button
                 onClick={() => handleSelectContaTipo('ressarcimento')}
-                className="w-full px-4 py-2 rounded-lg border border-neutral-300 text-neutral-700 text-sm font-semibold hover:bg-neutral-50 transition-colors"
+                className="w-full px-4 py-2 rounded-xl border border-neutral-300 text-neutral-700 text-sm font-semibold hover:bg-neutral-50 transition-colors"
               >
                 Ressarcimento
               </button>
@@ -3136,10 +3232,10 @@ const ContasAPagar: React.FC = () => {
       )}
 
       {viewingConta && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-lg w-full shadow-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes da Conta</h2>
-            <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700">
+            <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700 uppercase">
               <div><strong>Status do Documento:</strong> {viewingConta.status_documento || '-'}</div>
             <div>
               <strong>Pagamento:</strong> {viewingConta.tipo_pagto ? viewingConta.tipo_pagto.toUpperCase() : '-'}
@@ -3169,7 +3265,7 @@ const ContasAPagar: React.FC = () => {
             <div className="mt-4 sm:mt-6 text-right">
               <button
                 onClick={handleCloseView}
-                className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-xs sm:text-sm"
+                className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors text-xs sm:text-sm"
               >
                 Fechar
               </button>
@@ -3204,8 +3300,8 @@ const ContasAPagar: React.FC = () => {
       )}
 
       {showExportNfModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-[calc(100vw-2rem)] shadow-xl border border-neutral-200">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-[calc(100vw-2rem)] shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-neutral-900">Novo Lote</h3>
@@ -3226,7 +3322,7 @@ const ContasAPagar: React.FC = () => {
                     setLoteNome(event.target.value);
                     if (loteNomeError) setLoteNomeError(null);
                   }}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   placeholder="Ex: Lote Detalhado Fevereiro"
                 />
                 {loteNomeError && (
@@ -3254,16 +3350,16 @@ const ContasAPagar: React.FC = () => {
                 {sendingEmail ? 'ENVIANDO...' : 'ENVIAR EMAIL'}
               </button>
             </div>
-            <div className="mt-4 border-t border-dashed border-neutral-200 pt-4">
-              <div className="max-h-[72vh] overflow-y-auto pr-2">
+            <div className="mt-4 border-t border-dashed border-neutral-200 pt-4 flex-1 min-h-0">
+              <div className="h-full overflow-y-auto overflow-x-hidden pr-2">
                 {filteredContasSorted.length === 0 ? (
-                  <div className="text-xs text-neutral-500 text-center py-6 border border-dashed rounded-lg">
+                  <div className="text-xs text-neutral-500 text-center py-6 border border-dashed rounded-lg uppercase">
                     Nenhum registro selecionado.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1100px] border border-neutral-200 text-[9px] sm:text-[10px] rounded-lg bg-white">
-                      <thead className="bg-neutral-100 text-[9px] uppercase tracking-wide text-neutral-500">
+                  <div className="overflow-x-hidden">
+                    <table className="w-full table-fixed border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-white uppercase">
+                      <thead className="bg-neutral-100 text-[9px] sm:text-[10px] lg:text-[11px] uppercase tracking-wide text-neutral-500">
                         <tr>
                           {EXPORT_TABLE_COLUMNS.map((column) => {
                             const headerAlignClass =
@@ -3275,7 +3371,7 @@ const ContasAPagar: React.FC = () => {
                             return (
                               <th
                                 key={column.label}
-                                className={`px-2 py-1 whitespace-nowrap font-semibold ${headerAlignClass}`}
+                                className={`px-3 py-2 lg:px-4 lg:py-3 font-semibold break-words whitespace-normal leading-tight ${headerAlignClass}`}
                               >
                                 {column.label}
                               </th>
@@ -3303,14 +3399,14 @@ const ContasAPagar: React.FC = () => {
                                       : entry[column.field as ExportEntryField] ?? '';
                                   const displayValue = decodeLatin1IfNeeded(rawDisplayValue) ?? rawDisplayValue;
                                   return (
-                                    <td
-                                      key={`${conta.id}-${column.label}`}
-                                      className={`px-2 py-1 text-xs sm:text-sm text-neutral-700 whitespace-nowrap font-semibold ${bodyAlignClass}`}
-                                    >
-                                      {displayValue}
-                                    </td>
-                                  );
-                                }
+                                  <td
+                                    key={`${conta.id}-${column.label}`}
+                                    className={`px-3 py-2 lg:px-4 lg:py-3 text-[10px] sm:text-[11px] lg:text-xs text-neutral-700 font-semibold break-words whitespace-normal ${bodyAlignClass}`}
+                                  >
+                                    {displayValue}
+                                  </td>
+                                );
+                              }
 
                                 const field = column.field as ExportEntryField;
                                 const rawValue = entry[field] ?? '';
@@ -3325,13 +3421,13 @@ const ContasAPagar: React.FC = () => {
                                 return (
                                   <td
                                     key={`${conta.id}-${column.label}`}
-                                    className={`px-2 py-1 ${bodyAlignClass}`}
+                                    className={`px-3 py-2 lg:px-4 lg:py-3 break-words whitespace-normal ${bodyAlignClass}`}
                                   >
                                     <input
                                       type={inputType}
                                       value={value}
                                       onChange={(event) => handleExportEntryChange(conta, field, event.target.value)}
-                                      className={`w-full border border-neutral-200 rounded px-2 py-1 text-[10px] sm:text-xs focus:border-primary-500 focus:outline-none ${inputAlignClass}`}
+                                      className={`w-full min-w-0 rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[10px] sm:text-[11px] lg:text-xs uppercase shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 ${inputAlignClass}`}
                                     />
                                   </td>
                                 );
@@ -3345,20 +3441,20 @@ const ContasAPagar: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <div className="mt-4 flex flex-wrap justify-end gap-2 pt-3 border-t border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
               <button
                 onClick={() => {
                   setShowExportNfModal(false);
                   setLoteNomeError(null);
                   setCurrentLoteId(null);
                 }}
-                className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSaveLoteDetalhado}
-                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+                className="px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
               >
                 Salvar Lote
               </button>
@@ -3368,8 +3464,8 @@ const ContasAPagar: React.FC = () => {
       )}
 
       {showEmailRecipientsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-xl p-5 w-full max-w-lg shadow-lg">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-2xl border border-neutral-200 p-5 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-neutral-900">Enviar E-mail</h3>
               <button
@@ -3387,14 +3483,14 @@ const ContasAPagar: React.FC = () => {
             <p className="text-sm text-neutral-600 mt-2">
               Gerencie os destinatarios. Os e-mails adicionados ficam salvos para os proximos envios.
             </p>
-            <div className="mt-4">
+            <div className="mt-4 flex-1 min-h-0 overflow-y-auto pr-1">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
                   Destinatarios cadastrados
                 </span>
                 <span className="text-[11px] text-neutral-400">{emailRecipients.length}</span>
               </div>
-              <div className="mt-2 max-h-24 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+              <div className="mt-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
                 {emailRecipients.length === 0 ? (
                   <div className="text-xs text-neutral-500">
                     Nenhum destinatario cadastrado.
@@ -3406,7 +3502,7 @@ const ContasAPagar: React.FC = () => {
                       return (
                         <span
                           key={recipient}
-                          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm"
+                          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm uppercase"
                         >
                           {recipient}
                           {isDefaultRecipient ? (
@@ -3441,13 +3537,13 @@ const ContasAPagar: React.FC = () => {
                     handleAddEmailRecipient();
                   }
                 }}
-                className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                className="flex-1 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                 placeholder="email@exemplo.com"
                 disabled={sendingEmail}
               />
               <button
                 onClick={handleAddEmailRecipient}
-                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700"
+                className="px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700"
                 disabled={sendingEmail}
               >
                 Adicionar
@@ -3458,21 +3554,21 @@ const ContasAPagar: React.FC = () => {
                 {emailRecipientsError}
               </div>
             )}
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
               <button
                 onClick={() => {
                   setShowEmailRecipientsModal(false);
                   setEmailRecipientsError(null);
                   setEmailContext(null);
                 }}
-                className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
                 disabled={sendingEmail}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleConfirmSendEmail}
-                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+                className="px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
                 disabled={sendingEmail}
               >
                 {sendingEmail ? 'Enviando...' : 'Enviar'}
@@ -3483,8 +3579,8 @@ const ContasAPagar: React.FC = () => {
       )}
 
       {showConsolidateLoteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-2xl p-5 w-full max-w-2xl shadow-xl border border-neutral-200">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-2xl p-5 w-full max-w-2xl shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-neutral-900">Fechar Lote</h3>
               <button
@@ -3502,7 +3598,7 @@ const ContasAPagar: React.FC = () => {
               Selecione os lotes em aberto para consolidar. O novo lote sera salvo como{' '}
               <strong className="text-neutral-800">LOTE CONSOLIDADO {getMesVigenteLabel()}</strong>.
             </p>
-            <div className="mt-4 max-h-[50vh] overflow-y-auto space-y-3 pr-1">
+            <div className="mt-4 flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
               {lotesAbertos.length === 0 ? (
                 <div className="text-xs text-neutral-500 border border-dashed rounded-lg px-3 py-4 text-center">
                   Nenhum lote em aberto disponivel.
@@ -3527,7 +3623,7 @@ const ContasAPagar: React.FC = () => {
                       />
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold text-neutral-900">{lote.nome}</span>
+                          <span className="text-sm font-semibold text-neutral-900 uppercase break-words">{lote.nome}</span>
                           <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
                             {lote.origem === 'avulsa'
                               ? 'Avulsas'
@@ -3578,20 +3674,20 @@ const ContasAPagar: React.FC = () => {
                 {consolidateError}
               </div>
             )}
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
               <button
                 onClick={() => {
                   setShowConsolidateLoteModal(false);
                   setConsolidateError(null);
                   setConsolidateSelection(new Set());
                 }}
-                className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSaveConsolidatedLote}
-                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+                className="px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
               >
                 Salvar
               </button>
@@ -3601,11 +3697,11 @@ const ContasAPagar: React.FC = () => {
       )}
 
       {editingLoteId && editingLoteType && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-5 w-full max-w-[calc(100vw-2rem)] shadow-lg border border-neutral-200 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-5 w-full max-w-[calc(100vw-2rem)] shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-neutral-900">
+                <h3 className="text-lg font-semibold text-neutral-900 uppercase">
                   {editingLoteNome} - {editingLoteType === 'resumido' ? 'Resumido' : 'Detalhado'}
                 </h3>
                 <p className="text-sm text-neutral-600 mt-1">
@@ -3667,7 +3763,7 @@ const ContasAPagar: React.FC = () => {
                 })()}
               </div>
             )}
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-2">
               {(() => {
                 const rowsToRender = editingLoteReadOnly
                   ? editingLoteRows.filter((row) => {
@@ -3679,7 +3775,7 @@ const ContasAPagar: React.FC = () => {
                   : editingLoteRows;
                 if (rowsToRender.length === 0) {
                   return (
-                <div className="text-xs text-neutral-500 text-center py-6 border border-dashed rounded-lg">
+                <div className="text-xs text-neutral-500 text-center py-6 border border-dashed rounded-lg uppercase">
                   {editingLoteReadOnly
                     ? `Nenhuma conta ${editingLoteTab === 'avulsa' ? 'avulsa' : editingLoteTab === 'ressarcimento' ? 'ressarcimento' : 'fixa'} no lote.`
                     : 'Nenhum registro no lote.'}
@@ -3687,13 +3783,13 @@ const ContasAPagar: React.FC = () => {
                   );
                 }
                 return (
-                <table className="w-full min-w-[1100px] border border-neutral-200 text-[9px] sm:text-[10px] rounded-lg bg-white">
-                  <thead className="bg-neutral-100 text-[9px] uppercase tracking-wide text-neutral-500">
+                <table className="w-full table-fixed border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-white uppercase">
+                  <thead className="bg-neutral-100 text-[9px] sm:text-[10px] lg:text-[11px] uppercase tracking-wide text-neutral-500">
                     {editingLoteReadOnly && (
                       <tr className="bg-white">
                         <th
                           colSpan={(editingLoteType === 'resumido' ? LOTE_RESUMIDO_COLUMNS : LOTE_DETALHADO_COLUMNS).length}
-                          className="px-2 py-2 text-left text-[10px] font-semibold text-neutral-700"
+                          className="px-3 py-2 lg:px-4 lg:py-3 text-left text-[10px] sm:text-[11px] lg:text-xs font-semibold text-neutral-700 uppercase"
                         >
                           {(() => {
                             const counts = getRowsCounts(editingLoteRows);
@@ -3713,7 +3809,7 @@ const ContasAPagar: React.FC = () => {
                         return (
                           <th
                             key={column.label}
-                            className={`px-2 py-1 whitespace-nowrap font-semibold ${headerAlignClass}`}
+                            className={`px-3 py-2 lg:px-4 lg:py-3 font-semibold break-words whitespace-normal leading-tight ${headerAlignClass}`}
                           >
                             {column.label}
                           </th>
@@ -3748,10 +3844,10 @@ const ContasAPagar: React.FC = () => {
                           return (
                             <td
                               key={`${row.id}-${column.label}`}
-                              className={`px-2 py-1 ${bodyAlignClass}`}
+                              className={`px-3 py-2 lg:px-4 lg:py-3 break-words whitespace-normal ${bodyAlignClass}`}
                             >
                               {isReadOnlyColumn ? (
-                                <span className="inline-flex min-h-[24px] items-center px-2 text-[10px] sm:text-xs text-neutral-700">
+                                <span className="inline-flex min-h-[26px] items-center px-2 text-[10px] sm:text-[11px] lg:text-xs text-neutral-700 uppercase">
                                   {value || '—'}
                                 </span>
                               ) : (
@@ -3765,7 +3861,7 @@ const ContasAPagar: React.FC = () => {
                                     }
                                   }}
                                   readOnly={editingLoteReadOnly}
-                                  className={`w-full border border-neutral-200 rounded px-2 py-1 text-[10px] sm:text-xs focus:border-primary-500 focus:outline-none ${inputAlignClass} ${
+                                  className={`w-full min-w-0 rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[10px] sm:text-[11px] lg:text-xs uppercase shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 ${inputAlignClass} ${
                                     editingLoteReadOnly ? 'bg-neutral-100 text-neutral-500' : ''
                                   }`}
                                 />
@@ -3780,10 +3876,10 @@ const ContasAPagar: React.FC = () => {
                 );
               })()}
             </div>
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
               <button
                 onClick={handleCancelEditLote}
-                className="px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
               >
                 Cancelar
               </button>
@@ -3794,7 +3890,7 @@ const ContasAPagar: React.FC = () => {
                     handleOpenEmailRecipientsModal({ columns: XLSX_EXPORT_HEADERS, rows });
                   }}
                   disabled={sendingEmail}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-primary-200 text-sm font-medium text-primary-700 transition-colors ${
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-primary-200 text-sm font-medium text-primary-700 transition-colors ${
                     sendingEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
                   }`}
                 >
@@ -3804,14 +3900,14 @@ const ContasAPagar: React.FC = () => {
               )}
               <button
                 onClick={handleExportEditingLote}
-                className="px-4 py-2 rounded-lg border border-primary-200 text-sm font-medium text-primary-700 hover:bg-primary-50"
+                className="px-4 py-2 rounded-xl border border-primary-200 text-sm font-medium text-primary-700 hover:bg-primary-50"
               >
                 Exportar
               </button>
               {!editingLoteReadOnly && (
                 <button
                   onClick={handleSaveEditLote}
-                  className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+                  className="px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
                 >
                   Salvar
                 </button>
@@ -3822,15 +3918,15 @@ const ContasAPagar: React.FC = () => {
       )}
 
       {showNextWeekModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-2xl w-full shadow-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg sm:text-xl font-bold mb-2">Fornecedores da Proxima Semana</h2>
             <p className="text-xs sm:text-sm text-neutral-600 mb-4">
               Lista de fornecedores com vencimento na semana seguinte.
             </p>
             <div className="text-xs sm:text-sm text-neutral-700">
               <div className="font-medium text-neutral-900 mb-2">Fornecedores:</div>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 uppercase">
                 {nextWeekSuppliers.length === 0 && (
                   <li className="border border-neutral-200 rounded-lg px-3 py-2 text-neutral-500">
                     Nenhum fornecedor encontrado.
@@ -3858,7 +3954,7 @@ const ContasAPagar: React.FC = () => {
             <div className="mt-4 sm:mt-6 text-right">
               <button
                 onClick={() => setShowNextWeekModal(false)}
-                className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-xs sm:text-sm"
+                className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors text-xs sm:text-sm"
               >
                 Fechar
               </button>
@@ -3871,7 +3967,3 @@ const ContasAPagar: React.FC = () => {
 };
 
 export default ContasAPagar;
-
-
-
-
