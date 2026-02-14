@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, UserCheck, Building } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, UserCheck, Building, Copy } from 'lucide-react';
 import TeamForm from '../components/TeamForm';
 import TeamFileUpload from '../components/TeamFileUpload';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
+import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
@@ -39,6 +40,8 @@ const Teams: React.FC = () => {
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
   const [pendingActionTeam, setPendingActionTeam] = useState<Team | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sortOrder, setSortOrder] = useState<string | null>(null);
   const itemsPerPage = 10;
   const { user } = useAuth();
@@ -117,6 +120,34 @@ const Teams: React.FC = () => {
       setShowPasswordModal(true);
     }
   };
+
+  const copyText = React.useCallback(async (value?: string, key?: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        document.execCommand('copy');
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+    if (!key) return;
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
+    setCopiedKey(key);
+    copyTimeoutRef.current = setTimeout(() => {
+      setCopiedKey((prev) => (prev === key ? null : prev));
+    }, 800);
+  }, []);
 
   const handlePasswordVerified = () => {
     if (pendingPasswordReveal) {
@@ -244,26 +275,25 @@ const Teams: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Contas Teams</h1>
-            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de contas teams</p>
-          </div>
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+      <ModuleHeader
+        sectionLabel="Acessos"
+        title="Contas Teams"
+        subtitle="Gerenciamento de contas teams"
+        actions={(
+          <>
             <button
               onClick={() => setShowUpload(true)}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
             >
-              <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
               Importar
             </button>
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
               >
-                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                 Exportar ({filteredTeams.length})
               </button>
               {showExportMenu && (
@@ -296,14 +326,14 @@ const Teams: React.FC = () => {
             </div>
             <button
               onClick={() => setShowForm(true)}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
             >
-              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
               Novo Team
             </button>
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       {showForm && (
         <TeamForm
@@ -400,12 +430,38 @@ const Teams: React.FC = () => {
             <tbody className="bg-white divide-y divide-neutral-200">
               {currentItems.map((team) => (
                 <tr key={team.id} className="hover:bg-neutral-50">
-                  <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-900 truncate max-w-[100px] sm:max-w-none">{team.login}</td>
+                  <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-900">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="truncate max-w-[100px] sm:max-w-none">{team.login}</span>
+                      <button
+                        type="button"
+                        onClick={() => copyText(team.login, `teams-login-${team.id}`)}
+                        className={`text-neutral-400 hover:text-neutral-600 transition-transform ${
+                          copiedKey === `teams-login-${team.id}` ? 'text-emerald-500 scale-110 animate-pulse' : ''
+                        }`}
+                        title="Copiar login"
+                      >
+                        <Copy className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-600">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <span className="font-mono text-xs sm:text-sm">
                         {visiblePasswords.has(team.id) ? decryptPassword(team.senha) : '••••••••'}
                       </span>
+                      {visiblePasswords.has(team.id) && (
+                        <button
+                          type="button"
+                          onClick={() => copyText(decryptPassword(team.senha), `teams-pass-${team.id}`)}
+                          className={`text-neutral-400 hover:text-neutral-600 transition-transform ${
+                            copiedKey === `teams-pass-${team.id}` ? 'text-emerald-500 scale-110 animate-pulse' : ''
+                          }`}
+                          title="Copiar senha"
+                        >
+                          <Copy className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </button>
+                      )}
                       <button 
                         onClick={() => togglePasswordVisibility(team.id)} 
                         className="text-neutral-400 hover:text-neutral-600"
@@ -418,7 +474,21 @@ const Teams: React.FC = () => {
                       </button>
                     </div>
                   </td>
-                  <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-600 truncate max-w-[100px] sm:max-w-none">{team.usuario}</td>
+                  <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-600">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="truncate max-w-[100px] sm:max-w-none">{team.usuario}</span>
+                      <button
+                        type="button"
+                        onClick={() => copyText(team.usuario, `teams-user-${team.id}`)}
+                        className={`text-neutral-400 hover:text-neutral-600 transition-transform ${
+                          copiedKey === `teams-user-${team.id}` ? 'text-emerald-500 scale-110 animate-pulse' : ''
+                        }`}
+                        title="Copiar usuario"
+                      >
+                        <Copy className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </button>
+                    </div>
+                  </td>
                   <td className="hidden sm:table-cell px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-600 truncate max-w-[150px]">{team.departamento || '-'}</td>
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm font-medium">
                     <div className="flex items-center space-x-1 sm:space-x-2">
@@ -476,8 +546,8 @@ const Teams: React.FC = () => {
       </div>
 
       {viewingTeam && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-lg w-full shadow-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Team</h2>
             <div className="space-y-2 text-xs sm:text-sm text-neutral-700">
               <div>
@@ -551,3 +621,5 @@ const Teams: React.FC = () => {
 };
 
 export default Teams;
+
+

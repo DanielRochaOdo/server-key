@@ -4,6 +4,7 @@ import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
+import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
@@ -2607,74 +2608,70 @@ const ContasAPagar: React.FC = () => {
           {toast.message}
         </div>
       )}
-      <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 p-4 sm:p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-neutral-400">Financeiro</p>
-              <h1 className="text-xl sm:text-2xl font-bold text-primary-900">Contas a Pagar</h1>
-              <p className="mt-1 text-xs sm:text-sm text-primary-600">Controle de contas e documentos financeiros</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <button
-                onClick={() => setShowUpload(true)}
-                className="hidden inline-flex items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50"
-              >
-                <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
-                Importar
-              </button>
-              {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
-                <>
+      <ModuleHeader
+        sectionLabel="Financeiro"
+        title="Contas a Pagar"
+        subtitle="Controle de contas e documentos financeiros"
+        actions={(
+          <>
+            <button
+              onClick={() => setShowUpload(true)}
+              className="hidden inline-flex items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50"
+            >
+              <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+              Importar
+            </button>
+            {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
+              <>
+                <button
+                  onClick={handleOpenNovoLoteModal}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                >
+                  <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+                  Gerar Lote
+                </button>
+                <div className="relative w-full sm:w-auto">
                   <button
-                    onClick={handleOpenNovoLoteModal}
+                    onClick={() => setShowExportMenu(!showExportMenu)}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
                   >
                     <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-                    Gerar Lote
+                    Exportar ({filteredContasSorted.length})
                   </button>
-                  <div className="relative w-full sm:w-auto">
-                    <button
-                      onClick={() => setShowExportMenu(!showExportMenu)}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
-                    >
-                      <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-                      Exportar ({filteredContasSorted.length})
-                    </button>
-                    {showExportMenu && (
-                      <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl z-10">
-                        <div className="py-2">
-                          <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
-                            {searchTerm ? `Exportando ${filteredContasSorted.length} registros filtrados` : `Exportando todos os ${filteredContasSorted.length} registros`}
-                          </div>
-                          <button
-                            onClick={() => handleExportSelection('xlsx')}
-                            className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                          >
-                            Exportar XLSX
-                          </button>
-                          <button
-                            onClick={() => handleExportSelection('xlsx_resumido')}
-                            className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                          >
-                            Exportar Resumido (XLSX)
-                          </button>
+                  {showExportMenu && (
+                    <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl z-10">
+                      <div className="py-2">
+                        <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
+                          {searchTerm ? `Exportando ${filteredContasSorted.length} registros filtrados` : `Exportando todos os ${filteredContasSorted.length} registros`}
                         </div>
+                        <button
+                          onClick={() => handleExportSelection('xlsx')}
+                          className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                        >
+                          Exportar XLSX
+                        </button>
+                        <button
+                          onClick={() => handleExportSelection('xlsx_resumido')}
+                          className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                        >
+                          Exportar Resumido (XLSX)
+                        </button>
                       </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={handleNewContaClick}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
-                  >
-                    <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-                    Nova Conta
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={handleNewContaClick}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
+                >
+                  <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                  Nova Conta
+                </button>
+              </>
+            )}
+          </>
+        )}
+      />
 
       {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
         <div className="rounded-2xl border border-neutral-200 bg-white p-3 sm:p-4 shadow-sm">

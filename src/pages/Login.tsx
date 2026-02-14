@@ -78,7 +78,7 @@ const Login: React.FC = () => {
           </p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+        <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl p-6 sm:p-8">
           <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 sm:p-4 flex items-start space-x-2">
@@ -161,3 +161,4 @@ const Login: React.FC = () => {
 };
 
 export default Login;
+

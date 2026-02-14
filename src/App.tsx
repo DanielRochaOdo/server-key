@@ -20,6 +20,7 @@ import PedidosDeCompra from './pages/PedidosDeCompra';
 import ControleEmpresas from './pages/ControleEmpresas';
 import ControleUber from './pages/ControleUber';
 import VisitasClinicas from './pages/VisitasClinicas';
+import CustosClinicas from './pages/CustosClinicas';
 
 function App() {
   return (
@@ -136,6 +137,14 @@ function App() {
                 element={
                   <ProtectedRoute requiredModule="controle_uber">
                     <ControleUber />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/custos-clinicas"
+                element={
+                  <ProtectedRoute requiredModule="custos_clinicas">
+                    <CustosClinicas />
                   </ProtectedRoute>
                 }
               />

@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { Plus, Download, ExternalLink, Save, Trash2, Pencil, Star, Mail, Loader2, FileText } from "lucide-react";
 import { exportProtocoloXlsx } from "../utils/exportProtocoloXlsx";
 import MoneyInputBRL from "../components/MoneyInputBRL";
+import ModuleHeader from "../components/ModuleHeader";
 
 type PcStatusMensal = "ENTREGUE" | "PEDIDO_FEITO";
 type PcPrioridade = "BAIXA" | "MEDIA" | "ALTA";
@@ -724,46 +725,41 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                     {toast.message}
                 </div>
             )}
-            {/* Header (Server-Key feel) */}
-        <div className="relative rounded-2xl border border-neutral-800 bg-neutral-950/60 p-6 shadow-xl overflow-hidden">
-            <div className="relative flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-2 text-white">
-                    <Star className="h-6 w-6 text-primary-400" />
-                    <div className="flex flex-col text-left">
-                        <span className="text-2xl sm:text-3xl font-bold">Pedidos de Compra</span>
-                        <span className="text-xs text-neutral-400 uppercase tracking-wide">Mensal & Protocolo</span>
-                    </div>
-                </div>
-                <div className="flex-1 grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-end">
-                    <select
-                        className="w-full max-w-[90px] rounded-2xl border border-neutral-800 bg-black/40 px-2 py-1 text-xs text-white shadow-sm focus:border-primary-500"
-                        value={ano}
-                        onChange={(e) => setAno(Number(e.target.value))}
-                    >
-                        {Array.from({ length: 6 }).map((_, idx) => {
-                            const y = anoNow - 2 + idx;
-                            return (
-                                <option key={y} value={y}>
-                                    {y}
-                                </option>
-                            );
-                        })}
-                    </select>
+            <ModuleHeader
+                sectionLabel="Financeiro"
+                title="Pedidos de Compra"
+                subtitle="Mensal & Protocolo"
+                actions={(
+                    <div className="flex flex-wrap items-center gap-2">
+                        <select
+                            className="min-w-[90px] rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs sm:text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                            value={ano}
+                            onChange={(e) => setAno(Number(e.target.value))}
+                        >
+                            {Array.from({ length: 6 }).map((_, idx) => {
+                                const y = anoNow - 2 + idx;
+                                return (
+                                    <option key={y} value={y}>
+                                        {y}
+                                    </option>
+                                );
+                            })}
+                        </select>
 
-                    <select
-                        className="w-full max-w-[70px] rounded-2xl border border-neutral-800 bg-black/40 px-2 py-1 text-xs text-white shadow-sm focus:border-primary-500"
-                        value={mes}
-                        onChange={(e) => setMes(Number(e.target.value))}
-                    >
-                        {Array.from({ length: 12 }).map((_, i) => (
-                            <option key={i + 1} value={i + 1}>
-                                {String(i + 1).padStart(2, "0")}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-        </div>
+                        <select
+                            className="min-w-[72px] rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs sm:text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                            value={mes}
+                            onChange={(e) => setMes(Number(e.target.value))}
+                        >
+                            {Array.from({ length: 12 }).map((_, i) => (
+                                <option key={i + 1} value={i + 1}>
+                                    {String(i + 1).padStart(2, "0")}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+            />
 
             {/* Tabs */}
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-1 flex gap-2 overflow-hidden">
@@ -1277,7 +1273,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         </tbody>
                                     </table>
                                     {editItem && (
-                                        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                                        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                                             <div className="w-full max-w-4xl rounded-3xl border border-neutral-800 bg-neutral-950/90 text-white shadow-2xl p-5">
                                                 <div className="flex items-center justify-between">
                                                     <h3 className="text-lg font-bold text-white">Editar item</h3>
@@ -1383,7 +1379,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
             {observacoesModalOpen && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm px-4"
                     onClick={closeObservacoesModal}
                 >
                     <div
@@ -1439,7 +1435,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
             {showSaveConfirm && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm"
                     onClick={() => setShowSaveConfirm(false)}
                 >
                     <div className="max-w-xs rounded-2xl border border-white/10 bg-neutral-900/95 px-6 py-6 text-center text-white shadow-2xl backdrop-blur-xl">
@@ -1452,3 +1448,4 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         </>
     );
 }
+

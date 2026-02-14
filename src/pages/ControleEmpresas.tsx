@@ -8,6 +8,7 @@ import {
   upsertControleEmpresas,
   upsertControleEmpresasByUnique,
 } from '../services/controleEmpresas';
+import ModuleHeader from '../components/ModuleHeader';
 
 type MonthRow = {
   id?: string;
@@ -410,37 +411,36 @@ const ControleEmpresas: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Controle Empresas</h1>
-          <p className="mt-1 text-sm text-primary-600">
-            Controle mensal de empresas e quantidades.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-neutral-600">Ano:</span>
-            <select
-              value={year}
-              onChange={(event) => setYear(Number(event.target.value))}
-              className="px-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+      <ModuleHeader
+        sectionLabel="Financeiro"
+        title="Controle Empresas"
+        subtitle="Controle mensal de empresas e quantidades."
+        actions={(
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">Ano:</span>
+              <select
+                value={year}
+                onChange={(event) => setYear(Number(event.target.value))}
+                className="px-3 py-2 border border-neutral-200 rounded-lg text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+              >
+                {yearOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={loadData}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
             >
-              {yearOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            onClick={loadData}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
-          >
-            <RefreshCcw className="h-4 w-4" />
-            Atualizar
-          </button>
-        </div>
-      </div>
+              <RefreshCcw className="h-4 w-4" />
+              Atualizar
+            </button>
+          </>
+        )}
+      />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col sm:flex-row gap-2 sm:items-center">
@@ -475,8 +475,8 @@ const ControleEmpresas: React.FC = () => {
       )}
 
       {showMonthSelector && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-neutral-900">Selecionar meses</h2>
             <p className="text-sm text-neutral-600 mt-1">
               A empresa <strong>{pendingEmpresa}</strong> ainda não existe em alguns meses.
@@ -534,8 +534,8 @@ const ControleEmpresas: React.FC = () => {
       )}
 
       {showDeleteConfirm && deleteTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-neutral-900">Confirmar exclusão</h2>
             <p className="text-sm text-neutral-600 mt-1">
               Excluir a empresa <strong>{deleteTarget.empresa}</strong> a partir de{' '}
@@ -674,3 +674,5 @@ const ControleEmpresas: React.FC = () => {
 };
 
 export default ControleEmpresas;
+
+

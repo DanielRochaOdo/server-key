@@ -33,6 +33,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       { value: 'rateio_google', label: 'Rateio Google' },
       { value: 'rateio_mkm', label: 'Rateio Fatura MKM' },
       { value: 'contas_a_pagar', label: 'Contas a Pagar' },
+      { value: 'custos_clinicas', label: 'Custos das Clinicas' },
       { value: 'controle_empresas', label: 'Controle Empresas' },
       { value: 'controle_uber', label: 'Controle Uber' },
       { value: 'visitas_clinicas', label: 'Visitas as Clinicas' },
@@ -71,12 +72,13 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           'rateio_google',
           'contas_a_pagar',
           'rateio_mkm',
+          'custos_clinicas',
           'controle_empresas',
           'controle_uber',
           'visitas_clinicas',
         ];
       case 'financeiro':
-        return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas'];
+        return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas', 'custos_clinicas', 'contas_a_pagar', 'pedidos_de_compra', 'controle_uber'];
       case 'usuario':
         return ['acessos', 'pessoal', 'teams', 'win_users'];
       default:
@@ -339,8 +341,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">
             {user ? 'Editar Usuario' : 'Novo Usuario'}
@@ -542,3 +544,5 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 };
 
 export default UserForm;
+
+

@@ -5,6 +5,7 @@ import RateioClaroFileUpload from '../components/RateioClaroFileUpload';
 import RateioClaroSyncModal from '../components/RateioClaroSyncModal';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
+import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
@@ -274,28 +275,27 @@ const RateioClaro: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Rateio Claro</h1>
-            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-primary-600">Gerenciamento de rateio de linhas Claro</p>
-          </div>
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+      <ModuleHeader
+        sectionLabel="Financeiro"
+        title="Rateio Claro"
+        subtitle="Gerenciamento de rateio de linhas Claro"
+        actions={(
+          <>
             {canSync && (
               <button
                 onClick={() => setShowSync(true)}
-                className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
               >
-                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
                 Sincronizar
               </button>
             )}
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-button text-xs sm:text-sm font-medium rounded-lg text-button bg-white hover:bg-button-50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
               >
-                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                 Exportar ({filteredRateiosSorted.length})
               </button>
               {showExportMenu && (
@@ -326,9 +326,9 @@ const RateioClaro: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       {/* Dashboard Stats */}
       <DashboardStats stats={dashboardStats} />
@@ -506,8 +506,8 @@ const RateioClaro: React.FC = () => {
       )}
 
       {viewingRateio && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-lg w-full shadow-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Rateio</h2>
             <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700">
               <div><strong>nome:</strong> {viewingRateio.nome}</div>
@@ -557,3 +557,5 @@ const RateioClaro: React.FC = () => {
 };
 
 export default RateioClaro;
+
+

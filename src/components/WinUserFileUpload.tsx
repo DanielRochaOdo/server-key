@@ -68,8 +68,8 @@ const WinUserFileUpload: React.FC<WinUserFileUploadProps> = ({ onSuccess, onCanc
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-xl shadow-lg max-w-md w-full">
+    <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold mb-4">Importar Usuários Windows</h2>
         <input type="file" accept=".xls,.xlsx,.csv" onChange={handleFile} disabled={loading} />
         {fileError && <p className="mt-2 text-red-600">{fileError}</p>}
@@ -89,3 +89,4 @@ const WinUserFileUpload: React.FC<WinUserFileUploadProps> = ({ onSuccess, onCanc
 };
 
 export default WinUserFileUpload;
+

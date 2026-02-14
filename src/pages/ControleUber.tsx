@@ -8,6 +8,7 @@ import {
   listControleUberByCompetencia,
   upsertControleUber,
 } from '../services/controleUber';
+import ModuleHeader from '../components/ModuleHeader';
 
 type FormRow = {
   id?: string;
@@ -372,50 +373,51 @@ const ControleUber: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary-900">Controle Uber</h1>
-          <p className="mt-1 text-xs sm:text-sm text-primary-600">Controle mensal de corridas</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-            <select
-              value={selectedCompetencia}
-              onChange={(event) => setSelectedCompetencia(event.target.value)}
-              className="w-full sm:w-48 pl-9 pr-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              {competenciaOptions.length === 0 && (
-                <option value="">NENHUMA COMPETENCIA</option>
-              )}
-              {competenciaOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </div>
-          {isAdmin() && (
-            <>
-              {hasData && (
-                <button
-                  onClick={() => openForm('edit')}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-neutral-100 text-neutral-700 text-sm font-medium hover:bg-neutral-200 transition-colors"
-                >
-                  Editar Controle
-                </button>
-              )}
-              <button
-                onClick={() => openForm('create')}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors"
+      <ModuleHeader
+        sectionLabel="Financeiro"
+        title="Controle Uber"
+        subtitle="Controle mensal de corridas"
+        actions={(
+          <>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              <select
+                value={selectedCompetencia}
+                onChange={(event) => setSelectedCompetencia(event.target.value)}
+                className="w-full sm:w-48 pl-9 pr-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
-                <Plus className="h-4 w-4" />
-                Novo Registro
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+                {competenciaOptions.length === 0 && (
+                  <option value="">NENHUMA COMPETENCIA</option>
+                )}
+                {competenciaOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {isAdmin() && (
+              <>
+                  {hasData && (
+                    <button
+                      onClick={() => openForm('edit')}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                    >
+                      Editar Controle
+                    </button>
+                  )}
+                  <button
+                    onClick={() => openForm('create')}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
+                  >
+                    <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                    Novo Registro
+                  </button>
+              </>
+            )}
+          </>
+        )}
+      />
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
         <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -464,39 +466,39 @@ const ControleUber: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-[1300px] text-sm">
+          <div className="overflow-x-hidden">
+            <table className="w-full table-fixed text-[11px]">
               <thead>
                 <tr className="text-left text-neutral-500 border-b border-neutral-200">
-                  <th className="py-2 pr-4">Data</th>
-                  <th className="py-2 pr-4">Saida (hh:mm)</th>
-                  <th className="py-2 pr-4">Retorno (hh:mm)</th>
-                  <th className="py-2 pr-4">Valor Saida (R$ BRL)</th>
-                  <th className="py-2 pr-4">Valor Retorno (R$ BRL)</th>
-                  <th className="py-2 pr-4">Servico</th>
-                  <th className="py-2 pr-4">Saida (local)</th>
-                  <th className="py-2 pr-4">Destino</th>
-                  <th className="py-2 pr-4">Tipo</th>
-                  <th className="py-2 pr-4">Pessoa 1</th>
-                  <th className="py-2 pr-4">Pessoa 2</th>
+                  <th className="py-2 pr-2">Data</th>
+                  <th className="py-2 pr-2">Saida</th>
+                  <th className="py-2 pr-2">Retorno</th>
+                  <th className="py-2 pr-2">Valor Saida</th>
+                  <th className="py-2 pr-2">Valor Retorno</th>
+                  <th className="py-2 pr-2">Servico</th>
+                  <th className="py-2 pr-2">Saida (local)</th>
+                  <th className="py-2 pr-2">Destino</th>
+                  <th className="py-2 pr-2">Tipo</th>
+                  <th className="py-2 pr-2">Pessoa 1</th>
+                  <th className="py-2 pr-2">Pessoa 2</th>
                   <th className="py-2">Pessoa 3</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRows.map((row) => (
                   <tr key={row.id} className="border-b border-neutral-100 last:border-b-0">
-                    <td className="py-2 pr-4">{formatDate(row.data)}</td>
-                    <td className="py-2 pr-4">{row.saida_hora || '-'}</td>
-                    <td className="py-2 pr-4">{row.retorno_hora || '-'}</td>
-                    <td className="py-2 pr-4">{formatCurrency(row.valor_saida ?? null)}</td>
-                    <td className="py-2 pr-4">{formatCurrency(row.valor_retorno ?? null)}</td>
-                    <td className="py-2 pr-4">{row.servico || '-'}</td>
-                    <td className="py-2 pr-4">{row.saida_local || '-'}</td>
-                    <td className="py-2 pr-4">{row.destino || '-'}</td>
-                    <td className="py-2 pr-4">{row.tipo || '-'}</td>
-                    <td className="py-2 pr-4">{row.pessoa_1 || '-'}</td>
-                    <td className="py-2 pr-4">{row.pessoa_2 || '-'}</td>
-                    <td className="py-2">{row.pessoa_3 || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{formatDate(row.data)}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.saida_hora || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.retorno_hora || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{formatCurrency(row.valor_saida ?? null)}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{formatCurrency(row.valor_retorno ?? null)}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.servico || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.saida_local || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.destino || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.tipo || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.pessoa_1 || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.pessoa_2 || '-'}</td>
+                    <td className="py-2 whitespace-normal break-words">{row.pessoa_3 || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -514,8 +516,8 @@ const ControleUber: React.FC = () => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-3 sm:p-4 border-b border-neutral-200">
               <h2 className="text-base sm:text-lg font-semibold text-neutral-900">
                 {formMode === 'edit' ? 'Editar Controle Uber' : 'Novo Controle Uber'}
@@ -769,3 +771,5 @@ const ControleUber: React.FC = () => {
 };
 
 export default ControleUber;
+
+
