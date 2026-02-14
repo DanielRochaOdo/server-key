@@ -13,9 +13,12 @@ interface ContaAPagar {
   valor: string | number;
   vencimento?: number | null;
   observacoes?: string | null;
+  tipo_conta?: 'fixa' | 'avulsa' | null;
 }
+type ContaTipo = 'fixa' | 'avulsa';
 interface ContasAPagarFormProps {
   conta?: ContaAPagar | null;
+  tipoConta?: ContaTipo;
   onSuccess: () => void;
   onCancel: () => void;
 }
@@ -33,7 +36,8 @@ const PAGTO_OPTIONS = [
   'TRANSFERENCIA',
 ];
 
-const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, onCancel }) => {
+const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, onSuccess, onCancel }) => {
+  const defaultTipoConta: ContaTipo = conta?.tipo_conta === 'avulsa' ? 'avulsa' : (tipoConta ?? 'fixa');
   const [formData, setFormData] = useState({
     status_documento: STATUS_OPTIONS[0],
     fornecedor: '',
@@ -42,14 +46,15 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
     descricao: '',
     valor: '',
     vencimento: '',
-    observacoes: ''
+    observacoes: '',
+    tipo_conta: defaultTipoConta
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
 
-  const persistenceKey = conta ? `contasAPagarForm_edit_${conta.id}` : 'contasAPagarForm_new';
+  const persistenceKey = conta ? `contasAPagarForm_edit_${conta.id}` : `contasAPagarForm_new_${defaultTipoConta}`;
 
   const formatBRL = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -102,6 +107,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
       const parsedValor = parseBRLToNumber(String(conta.valor));
       const storedTipo = (conta.tipo_pagto || '').trim().toUpperCase();
       const normalizedTipoPagto = PAGTO_OPTIONS.includes(storedTipo as any) ? storedTipo : PAGTO_OPTIONS[0];
+      const contaTipo: ContaTipo = conta.tipo_conta === 'avulsa' ? 'avulsa' : 'fixa';
       setFormData({
         status_documento: conta.status_documento || STATUS_OPTIONS[0],
         fornecedor: conta.fornecedor || '',
@@ -110,7 +116,8 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
         descricao: conta.descricao || '',
         valor: Number.isFinite(parsedValor) ? formatBRL(parsedValor) : '',
         vencimento: conta.vencimento !== null && conta.vencimento !== undefined ? String(conta.vencimento) : '',
-        observacoes: conta.observacoes || ''
+        observacoes: conta.observacoes || '',
+        tipo_conta: contaTipo
       });
     } else {
       setFormData({
@@ -121,11 +128,12 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
         descricao: '',
         valor: '',
         vencimento: '',
-        observacoes: ''
+        observacoes: '',
+        tipo_conta: defaultTipoConta
       });
     }
     setError('');
-  }, [conta?.id, persistenceKey]);
+  }, [conta?.id, defaultTipoConta, persistenceKey]);
 
   useEffect(() => {
     if (formData.fornecedor || formData.descricao) {
@@ -182,6 +190,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
         vencimento: normalizedVencimento,
         link: normalizedLink ? normalizedLink : null,
         observacoes: formData.observacoes || null,
+        tipo_conta: formData.tipo_conta,
         user_id: user.id,
         updated_at: new Date().toISOString()
       };
@@ -220,7 +229,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">
-            {conta ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar'}
+            {conta ? 'Editar Conta a Pagar' : `Nova Conta ${formData.tipo_conta === 'avulsa' ? 'Avulsa' : 'Fixa'}`}
           </h2>
           <button
             onClick={handleCancel}
@@ -238,28 +247,45 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, onSuccess, o
               <span className="text-sm text-red-700">{error}</span>
             </div>
           )}
-          <div>
-            <label htmlFor="tipo_pagto" className="block text-sm font-medium text-neutral-700 mb-2">
-              Tipo de Pagamento *
-            </label>
-            <select
-              id="tipo_pagto"
-              name="tipo_pagto"
-              value={formData.tipo_pagto}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-              disabled={loading}
-              required
-            >
-              {PAGTO_OPTIONS.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="tipo_conta" className="block text-sm font-medium text-neutral-700 mb-2">
+                Tipo de Conta *
+              </label>
+              <select
+                id="tipo_conta"
+                name="tipo_conta"
+                value={formData.tipo_conta}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={loading}
+                required
+              >
+                <option value="fixa">Fixa</option>
+                <option value="avulsa">Avulsa</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="tipo_pagto" className="block text-sm font-medium text-neutral-700 mb-2">
+                Tipo de Pagamento *
+              </label>
+              <select
+                id="tipo_pagto"
+                name="tipo_pagto"
+                value={formData.tipo_pagto}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={loading}
+                required
+              >
+                {PAGTO_OPTIONS.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
             <div className="md:col-span-2">
               <label htmlFor="status_documento" className="block text-sm font-medium text-neutral-700 mb-2">
-                Status do Documento *
+                Status da Conta *
               </label>
               <select
                 id="status_documento"

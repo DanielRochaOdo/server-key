@@ -234,6 +234,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
             valor: Number.isFinite(parsedValor) ? parsedValor : null,
             vencimento: row.vencimento ?? null,
             observacoes: row.observacoes || null,
+            tipo_conta: 'fixa',
             user_id: user.id,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()

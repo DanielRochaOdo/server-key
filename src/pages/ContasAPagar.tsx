@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase';
 import { usePersistence } from '../contexts/PersistenceContext';
 import * as XLSX from 'xlsx-js-style';
 
+type ContaTipo = 'fixa' | 'avulsa';
+
 interface ContaAPagar {
   id: string;
   status_documento: string | null;
@@ -18,6 +20,7 @@ interface ContaAPagar {
   valor: string | number | null;
   vencimento?: number | null;
   observacoes?: string | null;
+  tipo_conta?: ContaTipo | null;
   created_at: string;
 }
 
@@ -218,6 +221,8 @@ const ContasAPagar: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { getState, setState, clearState } = usePersistence();
 
+  const [activeTab, setActiveTab] = useState<ContaTipo>(() => getState('contasAPagar_activeTab') || 'fixa');
+  const [newContaTipo, setNewContaTipo] = useState<ContaTipo>(() => getState('contasAPagar_newContaTipo') || 'fixa');
   const [showForm, setShowForm] = useState(() => getState('contasAPagar_showForm') || false);
   const [showUpload, setShowUpload] = useState(() => getState('contasAPagar_showUpload') || false);
   const [editingConta, setEditingConta] = useState<ContaAPagar | null>(() => getState('contasAPagar_editingConta') || null);
@@ -233,6 +238,7 @@ const ContasAPagar: React.FC = () => {
   const [pendingActionConta, setPendingActionConta] = useState<ContaAPagar | null>(null);
   const [updatingStatusIds, setUpdatingStatusIds] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<string | null>(() => getState('contasAPagar_statusFilter') ?? null);
+  const [showContaTipoModal, setShowContaTipoModal] = useState(false);
   const persistedStatusFilter = getState('contasAPagar_statusFilter') as string | null | undefined;
   const savedExportState = useMemo(() => loadExportModalState(), []);
 
@@ -272,7 +278,7 @@ const ContasAPagar: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('contas_a_pagar')
-        .select('id, status_documento, fornecedor, tipo_pagto, link, descricao, valor, vencimento, observacoes, created_at')
+        .select('id, status_documento, fornecedor, tipo_pagto, link, descricao, valor, vencimento, observacoes, tipo_conta, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -287,6 +293,14 @@ const ContasAPagar: React.FC = () => {
   useEffect(() => {
     fetchContas();
   }, [fetchContas]);
+
+  useEffect(() => {
+    setState('contasAPagar_activeTab', activeTab);
+  }, [activeTab, setState]);
+
+  useEffect(() => {
+    setState('contasAPagar_newContaTipo', newContaTipo);
+  }, [newContaTipo, setState]);
 
   useEffect(() => {
     setState('contasAPagar_showForm', showForm);
@@ -322,6 +336,18 @@ const ContasAPagar: React.FC = () => {
     }
     setState('contasAPagar_statusFilter', value);
   }, [clearState, setState]);
+
+  const contasByTab = useMemo(() => {
+    return contas.filter((conta) => (conta.tipo_conta === 'avulsa' ? 'avulsa' : 'fixa') === activeTab);
+  }, [contas, activeTab]);
+
+  const contasFixasCount = useMemo(() => {
+    return contas.filter((conta) => (conta.tipo_conta === 'avulsa' ? 'avulsa' : 'fixa') === 'fixa').length;
+  }, [contas]);
+
+  const contasAvulsasCount = useMemo(() => {
+    return contas.filter((conta) => (conta.tipo_conta === 'avulsa' ? 'avulsa' : 'fixa') === 'avulsa').length;
+  }, [contas]);
 
 
   const getDayValue = (value: number | null | undefined) => {
@@ -424,18 +450,18 @@ const ContasAPagar: React.FC = () => {
   }, [fetchContas]);
 
   const nextWeekEntries = useMemo(() => {
-    if (!contas.length) return [];
+    if (!contasByTab.length) return [];
     const now = new Date();
     const nextWeekStart = startOfWeekSunday(addDays(startOfDay(now), 7));
     const nextWeekEnd = addDays(nextWeekStart, 6);
 
-    return contas.filter((conta) => {
+    return contasByTab.filter((conta) => {
       const day = getDayValue(conta.vencimento ?? null);
       if (!day) return false;
       const dueDate = getNextDueDate(day, now);
       return dueDate >= nextWeekStart && dueDate <= nextWeekEnd;
     });
-  }, [contas]);
+  }, [contasByTab]);
 
   const nextWeekSuppliers = useMemo(() => {
     const entries = nextWeekEntries.map((conta) => ({
@@ -483,7 +509,7 @@ const ContasAPagar: React.FC = () => {
 
   const filteredContasSorted = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    let filtered = contas.filter((conta) =>
+    let filtered = contasByTab.filter((conta) =>
       (conta.fornecedor || '').toLowerCase().includes(term) ||
       (conta.tipo_pagto || '').toLowerCase().includes(term) ||
       (conta.link || '').toLowerCase().includes(term) ||
@@ -534,7 +560,7 @@ const ContasAPagar: React.FC = () => {
     }
 
     return filtered;
-  }, [contas, searchTerm, sortConfig, statusFilter]);
+  }, [contasByTab, searchTerm, sortConfig, statusFilter]);
 
   const createDefaultExportEntry = (conta: ContaAPagar) => {
     const now = new Date();
@@ -1052,6 +1078,18 @@ const ContasAPagar: React.FC = () => {
   }, [buildXlsxDataRows, exportEntries, pendingExportFormat, sendingEmail]);
 
 
+  const handleNewContaClick = useCallback(() => {
+    setShowContaTipoModal(true);
+  }, []);
+
+  const handleSelectContaTipo = useCallback((tipo: ContaTipo) => {
+    setNewContaTipo(tipo);
+    setShowContaTipoModal(false);
+    setEditingConta(null);
+    setShowForm(true);
+    clearState('contasAPagar_editingConta');
+  }, [clearState]);
+
   const currentItems = filteredContasSorted;
 
   const handleFormSuccess = useCallback(() => {
@@ -1143,12 +1181,12 @@ const ContasAPagar: React.FC = () => {
   };
 
   const dashboardStats = useMemo(() => {
-    const totalCount = contas.length;
-    const naoEmitidoCount = contas.filter((conta) => conta.status_documento === 'Nao emitido').length;
-    const pendenteCount = contas.filter((conta) => conta.status_documento === 'Emitido pendente assinatura').length;
-    const enviadoCount = contas.filter((conta) => conta.status_documento === 'Enviado financeiro').length;
+    const totalCount = contasByTab.length;
+    const naoEmitidoCount = contasByTab.filter((conta) => conta.status_documento === 'Nao emitido').length;
+    const pendenteCount = contasByTab.filter((conta) => conta.status_documento === 'Emitido pendente assinatura').length;
+    const enviadoCount = contasByTab.filter((conta) => conta.status_documento === 'Enviado financeiro').length;
     const proximosCount = nextWeekEntries.length;
-    const totalValor = contas.reduce((acc, conta) => acc + (parseValorNumber(conta.valor) ?? 0), 0);
+    const totalValor = contasByTab.reduce((acc, conta) => acc + (parseValorNumber(conta.valor) ?? 0), 0);
 
     return [
       {
@@ -1205,7 +1243,7 @@ const ContasAPagar: React.FC = () => {
         onClick: () => setShowNextWeekModal(true),
       }
     ];
-  }, [contas, nextWeekEntries, updateStatusFilter]);
+  }, [contasByTab, nextWeekEntries, updateStatusFilter]);
 
   if (loading) {
     return (
@@ -1284,7 +1322,7 @@ const ContasAPagar: React.FC = () => {
               )}
             </div>
             <button
-              onClick={() => setShowForm(true)}
+              onClick={handleNewContaClick}
               className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-button hover:bg-button-hover"
             >
               <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
@@ -1302,6 +1340,44 @@ const ContasAPagar: React.FC = () => {
       />
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden hide-scrollbar">
+        <div className="border-b border-neutral-200 bg-neutral-50">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('fixa')}
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+                activeTab === 'fixa'
+                  ? 'border-primary-600 text-primary-700 bg-white'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              Contas Fixas
+              <span
+                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs ${
+                  activeTab === 'fixa' ? 'bg-primary-100 text-primary-700' : 'bg-neutral-200 text-neutral-600'
+                }`}
+              >
+                {contasFixasCount}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('avulsa')}
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+                activeTab === 'avulsa'
+                  ? 'border-primary-600 text-primary-700 bg-white'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              Contas Avulsas
+              <span
+                className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs ${
+                  activeTab === 'avulsa' ? 'bg-primary-100 text-primary-700' : 'bg-neutral-200 text-neutral-600'
+                }`}
+              >
+                {contasAvulsasCount}
+              </span>
+            </button>
+          </div>
+        </div>
         <div className="p-4 sm:p-6 border-b border-neutral-200">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
             <div className="relative flex-1 max-w-md">
@@ -1474,9 +1550,43 @@ const ContasAPagar: React.FC = () => {
 
       </div>
 
+      {showContaTipoModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-lg">
+            <h3 className="text-lg font-semibold text-neutral-900">Nova Conta</h3>
+            <p className="text-sm text-neutral-600 mt-2">
+              Selecione o tipo de conta que deseja cadastrar.
+            </p>
+            <div className="mt-4 grid grid-cols-1 gap-2">
+              <button
+                onClick={() => handleSelectContaTipo('fixa')}
+                className="w-full px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors"
+              >
+                Conta Fixa
+              </button>
+              <button
+                onClick={() => handleSelectContaTipo('avulsa')}
+                className="w-full px-4 py-2 rounded-lg border border-neutral-300 text-neutral-700 text-sm font-semibold hover:bg-neutral-50 transition-colors"
+              >
+                Conta Avulsa
+              </button>
+            </div>
+            <div className="mt-4 text-right">
+              <button
+                onClick={() => setShowContaTipoModal(false)}
+                className="px-3 py-2 text-xs font-medium text-neutral-500 hover:text-neutral-700"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showForm && (
         <ContasAPagarForm
           conta={editingConta}
+          tipoConta={editingConta ? undefined : newContaTipo}
           onSuccess={handleFormSuccess}
           onCancel={handleCancelForm}
         />
