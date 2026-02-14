@@ -64,6 +64,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       '/rateio-mkm',
       '/contas-a-pagar',
       '/pedidos-de-compra',
+      '/custos-clinicas',
       '/controle-empresas',
       '/controle-uber',
       '/visitas-clinicas',
@@ -185,6 +186,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
     if (hasModuleAccess('contas_a_pagar')) {
       financeiroItems.push({ name: 'Contas a Pagar', href: '/contas-a-pagar', icon: FileText });
+    }
+    if (hasModuleAccess('custos_clinicas')) {
+      financeiroItems.push({ name: 'Custos das Clinicas', href: '/custos-clinicas', icon: BarChart3 });
     }
     if (hasModuleAccess('pedidos_de_compra')) {
       financeiroItems.push({ name: 'Pedidos de Compra', href: '/pedidos-de-compra', icon: ShoppingCart });

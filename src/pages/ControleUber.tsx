@@ -464,39 +464,39 @@ const ControleUber: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-[1300px] text-sm">
+          <div className="overflow-x-hidden">
+            <table className="w-full table-fixed text-[11px]">
               <thead>
                 <tr className="text-left text-neutral-500 border-b border-neutral-200">
-                  <th className="py-2 pr-4">Data</th>
-                  <th className="py-2 pr-4">Saida (hh:mm)</th>
-                  <th className="py-2 pr-4">Retorno (hh:mm)</th>
-                  <th className="py-2 pr-4">Valor Saida (R$ BRL)</th>
-                  <th className="py-2 pr-4">Valor Retorno (R$ BRL)</th>
-                  <th className="py-2 pr-4">Servico</th>
-                  <th className="py-2 pr-4">Saida (local)</th>
-                  <th className="py-2 pr-4">Destino</th>
-                  <th className="py-2 pr-4">Tipo</th>
-                  <th className="py-2 pr-4">Pessoa 1</th>
-                  <th className="py-2 pr-4">Pessoa 2</th>
+                  <th className="py-2 pr-2">Data</th>
+                  <th className="py-2 pr-2">Saida</th>
+                  <th className="py-2 pr-2">Retorno</th>
+                  <th className="py-2 pr-2">Valor Saida</th>
+                  <th className="py-2 pr-2">Valor Retorno</th>
+                  <th className="py-2 pr-2">Servico</th>
+                  <th className="py-2 pr-2">Saida (local)</th>
+                  <th className="py-2 pr-2">Destino</th>
+                  <th className="py-2 pr-2">Tipo</th>
+                  <th className="py-2 pr-2">Pessoa 1</th>
+                  <th className="py-2 pr-2">Pessoa 2</th>
                   <th className="py-2">Pessoa 3</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRows.map((row) => (
                   <tr key={row.id} className="border-b border-neutral-100 last:border-b-0">
-                    <td className="py-2 pr-4">{formatDate(row.data)}</td>
-                    <td className="py-2 pr-4">{row.saida_hora || '-'}</td>
-                    <td className="py-2 pr-4">{row.retorno_hora || '-'}</td>
-                    <td className="py-2 pr-4">{formatCurrency(row.valor_saida ?? null)}</td>
-                    <td className="py-2 pr-4">{formatCurrency(row.valor_retorno ?? null)}</td>
-                    <td className="py-2 pr-4">{row.servico || '-'}</td>
-                    <td className="py-2 pr-4">{row.saida_local || '-'}</td>
-                    <td className="py-2 pr-4">{row.destino || '-'}</td>
-                    <td className="py-2 pr-4">{row.tipo || '-'}</td>
-                    <td className="py-2 pr-4">{row.pessoa_1 || '-'}</td>
-                    <td className="py-2 pr-4">{row.pessoa_2 || '-'}</td>
-                    <td className="py-2">{row.pessoa_3 || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{formatDate(row.data)}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.saida_hora || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.retorno_hora || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{formatCurrency(row.valor_saida ?? null)}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{formatCurrency(row.valor_retorno ?? null)}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.servico || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.saida_local || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.destino || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.tipo || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.pessoa_1 || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{row.pessoa_2 || '-'}</td>
+                    <td className="py-2 whitespace-normal break-words">{row.pessoa_3 || '-'}</td>
                   </tr>
                 ))}
               </tbody>

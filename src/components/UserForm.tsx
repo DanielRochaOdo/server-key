@@ -33,6 +33,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       { value: 'rateio_google', label: 'Rateio Google' },
       { value: 'rateio_mkm', label: 'Rateio Fatura MKM' },
       { value: 'contas_a_pagar', label: 'Contas a Pagar' },
+      { value: 'custos_clinicas', label: 'Custos das Clinicas' },
       { value: 'controle_empresas', label: 'Controle Empresas' },
       { value: 'controle_uber', label: 'Controle Uber' },
       { value: 'visitas_clinicas', label: 'Visitas as Clinicas' },
@@ -71,12 +72,13 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           'rateio_google',
           'contas_a_pagar',
           'rateio_mkm',
+          'custos_clinicas',
           'controle_empresas',
           'controle_uber',
           'visitas_clinicas',
         ];
       case 'financeiro':
-        return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas'];
+        return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas', 'custos_clinicas', 'contas_a_pagar', 'pedidos_de_compra', 'controle_uber'];
       case 'usuario':
         return ['acessos', 'pessoal', 'teams', 'win_users'];
       default:
