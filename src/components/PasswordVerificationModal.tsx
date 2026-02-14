@@ -85,8 +85,8 @@ const PasswordVerificationModal: React.FC<PasswordVerificationModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+    <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900 flex items-center">
             <Lock className="h-5 w-5 mr-2 text-primary-600" />
@@ -157,3 +157,5 @@ const PasswordVerificationModal: React.FC<PasswordVerificationModalProps> = ({
 };
 
 export default PasswordVerificationModal;
+
+

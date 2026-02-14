@@ -1277,7 +1277,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         </tbody>
                                     </table>
                                     {editItem && (
-                                        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                                        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                                             <div className="w-full max-w-4xl rounded-3xl border border-neutral-800 bg-neutral-950/90 text-white shadow-2xl p-5">
                                                 <div className="flex items-center justify-between">
                                                     <h3 className="text-lg font-bold text-white">Editar item</h3>
@@ -1383,7 +1383,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
             {observacoesModalOpen && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm px-4"
                     onClick={closeObservacoesModal}
                 >
                     <div
@@ -1439,7 +1439,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
             {showSaveConfirm && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm"
                     onClick={() => setShowSaveConfirm(false)}
                 >
                     <div className="max-w-xs rounded-2xl border border-white/10 bg-neutral-900/95 px-6 py-6 text-center text-white shadow-2xl backdrop-blur-xl">
@@ -1452,3 +1452,4 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         </>
     );
 }
+

@@ -212,7 +212,7 @@ const RateioClaroSyncModal: React.FC<RateioClaroSyncModalProps> = ({ isOpen, onC
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50">
+    <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm z-50">
       <div className="bg-white w-full h-full overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-neutral-200">
           <div>

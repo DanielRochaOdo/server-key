@@ -475,8 +475,8 @@ const ControleEmpresas: React.FC = () => {
       )}
 
       {showMonthSelector && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-neutral-900">Selecionar meses</h2>
             <p className="text-sm text-neutral-600 mt-1">
               A empresa <strong>{pendingEmpresa}</strong> ainda não existe em alguns meses.
@@ -534,8 +534,8 @@ const ControleEmpresas: React.FC = () => {
       )}
 
       {showDeleteConfirm && deleteTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-neutral-900">Confirmar exclusão</h2>
             <p className="text-sm text-neutral-600 mt-1">
               Excluir a empresa <strong>{deleteTarget.empresa}</strong> a partir de{' '}
@@ -674,3 +674,5 @@ const ControleEmpresas: React.FC = () => {
 };
 
 export default ControleEmpresas;
+
+
