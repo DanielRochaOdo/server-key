@@ -2540,7 +2540,7 @@ const ContasAPagar: React.FC = () => {
     if (status === 'Enviado financeiro') {
       return 'bg-green-50 text-green-700 border-green-200';
     }
-    return 'bg-white text-neutral-700 border-neutral-300';
+    return 'bg-neutral-50 text-neutral-700 border-neutral-300';
   };
 
   const dashboardStats = useMemo(() => {
@@ -2636,7 +2636,7 @@ const ContasAPagar: React.FC = () => {
           <>
             <button
               onClick={() => setShowUpload(true)}
-              className="hidden inline-flex items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50"
+              className="hidden inline-flex items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50"
             >
               <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
               Importar
@@ -2645,7 +2645,7 @@ const ContasAPagar: React.FC = () => {
               <>
                 <button
                   onClick={handleOpenNovoLoteModal}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
                 >
                   <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                   Gerar Lote
@@ -2653,13 +2653,13 @@ const ContasAPagar: React.FC = () => {
                 <div className="relative w-full sm:w-auto">
                   <button
                     onClick={() => setShowExportMenu(!showExportMenu)}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
                   >
                     <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                     Exportar ({filteredContasSorted.length})
                   </button>
                   {showExportMenu && (
-                    <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl z-10">
+                    <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 shadow-xl z-10">
                       <div className="py-2">
                         <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
                           {searchTerm ? `Exportando ${filteredContasSorted.length} registros filtrados` : `Exportando todos os ${filteredContasSorted.length} registros`}
@@ -2694,7 +2694,7 @@ const ContasAPagar: React.FC = () => {
       />
 
       {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
-        <div className="rounded-2xl border border-neutral-200 bg-white p-3 sm:p-4 shadow-sm">
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 sm:p-4 shadow-sm">
           <DashboardStats
             stats={dashboardStats}
             layout="row"
@@ -2704,14 +2704,14 @@ const ContasAPagar: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden hide-scrollbar">
+      <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-sm overflow-hidden hide-scrollbar">
         <div className="border-b border-neutral-200 bg-neutral-50">
           <div className="flex gap-2 overflow-x-auto no-scrollbar px-2.5 py-2 sm:px-3 sm:py-2.5">
             <button
               onClick={() => setActiveTab('fixa')}
               className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                 activeTab === 'fixa'
-                  ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-200'
+                  ? 'bg-neutral-50 text-primary-700 shadow-sm ring-1 ring-primary-200'
                   : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
               }`}
             >
@@ -2728,7 +2728,7 @@ const ContasAPagar: React.FC = () => {
               onClick={() => setActiveTab('avulsa')}
               className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                 activeTab === 'avulsa'
-                  ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-200'
+                  ? 'bg-neutral-50 text-primary-700 shadow-sm ring-1 ring-primary-200'
                   : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
               }`}
             >
@@ -2745,7 +2745,7 @@ const ContasAPagar: React.FC = () => {
               onClick={() => setActiveTab('ressarcimento')}
               className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                 activeTab === 'ressarcimento'
-                  ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-200'
+                  ? 'bg-neutral-50 text-primary-700 shadow-sm ring-1 ring-primary-200'
                   : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
               }`}
             >
@@ -2762,7 +2762,7 @@ const ContasAPagar: React.FC = () => {
               onClick={() => setActiveTab('lotes')}
               className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                 activeTab === 'lotes'
-                  ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-200'
+                  ? 'bg-neutral-50 text-primary-700 shadow-sm ring-1 ring-primary-200'
                   : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
               }`}
             >
@@ -2779,7 +2779,7 @@ const ContasAPagar: React.FC = () => {
               onClick={() => setActiveTab('lotes_fechados')}
               className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                 activeTab === 'lotes_fechados'
-                  ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-200'
+                  ? 'bg-neutral-50 text-primary-700 shadow-sm ring-1 ring-primary-200'
                   : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
               }`}
             >
@@ -2831,7 +2831,7 @@ const ContasAPagar: React.FC = () => {
                 {lotesVisiveis.map((lote) => (
                   <div
                     key={lote.id}
-                    className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm transition-shadow hover:shadow-md"
+                    className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 sm:p-5 shadow-sm transition-shadow hover:shadow-md"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div className="space-y-2">
@@ -2939,10 +2939,10 @@ const ContasAPagar: React.FC = () => {
                     placeholder="Buscar contas..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-200 bg-white pl-9 sm:pl-10 pr-3 py-2 text-xs sm:text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500 placeholder:text-neutral-400"
+                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-9 sm:pl-10 pr-3 py-2 text-xs sm:text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500 placeholder:text-neutral-400"
                   />
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] sm:text-xs text-neutral-600 uppercase">
+                <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-[11px] sm:text-xs text-neutral-600 uppercase">
                   <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
                   <span>{filteredContasSorted.length} contas</span>
                 </div>
@@ -3012,7 +3012,7 @@ const ContasAPagar: React.FC = () => {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-neutral-200 uppercase">
+                  <tbody className="bg-neutral-50 divide-y divide-neutral-200 uppercase">
                     {currentItems.map((conta) => (
                       <tr key={conta.id} className="group hover:bg-neutral-50 transition-colors duration-150">
                         <td className="px-2 py-2 align-top">
@@ -3101,7 +3101,7 @@ const ContasAPagar: React.FC = () => {
                 </table>
               </div>
 
-              <div className="sm:hidden divide-y divide-neutral-200 bg-white uppercase">
+              <div className="sm:hidden divide-y divide-neutral-200 bg-neutral-50 uppercase">
                 {currentItems.map((conta) => (
                   <div key={conta.id} className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
@@ -3195,7 +3195,7 @@ const ContasAPagar: React.FC = () => {
 
       {showContaTipoModal && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-neutral-200 p-5 sm:p-6 w-full max-w-sm shadow-2xl">
+          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-5 sm:p-6 w-full max-w-sm shadow-2xl">
             <h3 className="text-lg font-semibold text-neutral-900">Nova Conta</h3>
             <p className="text-sm text-neutral-600 mt-2">
               Selecione o tipo de conta que deseja cadastrar.
@@ -3250,7 +3250,7 @@ const ContasAPagar: React.FC = () => {
 
       {viewingConta && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes da Conta</h2>
             <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700 uppercase">
               <div><strong>Status do Documento:</strong> {viewingConta.status_documento || '-'}</div>
@@ -3318,7 +3318,7 @@ const ContasAPagar: React.FC = () => {
 
       {showExportNfModal && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-[calc(100vw-2rem)] shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-neutral-50 rounded-2xl p-5 md:p-6 w-full max-w-[calc(100vw-2rem)] shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-neutral-900">Novo Lote</h3>
@@ -3339,7 +3339,7 @@ const ContasAPagar: React.FC = () => {
                     setLoteNome(event.target.value);
                     if (loteNomeError) setLoteNomeError(null);
                   }}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   placeholder="Ex: Lote Detalhado Fevereiro"
                 />
                 {loteNomeError && (
@@ -3375,7 +3375,7 @@ const ContasAPagar: React.FC = () => {
                   </div>
                 ) : (
                   <div className="overflow-x-hidden">
-                    <table className="w-full table-fixed border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-white uppercase">
+                    <table className="w-full table-fixed border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-neutral-50 uppercase">
                       <thead className="bg-neutral-100 text-[9px] sm:text-[10px] lg:text-[11px] uppercase tracking-wide text-neutral-500">
                         <tr>
                           {EXPORT_TABLE_COLUMNS.map((column) => {
@@ -3396,7 +3396,7 @@ const ContasAPagar: React.FC = () => {
                           })}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-neutral-200 bg-white">
+                      <tbody className="divide-y divide-neutral-200 bg-neutral-50">
                         {filteredContasSorted.map((conta) => {
                           const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
                           return (
@@ -3444,7 +3444,7 @@ const ContasAPagar: React.FC = () => {
                                       type={inputType}
                                       value={value}
                                       onChange={(event) => handleExportEntryChange(conta, field, event.target.value)}
-                                      className={`w-full min-w-0 rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[10px] sm:text-[11px] lg:text-xs uppercase shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 ${inputAlignClass}`}
+                                      className={`w-full min-w-0 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-[10px] sm:text-[11px] lg:text-xs uppercase shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 ${inputAlignClass}`}
                                     />
                                   </td>
                                 );
@@ -3458,7 +3458,7 @@ const ContasAPagar: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="mt-4 flex flex-wrap justify-end gap-2 pt-3 border-t border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
+            <div className="mt-4 flex flex-wrap justify-end gap-2 pt-3 border-t border-neutral-200 bg-neutral-50/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
               <button
                 onClick={() => {
                   setShowExportNfModal(false);
@@ -3482,7 +3482,7 @@ const ContasAPagar: React.FC = () => {
 
       {showEmailRecipientsModal && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-2xl border border-neutral-200 p-5 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-5 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-neutral-900">Enviar E-mail</h3>
               <button
@@ -3519,7 +3519,7 @@ const ContasAPagar: React.FC = () => {
                       return (
                         <span
                           key={recipient}
-                          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm uppercase"
+                          className="inline-flex items-center gap-2 rounded-full bg-neutral-50 px-3 py-1 text-xs text-neutral-700 shadow-sm uppercase"
                         >
                           {recipient}
                           {isDefaultRecipient ? (
@@ -3554,7 +3554,7 @@ const ContasAPagar: React.FC = () => {
                     handleAddEmailRecipient();
                   }
                 }}
-                className="flex-1 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                className="flex-1 rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                 placeholder="email@exemplo.com"
                 disabled={sendingEmail}
               />
@@ -3571,7 +3571,7 @@ const ContasAPagar: React.FC = () => {
                 {emailRecipientsError}
               </div>
             )}
-            <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
+            <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-neutral-50/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
               <button
                 onClick={() => {
                   setShowEmailRecipientsModal(false);
@@ -3597,7 +3597,7 @@ const ContasAPagar: React.FC = () => {
 
       {showConsolidateLoteModal && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-2xl p-5 w-full max-w-2xl shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-neutral-50 rounded-2xl p-5 w-full max-w-2xl shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-neutral-900">Fechar Lote</h3>
               <button
@@ -3691,7 +3691,7 @@ const ContasAPagar: React.FC = () => {
                 {consolidateError}
               </div>
             )}
-            <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
+            <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-neutral-50/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
               <button
                 onClick={() => {
                   setShowConsolidateLoteModal(false);
@@ -3715,7 +3715,7 @@ const ContasAPagar: React.FC = () => {
 
       {editingLoteId && editingLoteType && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-5 w-full max-w-[calc(100vw-2rem)] shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-neutral-50 rounded-2xl p-5 w-full max-w-[calc(100vw-2rem)] shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-neutral-900 uppercase">
@@ -3800,10 +3800,10 @@ const ContasAPagar: React.FC = () => {
                   );
                 }
                 return (
-                <table className="w-full table-fixed border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-white uppercase">
+                <table className="w-full table-fixed border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-neutral-50 uppercase">
                   <thead className="bg-neutral-100 text-[9px] sm:text-[10px] lg:text-[11px] uppercase tracking-wide text-neutral-500">
                     {editingLoteReadOnly && (
-                      <tr className="bg-white">
+                      <tr className="bg-neutral-50">
                         <th
                           colSpan={(editingLoteType === 'resumido' ? LOTE_RESUMIDO_COLUMNS : LOTE_DETALHADO_COLUMNS).length}
                           className="px-3 py-2 lg:px-4 lg:py-3 text-left text-[10px] sm:text-[11px] lg:text-xs font-semibold text-neutral-700 uppercase"
@@ -3834,7 +3834,7 @@ const ContasAPagar: React.FC = () => {
                       })}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-200 bg-white">
+                  <tbody className="divide-y divide-neutral-200 bg-neutral-50">
                     {rowsToRender.map((row) => (
                       <tr key={row.id} className="even:bg-neutral-50">
                         {(editingLoteType === 'resumido' ? LOTE_RESUMIDO_COLUMNS : LOTE_DETALHADO_COLUMNS).map((column) => {
@@ -3878,7 +3878,7 @@ const ContasAPagar: React.FC = () => {
                                     }
                                   }}
                                   readOnly={editingLoteReadOnly}
-                                  className={`w-full min-w-0 rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[10px] sm:text-[11px] lg:text-xs uppercase shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 ${inputAlignClass} ${
+                                  className={`w-full min-w-0 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-[10px] sm:text-[11px] lg:text-xs uppercase shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 ${inputAlignClass} ${
                                     editingLoteReadOnly ? 'bg-neutral-100 text-neutral-500' : ''
                                   }`}
                                 />
@@ -3893,7 +3893,7 @@ const ContasAPagar: React.FC = () => {
                 );
               })()}
             </div>
-            <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
+            <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-neutral-50/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
               <button
                 onClick={handleCancelEditLote}
                 className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
@@ -3936,7 +3936,7 @@ const ContasAPagar: React.FC = () => {
 
       {showNextWeekModal && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg sm:text-xl font-bold mb-2">Fornecedores da Proxima Semana</h2>
             <p className="text-xs sm:text-sm text-neutral-600 mb-4">
               Lista de fornecedores com vencimento na semana seguinte.

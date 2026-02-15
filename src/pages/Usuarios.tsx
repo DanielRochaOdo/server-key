@@ -124,7 +124,7 @@ const Usuarios: React.FC = () => {
             <button
               onClick={handleRepairUsers}
               disabled={repairing || loading}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 disabled:opacity-60 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 disabled:opacity-60 sm:w-auto"
             >
               {repairing ? (
                 <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
@@ -160,7 +160,7 @@ const Usuarios: React.FC = () => {
           <Loader2 className="h-8 w-8 sm:h-12 sm:w-12 animate-spin text-primary-600" />
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        <div className="bg-neutral-50 rounded-xl shadow-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-neutral-200">
               <thead className="bg-neutral-50">
@@ -172,7 +172,7 @@ const Usuarios: React.FC = () => {
                   <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Acoes</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-neutral-200">
+              <tbody className="bg-neutral-50 divide-y divide-neutral-200">
                 {users.map((user) => (
                   <tr key={user.id} className="hover:bg-neutral-50 transition-colors duration-150">
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-900">{user.name}</td>

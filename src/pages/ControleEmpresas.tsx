@@ -422,7 +422,7 @@ const ControleEmpresas: React.FC = () => {
               <select
                 value={year}
                 onChange={(event) => setYear(Number(event.target.value))}
-                className="px-3 py-2 border border-neutral-200 rounded-lg text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                className="px-3 py-2 border border-neutral-200 rounded-lg text-xs sm:text-sm bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
               >
                 {yearOptions.map((option) => (
                   <option key={option} value={option}>
@@ -433,7 +433,7 @@ const ControleEmpresas: React.FC = () => {
             </div>
             <button
               onClick={loadData}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
             >
               <RefreshCcw className="h-4 w-4" />
               Atualizar
@@ -449,7 +449,7 @@ const ControleEmpresas: React.FC = () => {
             type="text"
             value={newEmpresa}
             onChange={(event) => setNewEmpresa(event.target.value)}
-            className="w-full sm:w-72 px-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full sm:w-72 px-3 py-2 border border-neutral-200 rounded-lg text-sm bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="Digite o nome da empresa"
           />
         </div>
@@ -476,7 +476,7 @@ const ControleEmpresas: React.FC = () => {
 
       {showMonthSelector && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-md p-6">
+          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-neutral-900">Selecionar meses</h2>
             <p className="text-sm text-neutral-600 mt-1">
               A empresa <strong>{pendingEmpresa}</strong> ainda não existe em alguns meses.
@@ -535,7 +535,7 @@ const ControleEmpresas: React.FC = () => {
 
       {showDeleteConfirm && deleteTarget && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-md p-6">
+          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-neutral-900">Confirmar exclusão</h2>
             <p className="text-sm text-neutral-600 mt-1">
               Excluir a empresa <strong>{deleteTarget.empresa}</strong> a partir de{' '}
@@ -581,7 +581,7 @@ const ControleEmpresas: React.FC = () => {
           const hasRows = state.rows.length > 0;
 
           return (
-            <div key={month.label} className="bg-white rounded-xl shadow-md border border-neutral-200 overflow-hidden">
+            <div key={month.label} className="bg-neutral-50 rounded-xl shadow-md border border-neutral-200 overflow-hidden">
               <div className="bg-neutral-300 text-neutral-900 text-center font-semibold py-2 uppercase tracking-wide dark:bg-black dark:text-white">
                 {month.label}
               </div>

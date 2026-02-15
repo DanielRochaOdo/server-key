@@ -255,14 +255,14 @@ const Configuracoes: React.FC = () => {
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center space-x-2">
           <div className="h-5 w-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-            <div className="h-2 w-2 bg-white rounded-full"></div>
+            <div className="h-2 w-2 bg-neutral-50 rounded-full"></div>
           </div>
           <span className="text-sm text-green-700">{success}</span>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-        <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="bg-neutral-50 rounded-xl shadow-md p-6">
           <div className="flex items-center mb-6">
             <Settings className="h-6 w-6 text-primary-600 mr-3" />
             <h2 className="text-xl font-semibold text-neutral-900">Dados do Usuario</h2>
@@ -332,7 +332,7 @@ const Configuracoes: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="bg-neutral-50 rounded-xl shadow-md p-6">
           <div className="flex items-center mb-6">
             <Lock className="h-6 w-6 text-primary-600 mr-3" />
             <h2 className="text-xl font-semibold text-neutral-900">Alterar Senha</h2>

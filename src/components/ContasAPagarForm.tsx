@@ -234,7 +234,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
 
   return (
     <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">
             {conta ? 'Editar Conta a Pagar' : `Nova Conta ${formData.tipo_conta === 'avulsa'
@@ -270,7 +270,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   name="tipo_conta"
                   value={formData.tipo_conta}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                   required
                 >
@@ -288,7 +288,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   name="tipo_pagto"
                   value={formData.tipo_pagto}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                   required
                 >
@@ -306,7 +306,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   name="status_documento"
                   value={formData.status_documento}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                 >
                   {STATUS_OPTIONS.map(status => (
@@ -328,7 +328,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   required
                   value={formData.fornecedor}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                 />
               </div>
@@ -344,7 +344,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   required
                   value={formData.valor}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                   inputMode="numeric"
                   placeholder="R$ 0,00"
@@ -361,7 +361,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   name="link"
                   value={formData.link}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                   placeholder="https://..."
                 />
@@ -378,7 +378,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   required
                   value={formData.descricao}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                 />
               </div>
@@ -395,7 +395,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   max={31}
                   value={formData.vencimento}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                   placeholder="1-31"
                   inputMode="numeric"
@@ -412,14 +412,14 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   rows={3}
                   value={formData.observacoes}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end space-x-3 px-6 pb-6 pt-4 border-t border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
+          <div className="flex justify-end space-x-3 px-6 pb-6 pt-4 border-t border-neutral-200 bg-neutral-50/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
             <button
               type="button"
               onClick={handleCancel}

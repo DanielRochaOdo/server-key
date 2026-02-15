@@ -229,7 +229,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
 
   return (
     <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-bold text-neutral-900">Importar Contas Teams</h2>
           <button onClick={onCancel} className="text-neutral-400 hover:text-neutral-600">
@@ -313,7 +313,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Departamento</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-neutral-200">
+                  <tbody className="bg-neutral-50 divide-y divide-neutral-200">
                     {preview.map((team, index) => (
                       <tr key={index}>
                         <td className="px-4 py-2 text-sm text-neutral-900">{team.login}</td>
