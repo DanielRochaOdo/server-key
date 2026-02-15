@@ -316,7 +316,7 @@ const Pessoal: React.FC = () => {
           <>
             <button
               onClick={() => setShowUpload(true)}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
             >
               <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
               Importar
@@ -324,13 +324,13 @@ const Pessoal: React.FC = () => {
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
               >
                 <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                 Exportar ({filteredPessoaisSorted.length})
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-neutral-200">
+                <div className="absolute right-0 mt-2 w-56 bg-neutral-50 rounded-md shadow-lg z-10 border border-neutral-200">
                   <div className="py-1">
                     <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
                       {searchTerm ? `Exportando ${filteredPessoaisSorted.length} registros filtrados` : `Exportando todos os ${filteredPessoaisSorted.length} registros`}
@@ -371,7 +371,7 @@ const Pessoal: React.FC = () => {
       {/* Dashboard Stats */}
       <DashboardStats stats={dashboardStats} />
 
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
+      <div className="bg-neutral-50 rounded-xl shadow-md overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-neutral-200">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
             <div className="relative flex-1 max-w-md">
@@ -415,7 +415,7 @@ const Pessoal: React.FC = () => {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-neutral-200">
+            <tbody className="bg-neutral-50 divide-y divide-neutral-200">
               {currentItems.map((pessoal) => (
                 <tr key={pessoal.id} className="hover:bg-neutral-50 transition-colors duration-150">
                   <td className="px-3 sm:px-6 py-4">
@@ -584,7 +584,7 @@ const Pessoal: React.FC = () => {
 
       {viewingPessoal && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Item Pessoal</h2>
             <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700">
               <div><strong>Descrição:</strong> {viewingPessoal.descricao}</div>

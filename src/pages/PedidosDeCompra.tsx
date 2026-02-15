@@ -732,7 +732,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                 actions={(
                     <div className="flex flex-wrap items-center gap-2">
                         <select
-                            className="min-w-[90px] rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs sm:text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                            className="min-w-[90px] rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs sm:text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
                             value={ano}
                             onChange={(e) => setAno(Number(e.target.value))}
                         >
@@ -747,7 +747,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                         </select>
 
                         <select
-                            className="min-w-[72px] rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs sm:text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                            className="min-w-[72px] rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs sm:text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
                             value={mes}
                             onChange={(e) => setMes(Number(e.target.value))}
                         >
@@ -795,22 +795,22 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                             <p className="text-sm text-neutral-400">Dados mensais consultados com base no mês selecionado.</p>
                         </div>
                         <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div className="rounded-2xl border border-white/10 bg-neutral-50/5 p-4">
                                 <p className="text-xs uppercase tracking-widest text-neutral-400">Total Aprovado</p>
                                 <p className="text-2xl font-semibold text-white">{currency(totais?.total_aprovado ?? 0)}</p>
                                 <p className="text-xs text-neutral-400">Aprovações do mês corrente</p>
                             </div>
-                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div className="rounded-2xl border border-white/10 bg-neutral-50/5 p-4">
                                 <p className="text-xs uppercase tracking-widest text-neutral-400">Total Entregue</p>
                                 <p className="text-2xl font-semibold text-white">{currency(totais?.total_entregue ?? 0)}</p>
                                 <p className="text-xs text-neutral-400">Atualizado automaticamente</p>
                             </div>
-                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div className="rounded-2xl border border-white/10 bg-neutral-50/5 p-4">
                                 <p className="text-xs uppercase tracking-widest text-neutral-400">Aprovado diretoria</p>
                                 <p className="text-2xl font-semibold text-white">{currency(aprovadoDiretoria)}</p>
                                 <p className="text-xs text-neutral-400">Itens marcados como diretoria</p>
                             </div>
-                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div className="rounded-2xl border border-white/10 bg-neutral-50/5 p-4">
                                 <p className="text-xs uppercase tracking-widest text-neutral-400">Saldo Restante</p>
                                 <p className={`text-2xl font-semibold ${saldo < 0 ? "text-red-500" : "text-emerald-400"}`}>{currency(saldo)}</p>
                                 <p className="text-xs text-neutral-400">Base R$ 2.500,00</p>
@@ -911,7 +911,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {sortedMensal.map((m) => (
-                                    <tr key={m.id} className="bg-white/5 transition-colors duration-150 hover:bg-white/10">
+                                    <tr key={m.id} className="bg-neutral-50/5 transition-colors duration-150 hover:bg-neutral-50/10">
                                         <td className="px-3 py-2 border-b border-white/5 text-left font-semibold">{m.item}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{Number(m.quantidade || 0)}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(m.valor_unit || 0))}</td>
@@ -1005,7 +1005,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         className={`w-full rounded-2xl border px-3 py-2 text-left transition-all
                                             ${protocoloSel?.id === p.id
                                                 ? "border-primary-500 bg-primary-600/20 text-white shadow-inner"
-                                                : "border-neutral-800 bg-white/5 text-neutral-200 hover:bg-white/10"
+                                                : "border-neutral-800 bg-neutral-50/5 text-neutral-200 hover:bg-neutral-50/10"
                                             }`}
                                     >
                                         <div className="flex items-center justify-between gap-2">
@@ -1035,7 +1035,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                     tabIndex={0}
                                                     onClick={(event) => handleObservacoesClick(event, p)}
                                                     onKeyDown={(event) => handleObservacoesKeyDown(event, p)}
-                                                    className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/70 transition hover:border-white/40 hover:text-white cursor-pointer"
+                                                    className="flex items-center gap-1 rounded-full border border-white/10 bg-neutral-50/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/70 transition hover:border-white/40 hover:text-white cursor-pointer"
                                                     aria-label="Abrir observações"
                                                     title="Adicionar ou editar observações"
                                                 >
@@ -1081,8 +1081,8 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                     onClick={enviarEmailProtocolo}
                                     className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-xs font-semibold uppercase tracking-wide transition-colors
                                         ${protocoloSel && !sendingEmail
-                                            ? "bg-white/10 text-white shadow-lg hover:bg-white/20"
-                                            : "bg-white/5 text-white/50 cursor-not-allowed border border-white/10"
+                                            ? "bg-neutral-50/10 text-white shadow-lg hover:bg-neutral-50/20"
+                                            : "bg-neutral-50/5 text-white/50 cursor-not-allowed border border-white/10"
                                         }`}
                                     title="Enviar e-mail do protocolo"
                                     aria-busy={sendingEmail}
@@ -1096,13 +1096,13 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                     className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-xs font-semibold uppercase tracking-wide transition-colors
                                         ${protocoloSel
                                             ? "bg-button text-white shadow-lg hover:bg-button-hover"
-                                            : "bg-white/5 text-white/50 cursor-not-allowed border border-white/10"
+                                            : "bg-neutral-50/5 text-white/50 cursor-not-allowed border border-white/10"
                                         }`}
                                 >
                                     <Download size={16} /> Exportar XLSX
                                 </button>
 
-                                <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
+                                <div className="rounded-2xl border border-white/10 bg-neutral-50/5 px-3 py-2 text-sm">
                                     <span className="text-neutral-300">Valor final:</span>{" "}
                                     <span className="font-semibold text-white">{currency(valorFinalProtocolo)}</span>
                                 </div>
@@ -1110,7 +1110,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                         </div>
 
                         {!protocoloSel ? (
-                            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-center text-sm text-neutral-300">
+                            <div className="mt-6 rounded-2xl border border-white/10 bg-neutral-50/5 px-6 py-8 text-center text-sm text-neutral-300">
                                 Selecione ou crie um protocolo para inserir itens.
                             </div>
                         ) : (
@@ -1166,7 +1166,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                     <button
                                         onClick={() => setDraft((d) => ({ ...d, diretoria: !d.diretoria }))}
                                         className={`flex items-center gap-1 rounded-2xl border border-neutral-800 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition-colors ${
-                                            draft.diretoria ? "bg-white/10" : "hover:bg-white/5"
+                                            draft.diretoria ? "bg-neutral-50/10" : "hover:bg-neutral-50/5"
                                         }`}
                                         aria-pressed={draft.diretoria}
                                     >
@@ -1204,7 +1204,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
                                         <tbody className="divide-y divide-white/5">
                                             {itens.map((i) => (
-                                                <tr key={i.id} className="bg-white/5 transition-colors duration-150 hover:bg-white/10">
+                                                <tr key={i.id} className="bg-neutral-50/5 transition-colors duration-150 hover:bg-neutral-50/10">
                                                     <td className="px-3 py-2 border-b border-white/5 text-left font-semibold">{i.loja}</td>
                                                     <td className="px-3 py-2 border-b border-white/5 text-left text-sm" title={i.produto}>{i.produto}</td>
                                                     <td className="px-3 py-2 border-b border-white/5 text-center">
@@ -1279,7 +1279,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                     <h3 className="text-lg font-bold text-white">Editar item</h3>
                                                     <button
                                                         onClick={() => setEditItem(null)}
-                                                        className="rounded-2xl border border-neutral-800 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-neutral-600 hover:bg-white/10 transition"
+                                                        className="rounded-2xl border border-neutral-800 bg-neutral-50/5 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-neutral-600 hover:bg-neutral-50/10 transition"
                                                     >
                                                         Fechar
                                                     </button>
@@ -1340,7 +1340,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                             type="button"
                                                             onClick={() => setEditDraft((d) => ({ ...d, diretoria: !d.diretoria }))}
                                                             className={`flex items-center gap-1 rounded-2xl border border-neutral-800 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition-colors ${
-                                                                editDraft.diretoria ? "bg-white/10" : "hover:bg-white/5"
+                                                                editDraft.diretoria ? "bg-neutral-50/10" : "hover:bg-neutral-50/5"
                                                             }`}
                                                             aria-pressed={editDraft.diretoria}
                                                         >
@@ -1354,7 +1354,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
                                                     <button
                                                         onClick={() => setEditItem(null)}
-                                                        className="rounded-2xl border border-neutral-800 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-neutral-600 hover:bg-white/10 transition"
+                                                        className="rounded-2xl border border-neutral-800 bg-neutral-50/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-neutral-600 hover:bg-neutral-50/10 transition"
                                                     >
                                                         Cancelar
                                                     </button>
@@ -1394,7 +1394,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                             <button
                                 type="button"
                                 onClick={closeObservacoesModal}
-                                className="rounded-2xl border border-neutral-800 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-neutral-600 hover:bg-white/10"
+                                className="rounded-2xl border border-neutral-800 bg-neutral-50/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-neutral-600 hover:bg-neutral-50/10"
                             >
                                 Fechar
                             </button>
@@ -1416,7 +1416,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                 type="button"
                                 onClick={closeObservacoesModal}
                                 disabled={observacoesSaving}
-                                className="rounded-2xl border border-neutral-800 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-neutral-600 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="rounded-2xl border border-neutral-800 bg-neutral-50/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-neutral-600 hover:bg-neutral-50/10 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 Cancelar
                             </button>

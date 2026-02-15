@@ -226,7 +226,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   if (!userProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-neutral-900 dark:to-neutral-950">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-950">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
           <p className="mt-4 text-primary-700">Carregando perfil...</p>
@@ -238,11 +238,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigationItems = getNavigationItems();
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-primary-50 to-primary-100 dark:from-neutral-900 dark:to-neutral-950 flex">
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-950 flex">
       {/* Sidebar */}
       <div
         className={`
-          bg-white dark:bg-neutral-950 shadow-xl transition-all duration-300 ease-in-out
+          bg-neutral-50 dark:bg-neutral-950 shadow-xl transition-all duration-300 ease-in-out
           ${sidebarCollapsed ? 'w-16' : 'w-64'}
           flex flex-col
         `}
@@ -345,7 +345,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </div>
                 )}
                 {sidebarCollapsed && isSectionOpen && (
-                  <div className="absolute left-full top-0 ml-2 z-50 min-w-[13rem] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-800 dark:bg-neutral-950">
+                  <div className="absolute left-full top-0 ml-2 z-50 min-w-[13rem] rounded-lg border border-neutral-200 bg-neutral-50 p-2 shadow-xl dark:border-neutral-800 dark:bg-neutral-950">
                     <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                       {section.name}
                     </div>

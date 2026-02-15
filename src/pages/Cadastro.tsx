@@ -70,7 +70,7 @@ const Cadastro: React.FC = () => {
   if (!user) return <p>Carregando...</p>;
 
   return (
-    <div className="p-4 max-w-md mx-auto bg-white shadow rounded">
+    <div className="p-4 max-w-md mx-auto bg-neutral-50 shadow rounded">
       <h2 className="text-xl font-semibold mb-4">Meu Cadastro</h2>
 
       <label className="block mb-2">

@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle,
@@ -213,7 +213,7 @@ const RateioClaroSyncModal: React.FC<RateioClaroSyncModalProps> = ({ isOpen, onC
 
   return (
     <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm z-50">
-      <div className="bg-white w-full h-full overflow-hidden flex flex-col">
+      <div className="bg-neutral-50 w-full h-full overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-neutral-200">
           <div>
             <h2 className="text-lg font-semibold text-neutral-900">Sincronizar com Google Sheets</h2>
@@ -313,7 +313,7 @@ const RateioClaroSyncModal: React.FC<RateioClaroSyncModalProps> = ({ isOpen, onC
               </div>
               <div className="max-h-[360px] overflow-auto">
                 <table className="min-w-full text-xs">
-                  <thead className="bg-white sticky top-0 shadow-sm">
+                  <thead className="bg-neutral-50 sticky top-0 shadow-sm">
                     <tr className="text-left text-neutral-500 border-b border-neutral-200">
                       <th className="px-4 py-2">Numero</th>
                       <th className="px-4 py-2">Tipo</th>

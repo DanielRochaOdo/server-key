@@ -30,7 +30,7 @@ const StatCard: React.FC<StatCardProps> = ({
   className
 }) => (
   <div 
-    className={`bg-white rounded-xl shadow-md p-4 sm:p-6 transition-all duration-200 hover:scale-105 min-w-0 ${
+    className={`bg-neutral-50 dark:bg-neutral-900 rounded-xl shadow-md p-4 sm:p-6 transition-all duration-200 hover:scale-105 min-w-0 ${
       onClick ? 'cursor-pointer hover:shadow-lg' : ''
     } ${className || ''}`}
     onClick={onClick}
@@ -60,9 +60,10 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ stats, className, cardC
 
   return (
     <div className={`${containerClass} ${className || ''}`}>
-      {stats.map((stat, index) => (
-        <StatCard key={index} {...stat} className={cardClassName} />
-      ))}
+      {stats.map((stat, index) => {
+        const mergedClassName = [stat.className, cardClassName].filter(Boolean).join(' ');
+        return <StatCard key={index} {...stat} className={mergedClassName} />;
+      })}
     </div>
   );
 };
