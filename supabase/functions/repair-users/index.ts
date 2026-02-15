@@ -98,7 +98,7 @@ const getModulesByRole = (role: string): string[] => {
 
 
 
-      return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'contas_a_pagar', 'rateio_mkm', 'controle_empresas', 'controle_uber', 'visitas_clinicas', 'pedidos_de_compra']
+      return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'rateio_mkm', 'contas_a_pagar', 'custos_clinicas', 'controle_empresas', 'controle_uber', 'visitas_clinicas', 'pedidos_de_compra']
 
 
 
@@ -106,7 +106,7 @@ const getModulesByRole = (role: string): string[] => {
 
 
 
-      return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'contas_a_pagar', 'rateio_mkm', 'controle_empresas', 'controle_uber', 'visitas_clinicas']
+      return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'rateio_mkm', 'contas_a_pagar', 'custos_clinicas', 'controle_empresas', 'controle_uber', 'visitas_clinicas']
 
 
 
@@ -114,7 +114,7 @@ const getModulesByRole = (role: string): string[] => {
 
 
 
-      return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas']
+      return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas', 'custos_clinicas', 'contas_a_pagar', 'pedidos_de_compra', 'controle_uber']
 
 
 
@@ -550,10 +550,8 @@ Deno.serve(async (req) => {
 
 
 
-        const desiredModules = publicByAuth.modules && publicByAuth.modules.length
-
+        const desiredModules = Array.isArray(publicByAuth.modules)
           ? publicByAuth.modules
-
           : getModulesByRole(desiredRole)
 
 
@@ -766,10 +764,8 @@ Deno.serve(async (req) => {
 
 
 
-        const desiredModules = publicByEmail.modules && publicByEmail.modules.length
-
+        const desiredModules = Array.isArray(publicByEmail.modules)
           ? publicByEmail.modules
-
           : getModulesByRole(desiredRole)
 
 
