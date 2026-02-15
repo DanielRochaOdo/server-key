@@ -80,9 +80,16 @@ const monthKeyToRange = (monthKey: string) => {
   };
 };
 
-const normalizeKey = (value?: string | null) => (value || 'SEM PRODUTO').trim().toUpperCase();
-const normalizeSearch = (value?: string | null) => (value || '').trim().toUpperCase();
-const normalizeStore = (value?: string | null) => (value || 'SEM LOJA').trim().toUpperCase();
+const normalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
+const normalizeKey = (value?: string | null) => {
+  const cleaned = normalizeWhitespace(value || '');
+  return (cleaned || 'SEM PRODUTO').toUpperCase();
+};
+const normalizeSearch = (value?: string | null) => normalizeWhitespace(value || '').toUpperCase();
+const normalizeStore = (value?: string | null) => {
+  const cleaned = normalizeWhitespace(value || '');
+  return (cleaned || 'SEM LOJA').toUpperCase();
+};
 const productStoreKey = (product: string, store: string) => `${product}__${store}`;
 const UI_STATE_KEY = 'serverkey:custos_clinicas_ui';
 
@@ -140,6 +147,21 @@ const formatCurrency = (value?: number | string | null) => {
   });
 };
 
+const parseNumberValue = (value?: string | number | null) => {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  let normalized = trimmed;
+  if (trimmed.includes(',') && trimmed.includes('.')) {
+    normalized = trimmed.replace(/\./g, '').replace(',', '.');
+  } else if (trimmed.includes(',')) {
+    normalized = trimmed.replace(',', '.');
+  }
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const normalizeText = (value?: string | null) => (value || '').toLowerCase();
 
 const resolveClinicFromUber = (row: ControleUberRow): ClinicKey | null => {
@@ -191,9 +213,9 @@ const fetchMovementsByMonth = async (monthKey: string): Promise<InventoryMovemen
     clinic: row.clinic as ClinicKey,
     product: normalizeKey(row.product),
     store: normalizeStore(row.store),
-    quantity: Number(row.quantity || 0),
-    unitCost: Number(row.unit_cost || 0),
-    totalCost: Number(row.total_cost || 0),
+    quantity: parseNumberValue(row.quantity),
+    unitCost: parseNumberValue(row.unit_cost),
+    totalCost: parseNumberValue(row.total_cost),
     createdAt: row.created_at,
   }));
 };
@@ -218,8 +240,8 @@ const fetchCarryoverByMonth = async (
     const store = normalizeStore(row.store);
     if (!product) return;
     map[productStoreKey(product, store)] = {
-      quantity: Number(row.quantity || 0),
-      totalCost: Number(row.total_cost || 0),
+      quantity: parseNumberValue(row.quantity),
+      totalCost: parseNumberValue(row.total_cost),
     };
   });
   return map;
@@ -309,11 +331,16 @@ const CustosClinicas: React.FC = () => {
   const [movementSaving, setMovementSaving] = useState(false);
   const [unifySaving, setUnifySaving] = useState(false);
   const [unifyError, setUnifyError] = useState('');
-  const [movementDraft, setMovementDraft] = useState({
+  const [movementDraft, setMovementDraft] = useState<{
+    product: string;
+    store: string;
+    clinic: ClinicKey | '';
+    quantity: number | '';
+  }>({
     product: '',
     store: '',
     clinic: '' as ClinicKey | '',
-    quantity: 1,
+    quantity: '',
   });
   const [productSearch, setProductSearch] = useState(() => {
     const saved = loadUiState();
@@ -328,6 +355,8 @@ const CustosClinicas: React.FC = () => {
     const saved = loadUiState();
     return saved?.expandedProducts || {};
   });
+  const [selectedItemsClinic, setSelectedItemsClinic] = useState<ClinicKey | null>(null);
+  const [selectedUberClinic, setSelectedUberClinic] = useState<ClinicKey | null>(null);
 
   const prevMonthKey = useMemo(() => getPrevMonthKey(monthKey), [monthKey]);
 
@@ -446,8 +475,8 @@ const CustosClinicas: React.FC = () => {
       const sourceName = normalizeKey(protocolo?.produto || item.item);
       const storeName = normalizeStore(protocolo?.loja);
       const unifiedName = normalizeKey(unifyStore[sourceName] || sourceName);
-      const quantity = Number(item.quantidade || 0);
-      const totalCost = Number(item.valor_total_frete || 0);
+      const quantity = parseNumberValue(item.quantidade);
+      const totalCost = parseNumberValue(item.valor_total_frete);
       const unitCost = quantity > 0 ? totalCost / quantity : 0;
       return {
         id: item.id,
@@ -469,8 +498,8 @@ const CustosClinicas: React.FC = () => {
       const sourceName = normalizeKey(protocolo?.produto || item.item);
       const storeName = normalizeStore(protocolo?.loja);
       const unifiedName = normalizeKey(unifyStore[sourceName] || sourceName);
-      const quantity = Number(item.quantidade || 0);
-      const totalCost = Number(item.valor_total_frete || 0);
+      const quantity = parseNumberValue(item.quantidade);
+      const totalCost = parseNumberValue(item.valor_total_frete);
       const unitCost = quantity > 0 ? totalCost / quantity : 0;
       return {
         id: item.id,
@@ -541,6 +570,64 @@ const CustosClinicas: React.FC = () => {
   }, [comparisonRows]);
 
   const movementCount = movements.length;
+  const clinicItemsMap = useMemo(() => {
+    const map: Record<ClinicKey, Record<string, { product: string; store: string; quantity: number; totalCost: number }>> =
+      {
+        MATRIZ: {},
+        AGUANAMBI: {},
+        BEZERRA: {},
+        PARANGABA: {},
+        SOBRAL: {},
+      };
+    movements.forEach((movement) => {
+      const key = productStoreKey(movement.product, movement.store);
+      const bucket = map[movement.clinic];
+      if (!bucket[key]) {
+        bucket[key] = { product: movement.product, store: movement.store, quantity: 0, totalCost: 0 };
+      }
+      bucket[key].quantity += Number(movement.quantity || 0);
+      bucket[key].totalCost += Number(movement.totalCost || 0);
+    });
+    return (Object.keys(map) as ClinicKey[]).reduce<Record<ClinicKey, { product: string; store: string; quantity: number; totalCost: number }[]>>(
+      (acc, clinicKey) => {
+        acc[clinicKey] = Object.values(map[clinicKey]).sort((a, b) => {
+          const productCompare = a.product.localeCompare(b.product, 'pt-BR', { sensitivity: 'base' });
+          if (productCompare !== 0) return productCompare;
+          return a.store.localeCompare(b.store, 'pt-BR', { sensitivity: 'base' });
+        });
+        return acc;
+      },
+      {
+        MATRIZ: [],
+        AGUANAMBI: [],
+        BEZERRA: [],
+        PARANGABA: [],
+        SOBRAL: [],
+      }
+    );
+  }, [movements]);
+  const uberRowsByClinic = useMemo(() => {
+    const map: Record<ClinicKey, ControleUberRow[]> = {
+      MATRIZ: [],
+      AGUANAMBI: [],
+      BEZERRA: [],
+      PARANGABA: [],
+      SOBRAL: [],
+    };
+    currentData.uber.forEach((row) => {
+      const clinic = resolveClinicFromUber(row);
+      if (!clinic) return;
+      map[clinic].push(row);
+    });
+    (Object.keys(map) as ClinicKey[]).forEach((clinicKey) => {
+      map[clinicKey] = map[clinicKey].slice().sort((a, b) => {
+        const dateCompare = String(a.data || '').localeCompare(String(b.data || ''));
+        if (dateCompare !== 0) return dateCompare;
+        return String(a.saida_hora || '').localeCompare(String(b.saida_hora || ''));
+      });
+    });
+    return map;
+  }, [currentData.uber]);
 
   const computeInventorySnapshot = useCallback(
     (
@@ -778,7 +865,10 @@ const CustosClinicas: React.FC = () => {
     setMovementDraft((prev) => ({
       ...prev,
       store: defaultStore.store,
-      quantity: Math.min(prev.quantity, defaultStore.quantity),
+      quantity:
+        prev.quantity === ''
+          ? ''
+          : Math.min(Number(prev.quantity), defaultStore.quantity),
     }));
   }, [movementDraft.product, isSelectedUnified, storeOptions, movementDraft.store]);
 
@@ -883,7 +973,7 @@ const CustosClinicas: React.FC = () => {
         product: movementDraft.product,
         store: '',
         clinic: '' as ClinicKey | '',
-        quantity: 1,
+        quantity: '',
       });
     } finally {
       setMovementSaving(false);
@@ -1071,24 +1161,77 @@ const CustosClinicas: React.FC = () => {
               {comparisonRows.map((row) => {
                 const pctLabel =
                   row.pct === null ? 'Sem base' : `${row.pct >= 0 ? '+' : ''}${row.pct.toFixed(1)}%`;
+                const isActive = selectedItemsClinic === row.key;
+                const clinicItems = clinicItemsMap[row.key] || [];
                 return (
-                  <div key={row.key} className="rounded-xl border border-neutral-200 px-3 py-3 dark:border-neutral-700">
-                    <div className="flex items-center justify-between text-xs text-neutral-500 uppercase dark:text-neutral-400">
-                      <span>{row.label}</span>
-                      <span>{pctLabel}</span>
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                      {formatCurrency(row.current)}
-                    </div>
-                    <div className="mt-2 h-2 w-full rounded-full bg-neutral-100 overflow-hidden dark:bg-neutral-800">
-                      <div
-                        className="h-full bg-primary-500"
-                        style={{ width: `${Math.min(100, (row.current / maxComparison) * 100)}%` }}
-                      />
-                    </div>
-                    <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
-                      Mes anterior: {formatCurrency(row.previous)}
-                    </div>
+                  <div
+                    key={row.key}
+                    className={`rounded-xl border px-3 py-3 transition-colors ${
+                      isActive
+                        ? 'border-primary-500 bg-primary-50/40 dark:border-primary-400 dark:bg-primary-950/40'
+                        : 'border-neutral-200 dark:border-neutral-700'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedItemsClinic((prev) => (prev === row.key ? null : row.key))
+                      }
+                      aria-pressed={isActive}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-center justify-between text-xs text-neutral-500 uppercase dark:text-neutral-400">
+                        <span>{row.label}</span>
+                        <span>{pctLabel}</span>
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                        {formatCurrency(row.current)}
+                      </div>
+                      <div className="mt-2 h-2 w-full rounded-full bg-neutral-100 overflow-hidden dark:bg-neutral-800">
+                        <div
+                          className="h-full bg-primary-500"
+                          style={{ width: `${Math.min(100, (row.current / maxComparison) * 100)}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Mes anterior: {formatCurrency(row.previous)}
+                      </div>
+                    </button>
+                    {isActive && (
+                      <div className="mt-3 rounded-lg border border-neutral-200 bg-white/70 px-2 py-2 text-[10px] uppercase text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
+                        {clinicItems.length === 0 ? (
+                          <div className="text-center text-neutral-500 dark:text-neutral-400">
+                            Nenhum item designado.
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full">
+                              <thead className="text-neutral-500 border-b border-neutral-200 dark:text-neutral-400 dark:border-neutral-800">
+                                <tr>
+                                  <th className="py-2 px-2 text-left">Produto</th>
+                                  <th className="py-2 px-2 text-left">Loja</th>
+                                  <th className="py-2 px-2 text-center">Qtd</th>
+                                  <th className="py-2 px-2 text-right">Custo total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {clinicItems.map((item) => (
+                                  <tr
+                                    key={`${row.key}-${item.product}-${item.store}`}
+                                    className="border-b border-neutral-100 dark:border-neutral-800"
+                                  >
+                                    <td className="py-2 px-2 text-neutral-800 dark:text-neutral-100">{item.product}</td>
+                                    <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">{item.store}</td>
+                                    <td className="py-2 px-2 text-center">{item.quantity}</td>
+                                    <td className="py-2 px-2 text-right">{formatCurrency(item.totalCost)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1266,11 +1409,67 @@ const CustosClinicas: React.FC = () => {
             </div>
             <div className="flex gap-3 overflow-x-auto no-scrollbar">
               {CLINICAS.filter((clinic) => clinic.key !== 'MATRIZ').map((clinic) => (
-                <div key={clinic.key} className="min-w-[160px] rounded-xl border border-neutral-200 px-3 py-3 dark:border-neutral-700">
-                  <div className="text-xs text-neutral-500 uppercase dark:text-neutral-400">{clinic.label}</div>
-                  <div className="mt-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                    {formatCurrency(uberTotals[clinic.key])}
-                  </div>
+                <div
+                  key={clinic.key}
+                  className={`min-w-[160px] rounded-xl border px-3 py-3 text-left transition-colors ${
+                    selectedUberClinic === clinic.key
+                      ? 'border-primary-500 bg-primary-50/40 dark:border-primary-400 dark:bg-primary-950/40'
+                      : 'border-neutral-200 dark:border-neutral-700'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedUberClinic((prev) => (prev === clinic.key ? null : clinic.key))
+                    }
+                    aria-pressed={selectedUberClinic === clinic.key}
+                    className="w-full text-left"
+                  >
+                    <div className="text-xs text-neutral-500 uppercase dark:text-neutral-400">{clinic.label}</div>
+                    <div className="mt-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                      {formatCurrency(uberTotals[clinic.key])}
+                    </div>
+                  </button>
+                  {selectedUberClinic === clinic.key && (
+                    <div className="mt-3 rounded-lg border border-neutral-200 bg-white/70 px-2 py-2 text-[10px] uppercase text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
+                      {uberRowsByClinic[clinic.key]?.length ? (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full">
+                            <thead className="text-neutral-500 border-b border-neutral-200 dark:text-neutral-400 dark:border-neutral-800">
+                              <tr>
+                                <th className="py-2 px-2 text-left">Data</th>
+                                <th className="py-2 px-2 text-left">Saida</th>
+                                <th className="py-2 px-2 text-left">Destino</th>
+                                <th className="py-2 px-2 text-right">Custo total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {uberRowsByClinic[clinic.key].map((row) => {
+                                const totalCost =
+                                  parseNumberValue(row.valor_saida) +
+                                  parseNumberValue(row.valor_retorno);
+                                return (
+                                <tr
+                                  key={row.id}
+                                  className="border-b border-neutral-100 dark:border-neutral-800"
+                                >
+                                  <td className="py-2 px-2 text-neutral-800 dark:text-neutral-100">{row.data || '-'}</td>
+                                  <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">{row.saida_local || '-'}</td>
+                                  <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">{row.destino || '-'}</td>
+                                  <td className="py-2 px-2 text-right">{formatCurrency(totalCost)}</td>
+                                </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="text-center text-neutral-500 dark:text-neutral-400">
+                          Nenhum custo registrado.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1319,7 +1518,7 @@ const CustosClinicas: React.FC = () => {
                                 ...prev,
                                 product,
                                 store: '',
-                                quantity: 1,
+                                quantity: '',
                               }));
                               setProductSearch(product);
                               setShowProductSuggestions(false);
@@ -1344,7 +1543,7 @@ const CustosClinicas: React.FC = () => {
                         ...prev,
                         product: event.target.value,
                         store: '',
-                        quantity: 1,
+                        quantity: '',
                       }))
                     }
                     className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-white dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
@@ -1370,7 +1569,10 @@ const CustosClinicas: React.FC = () => {
                         setMovementDraft((prev) => ({
                           ...prev,
                           store: nextStore,
-                          quantity: nextInfo ? Math.min(prev.quantity, nextInfo.quantity) : prev.quantity,
+                          quantity:
+                            nextInfo && prev.quantity !== ''
+                              ? Math.min(Number(prev.quantity), nextInfo.quantity)
+                              : prev.quantity,
                         }));
                       }}
                       className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-white dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
@@ -1399,12 +1601,16 @@ const CustosClinicas: React.FC = () => {
                     value={movementDraft.quantity}
                     onChange={(event) =>
                       setMovementDraft((prev) => {
-                        const raw = Number(event.target.value || 1);
-                        const safeMin = Number.isFinite(raw) && raw > 0 ? raw : 1;
-                        const safeMax = availableQuantity > 0 ? availableQuantity : safeMin;
+                        const rawValue = event.target.value;
+                        if (rawValue === '') {
+                          return { ...prev, quantity: '' };
+                        }
+                        const parsed = Number(rawValue);
+                        if (!Number.isFinite(parsed)) return prev;
+                        const safeMax = availableQuantity > 0 ? availableQuantity : parsed;
                         return {
                           ...prev,
-                          quantity: Math.min(safeMin, safeMax),
+                          quantity: Math.min(parsed, safeMax),
                         };
                       })
                     }
