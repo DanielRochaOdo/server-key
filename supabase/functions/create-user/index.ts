@@ -39,8 +39,9 @@ const getModulesByRole = (role: string): string[] => {
         'win_users',
         'rateio_claro',
         'rateio_google',
-        'contas_a_pagar',
         'rateio_mkm',
+        'contas_a_pagar',
+        'custos_clinicas',
         'controle_empresas',
         'controle_uber',
         'visitas_clinicas',
@@ -57,12 +58,23 @@ const getModulesByRole = (role: string): string[] => {
         'rateio_google',
         'contas_a_pagar',
         'rateio_mkm',
+        'custos_clinicas',
         'controle_empresas',
         'controle_uber',
         'visitas_clinicas',
       ];
     case 'financeiro':
-      return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas'];
+      return [
+        'rateio_claro',
+        'rateio_google',
+        'rateio_mkm',
+        'controle_empresas',
+        'visitas_clinicas',
+        'custos_clinicas',
+        'contas_a_pagar',
+        'pedidos_de_compra',
+        'controle_uber',
+      ];
     case 'usuario':
       return ['acessos', 'pessoal', 'teams', 'win_users'];
     default:

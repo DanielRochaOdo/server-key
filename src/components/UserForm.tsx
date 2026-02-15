@@ -175,21 +175,25 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     return unique.sort();
   };
 
+  const normalizeModulesValue = (modules?: string[] | null) =>
+    normalizeModules(Array.isArray(modules) ? modules : []);
+
+  const areModulesEqual = (left?: string[] | null, right?: string[] | null) => {
+    return JSON.stringify(normalizeModulesValue(left)) === JSON.stringify(normalizeModulesValue(right));
+  };
+
   const getAccessToken = async () => {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (!refreshError && refreshData.session?.access_token) {
+      return refreshData.session.access_token;
+    }
+
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
 
-    let session = data.session;
-    const now = Math.floor(Date.now() / 1000);
-    if (!session || (session.expires_at && session.expires_at < now + 30)) {
-      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError) throw refreshError;
-      session = refreshData.session;
-    }
-
-    const token = session?.access_token;
+    const token = data.session?.access_token;
     if (!token) {
-      throw new Error('Sessao expirada. Faça login novamente.');
+      throw new Error('Sessao expirada. Faca login novamente.');
     }
     return token;
   };
@@ -203,16 +207,26 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     is_active?: boolean;
     password?: string;
   }) => {
-    const token = await getAccessToken();
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/owner-update-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'apikey': `${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    const callUpdate = async (token: string) =>
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/owner-update-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'apikey': `${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+    let token = await getAccessToken();
+    let response = await callUpdate(token);
+    if (response.status === 401) {
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      if (!refreshError && refreshData.session?.access_token) {
+        token = refreshData.session.access_token;
+        response = await callUpdate(token);
+      }
+    }
 
     const responseData = await response.json();
     if (!response.ok) {
@@ -220,6 +234,29 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     }
     if (!responseData.success) {
       throw new Error(responseData?.error || 'Falha ao atualizar usuario.');
+    }
+    return responseData?.user as User | undefined;
+  };
+
+  const ensureModulesPersisted = async (userId: string, desiredModules: string[]) => {
+    const normalizedDesired = normalizeModules(desiredModules);
+    const { data, error } = await supabase
+      .from('users')
+      .select('modules')
+      .eq('id', userId)
+      .single();
+
+    if (error) throw error;
+
+    if (!areModulesEqual(data?.modules as string[] | null | undefined, normalizedDesired)) {
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          modules: normalizedDesired,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+      if (updateError) throw updateError;
     }
   };
 
@@ -250,7 +287,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     try {
       if (user) {
         if (isOwner()) {
-          await updateUserAsOwner({
+          const updated = await updateUserAsOwner({
             user_id: user.id,
             email: formData.email,
             name: formData.name,
@@ -259,6 +296,14 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             is_active: formData.is_active,
             password: formData.resetPassword?.trim() || undefined,
           });
+          if (!areModulesEqual(updated?.modules, modulesToSave)) {
+            try {
+              await ensureModulesPersisted(user.id, modulesToSave);
+            } catch (err) {
+              const details = err instanceof Error ? ` ${err.message}` : '';
+              throw new Error(`Nao foi possivel persistir os modulos.${details}`);
+            }
+          }
         } else {
           const { error: updateError } = await supabase
             .from('users')
@@ -314,10 +359,18 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
         if (isOwner() && responseData?.user?.id) {
           const defaultModules = normalizeModules(getModulesByRole(normalizedRole || 'usuario'));
           if (JSON.stringify(modulesToSave) !== JSON.stringify(defaultModules)) {
-            await updateUserAsOwner({
+            const updated = await updateUserAsOwner({
               user_id: responseData.user.id,
               modules: modulesToSave,
             });
+            if (!areModulesEqual(updated?.modules, modulesToSave)) {
+              try {
+                await ensureModulesPersisted(responseData.user.id, modulesToSave);
+              } catch (err) {
+                const details = err instanceof Error ? ` ${err.message}` : '';
+                throw new Error(`Nao foi possivel persistir os modulos.${details}`);
+              }
+            }
           }
         }
       }
