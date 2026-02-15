@@ -1837,34 +1837,54 @@ const ContasAPagar: React.FC = () => {
 
     setSendingEmail(true);
     try {
-      const { data, error } = await supabase.functions.invoke('send-contas-a-pagar-xlsx-email', {
-        body: {
-          columns,
-          rows,
-          recipients: normalizedRecipients,
-        }
-      });
+      const getAccessToken = async () => {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
 
-      if (error) {
-        let errorMessage = 'Falha ao enviar e-mail.';
-        const context = (error as { context?: Response }).context;
-        if (context instanceof Response) {
-          try {
-            const body = await context.json();
-            if (body?.error) {
-              errorMessage = body.error;
-            }
-          } catch {
-            // ignore response parse issues
-          }
+        let session = data.session;
+        const now = Math.floor(Date.now() / 1000);
+        if (!session || (session.expires_at && session.expires_at < now + 30)) {
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError) throw refreshError;
+          session = refreshData.session;
         }
-        console.error('Erro ao enviar e-mail:', error);
+
+        const token = session?.access_token;
+        if (!token) {
+          throw new Error('Sessao expirada. Faca login novamente.');
+        }
+        return token;
+      };
+
+      const token = await getAccessToken();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-contas-a-pagar-xlsx-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            apikey: `${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            columns,
+            rows,
+            recipients: normalizedRecipients,
+            access_token: token,
+          }),
+        }
+      );
+
+      const responseData = await response.json().catch(() => null);
+      if (!response.ok) {
+        const errorMessage = responseData?.error || 'Falha ao enviar e-mail.';
+        console.error('Erro ao enviar e-mail:', responseData || response.statusText);
         setToast({ type: 'error', message: errorMessage });
         return false;
       }
 
-      if (!data?.ok) {
-        console.error('Resposta inesperada da function:', data);
+      if (!responseData?.ok) {
+        console.error('Resposta inesperada da function:', responseData);
         setToast({ type: 'error', message: 'Falha ao enviar e-mail.' });
         return false;
       }

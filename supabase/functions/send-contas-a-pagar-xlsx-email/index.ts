@@ -44,6 +44,7 @@ const normalizeRole = (role?: string | null) => {
     .replace(/[\u0300-\u036f]/g, "");
   if (value === "administrador") return "admin";
   if (value === "admin") return "admin";
+  if (value === "owner") return "owner";
   if (value === "financeiro") return "financeiro";
   if (value === "usuario") return "usuario";
   return value;
@@ -139,12 +140,29 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
   }
 
-  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
-    return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+  let body: {
+    subject?: string;
+    columns?: unknown;
+    rows?: unknown;
+    meta?: unknown;
+    recipients?: unknown;
+    access_token?: unknown;
+  };
+  try {
+    body = await req.json();
+  } catch (error) {
+    console.error("Invalid JSON body:", error);
+    return jsonResponse({ ok: false, error: "Invalid request body" }, 400);
   }
 
-  const token = authHeader.slice(7).trim();
+  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+  const headerToken =
+    authHeader && authHeader.toLowerCase().startsWith("bearer ")
+      ? authHeader.slice(7).trim()
+      : "";
+  const bodyToken = typeof body?.access_token === "string" ? body.access_token.trim() : "";
+  const token = headerToken || bodyToken;
+
   if (!token) {
     return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
   }
@@ -178,17 +196,15 @@ Deno.serve(async (req) => {
       autoRefreshToken: false,
       persistSession: false,
     },
-    global: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
   });
 
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const { data: authData, error: authError } = await supabase.auth.getUser(token);
   if (authError || !authData?.user) {
     console.error("Auth error:", authError);
-    return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+    return jsonResponse(
+      { ok: false, error: authError?.message || "Unauthorized" },
+      401
+    );
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -203,19 +219,11 @@ Deno.serve(async (req) => {
   }
 
   const role = normalizeRole(profile.role);
-  const modules = Array.isArray(profile.modules) ? profile.modules : [];
-  const hasAccess = profile.is_active === true && role === "admin" && modules.includes("contas_a_pagar");
+  const hasAccess =
+    profile.is_active === true && (role === "admin" || role === "owner");
   if (!hasAccess) {
     console.error("Access denied for user:", authData.user.id);
     return jsonResponse({ ok: false, error: "Forbidden" }, 403);
-  }
-
-  let body: { subject?: string; columns?: unknown; rows?: unknown; meta?: unknown; recipients?: unknown };
-  try {
-    body = await req.json();
-  } catch (error) {
-    console.error("Invalid JSON body:", error);
-    return jsonResponse({ ok: false, error: "Invalid request body" }, 400);
   }
 
   const columnsRaw = Array.isArray(body?.columns) ? body.columns : [];
