@@ -331,6 +331,13 @@ const CustosClinicas: React.FC = () => {
   const [movementSaving, setMovementSaving] = useState(false);
   const [unifySaving, setUnifySaving] = useState(false);
   const [unifyError, setUnifyError] = useState('');
+  const [expandedMovementClinics, setExpandedMovementClinics] = useState<Record<ClinicKey, boolean>>({
+    MATRIZ: false,
+    AGUANAMBI: false,
+    BEZERRA: false,
+    PARANGABA: false,
+    SOBRAL: false,
+  });
   const [movementDraft, setMovementDraft] = useState<{
     product: string;
     store: string;
@@ -408,6 +415,30 @@ const CustosClinicas: React.FC = () => {
   const movements = useMemo(
     () => movementStore[monthKey] || [],
     [movementStore, monthKey]
+  );
+  const movementByClinic = useMemo(() => {
+    const map: Record<ClinicKey, InventoryMovement[]> = {
+      MATRIZ: [],
+      AGUANAMBI: [],
+      BEZERRA: [],
+      PARANGABA: [],
+      SOBRAL: [],
+    };
+    movements.forEach((movement) => {
+      map[movement.clinic].push(movement);
+    });
+    (Object.keys(map) as ClinicKey[]).forEach((clinicKey) => {
+      map[clinicKey] = map[clinicKey].slice().sort((a, b) => {
+        const productCompare = a.product.localeCompare(b.product, 'pt-BR', { sensitivity: 'base' });
+        if (productCompare !== 0) return productCompare;
+        return a.store.localeCompare(b.store, 'pt-BR', { sensitivity: 'base' });
+      });
+    });
+    return map;
+  }, [movements]);
+  const movementClinics = useMemo(
+    () => CLINICAS.filter((clinic) => movementByClinic[clinic.key].length > 0),
+    [movementByClinic]
   );
 
   const prevMovements = useMemo(
@@ -901,6 +932,13 @@ const CustosClinicas: React.FC = () => {
   useEffect(() => {
     if (!showMovementModal) return;
     setMovementError('');
+    setExpandedMovementClinics({
+      MATRIZ: false,
+      AGUANAMBI: false,
+      BEZERRA: false,
+      PARANGABA: false,
+      SOBRAL: false,
+    });
   }, [showMovementModal]);
 
   const handleAddMovement = async () => {
@@ -1670,38 +1708,77 @@ const CustosClinicas: React.FC = () => {
                     Nenhuma movimentacao registrada.
                   </div>
                 ) : (
-                  <div className="mt-2 overflow-x-auto">
-                    <table className="min-w-full text-[10px] uppercase text-neutral-700 dark:text-neutral-200">
-                      <thead className="text-neutral-500 border-b border-neutral-200 dark:text-neutral-400 dark:border-neutral-800">
-                        <tr>
-                          <th className="py-2 px-2 text-left">Produto</th>
-                          <th className="py-2 px-2 text-left">Loja</th>
-                          <th className="py-2 px-2 text-center">Qtd</th>
-                          <th className="py-2 px-2 text-left">Clinica</th>
-                          <th className="py-2 px-2 text-right">Total</th>
-                          <th className="py-2 px-2 text-right">Acoes</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {movements.map((movement) => (
-                          <tr key={movement.id} className="border-b border-neutral-100 dark:border-neutral-800">
-                            <td className="py-2 px-2 text-neutral-800 dark:text-neutral-100">{movement.product}</td>
-                            <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">{movement.store}</td>
-                            <td className="py-2 px-2 text-center">{movement.quantity}</td>
-                            <td className="py-2 px-2">{movement.clinic}</td>
-                            <td className="py-2 px-2 text-right">{formatCurrency(movement.totalCost)}</td>
-                            <td className="py-2 px-2 text-right">
-                              <button
-                                onClick={() => handleRemoveMovement(movement.id)}
-                                className="text-[10px] font-semibold text-red-600 hover:text-red-700"
-                              >
-                                Remover
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="mt-2 space-y-2">
+                    {movementClinics.map((clinic) => {
+                      const rows = movementByClinic[clinic.key];
+                      const expanded = expandedMovementClinics[clinic.key];
+                      const clinicTotal = rows.reduce((acc, row) => acc + Number(row.totalCost || 0), 0);
+                      return (
+                        <div
+                          key={clinic.key}
+                          className="rounded-lg border border-neutral-200 bg-white/70 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900/70"
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedMovementClinics((prev) => ({
+                                ...prev,
+                                [clinic.key]: !prev[clinic.key],
+                              }))
+                            }
+                            className="flex w-full items-center justify-between text-left"
+                          >
+                            <div>
+                              <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                                {clinic.label}
+                              </div>
+                              <div className="text-[11px] text-neutral-600 dark:text-neutral-300">
+                                {rows.length} movimentacoes
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[10px] text-neutral-500 dark:text-neutral-400">Total</div>
+                              <div className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-100">
+                                {formatCurrency(clinicTotal)}
+                              </div>
+                            </div>
+                          </button>
+                          {expanded && (
+                            <div className="mt-2 overflow-x-auto">
+                              <table className="min-w-full text-[10px] uppercase text-neutral-700 dark:text-neutral-200">
+                                <thead className="text-neutral-500 border-b border-neutral-200 dark:text-neutral-400 dark:border-neutral-800">
+                                  <tr>
+                                    <th className="py-2 px-2 text-left">Produto</th>
+                                    <th className="py-2 px-2 text-left">Loja</th>
+                                    <th className="py-2 px-2 text-center">Qtd</th>
+                                    <th className="py-2 px-2 text-right">Total</th>
+                                    <th className="py-2 px-2 text-right">Acoes</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {rows.map((movement) => (
+                                    <tr key={movement.id} className="border-b border-neutral-100 dark:border-neutral-800">
+                                      <td className="py-2 px-2 text-neutral-800 dark:text-neutral-100">{movement.product}</td>
+                                      <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">{movement.store}</td>
+                                      <td className="py-2 px-2 text-center">{movement.quantity}</td>
+                                      <td className="py-2 px-2 text-right">{formatCurrency(movement.totalCost)}</td>
+                                      <td className="py-2 px-2 text-right">
+                                        <button
+                                          onClick={() => handleRemoveMovement(movement.id)}
+                                          className="text-[10px] font-semibold text-red-600 hover:text-red-700"
+                                        >
+                                          Remover
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
