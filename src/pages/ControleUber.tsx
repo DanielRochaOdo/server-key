@@ -384,7 +384,7 @@ const ControleUber: React.FC = () => {
               <select
                 value={selectedCompetencia}
                 onChange={(event) => setSelectedCompetencia(event.target.value)}
-                className="w-full sm:w-48 pl-9 pr-3 py-2 border border-neutral-200 rounded-lg text-sm bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full sm:w-48 pl-9 pr-3 py-2 border border-neutral-200 rounded-lg text-sm bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 {competenciaOptions.length === 0 && (
                   <option value="">NENHUMA COMPETENCIA</option>
@@ -401,7 +401,7 @@ const ControleUber: React.FC = () => {
                   {hasData && (
                     <button
                       onClick={() => openForm('edit')}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
                     >
                       Editar Controle
                     </button>
@@ -419,7 +419,7 @@ const ControleUber: React.FC = () => {
         )}
       />
 
-      <div className="bg-neutral-50 rounded-xl shadow-md p-4 sm:p-6">
+      <div className="bg-neutral-200 rounded-xl shadow-md p-4 sm:p-6">
         <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           {locationTotals.map((item) => {
             const isActive = locationFilter === item.location;
@@ -431,7 +431,7 @@ const ControleUber: React.FC = () => {
                 className={`rounded-lg border px-4 py-3 text-left transition-colors ${
                   isActive
                     ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100'
+                    : 'border-neutral-200 bg-neutral-200 text-neutral-700 hover:bg-neutral-200'
                 }`}
               >
                 <div className="text-xs font-semibold uppercase tracking-wide">
@@ -505,7 +505,7 @@ const ControleUber: React.FC = () => {
             </table>
             {hasData && (
               <div className="mt-4 flex justify-end">
-                <div className="inline-flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm">
+                <div className="inline-flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-200 px-4 py-2 text-sm">
                   <span className="text-neutral-600">Valor (mês)</span>
                   <span className="font-semibold text-neutral-900">{formatCurrency(totalMes)}</span>
                 </div>
@@ -517,7 +517,7 @@ const ControleUber: React.FC = () => {
 
       {showForm && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-3 sm:p-4 border-b border-neutral-200">
               <h2 className="text-base sm:text-lg font-semibold text-neutral-900">
                 {formMode === 'edit' ? 'Editar Controle Uber' : 'Novo Controle Uber'}
@@ -551,7 +551,7 @@ const ControleUber: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleAddRow}
-                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition-colors"
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-neutral-200 rounded-lg hover:bg-neutral-200 transition-colors"
                   disabled={saving}
                 >
                   <Plus className="h-4 w-4" />
@@ -643,7 +643,7 @@ const ControleUber: React.FC = () => {
                           <select
                             value={row.saidaLocal}
                             onChange={(event) => handleRowChange(row.tempId, 'saidaLocal', event.target.value)}
-                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
                             <option value="">SELECIONAR</option>
@@ -658,7 +658,7 @@ const ControleUber: React.FC = () => {
                           <select
                             value={row.destino}
                             onChange={(event) => handleRowChange(row.tempId, 'destino', event.target.value)}
-                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
                             <option value="">SELECIONAR</option>
@@ -673,7 +673,7 @@ const ControleUber: React.FC = () => {
                           <select
                             value={row.tipo}
                             onChange={(event) => handleRowChange(row.tempId, 'tipo', event.target.value)}
-                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
                             <option value="">SELECIONAR</option>
@@ -688,7 +688,7 @@ const ControleUber: React.FC = () => {
                           <select
                             value={row.pessoa1}
                             onChange={(event) => handleRowChange(row.tempId, 'pessoa1', event.target.value)}
-                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
                             <option value="">SELECIONAR</option>
@@ -703,7 +703,7 @@ const ControleUber: React.FC = () => {
                           <select
                             value={row.pessoa2}
                             onChange={(event) => handleRowChange(row.tempId, 'pessoa2', event.target.value)}
-                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
                             <option value="">SELECIONAR</option>
@@ -718,7 +718,7 @@ const ControleUber: React.FC = () => {
                           <select
                             value={row.pessoa3}
                             onChange={(event) => handleRowChange(row.tempId, 'pessoa3', event.target.value)}
-                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded-md bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
                             disabled={saving}
                           >
                             <option value="">SELECIONAR</option>

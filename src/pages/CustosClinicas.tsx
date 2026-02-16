@@ -1144,13 +1144,13 @@ const CustosClinicas: React.FC = () => {
                 type="month"
                 value={monthKey}
                 onChange={(event) => setMonthKey(event.target.value)}
-                className="w-full sm:w-44 pl-9 pr-3 py-1.5 text-xs border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                className="w-full sm:w-44 pl-9 pr-3 py-1.5 text-xs border border-neutral-200 rounded-lg bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
               />
             </div>
             <button
               type="button"
               onClick={() => setMonthKey(toMonthKey(new Date()))}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
               aria-label="Voltar para o mes atual"
             >
               <BarChart3 className="h-3.5 w-3.5" />
@@ -1167,26 +1167,26 @@ const CustosClinicas: React.FC = () => {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
               <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Transporte (Uber)</p>
               <p className="mt-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{formatCurrency(totalUber)}</p>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Total do mes</p>
             </div>
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
               <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Insumos</p>
               <p className="mt-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{formatCurrency(totalCompras)}</p>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
                 {movementCount > 0 ? `${movementCount} movimentacoes` : 'Sem movimentacoes'}
               </p>
             </div>
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
               <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Total geral</p>
               <p className="mt-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{formatCurrency(totalGeral)}</p>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Uber + Insumos</p>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide dark:text-neutral-100">
                 Comparativo por clinica
@@ -1225,7 +1225,7 @@ const CustosClinicas: React.FC = () => {
                       <div className="mt-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                         {formatCurrency(row.current)}
                       </div>
-                      <div className="mt-2 h-2 w-full rounded-full bg-neutral-100 overflow-hidden dark:bg-neutral-800">
+                      <div className="mt-2 h-2 w-full rounded-full bg-neutral-200 overflow-hidden dark:bg-neutral-800">
                         <div
                           className="h-full bg-primary-500"
                           style={{ width: `${Math.min(100, (row.current / maxComparison) * 100)}%` }}
@@ -1236,7 +1236,7 @@ const CustosClinicas: React.FC = () => {
                       </div>
                     </button>
                     {isActive && (
-                      <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50/70 px-2 py-2 text-[10px] uppercase text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
+                      <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-200/70 px-2 py-2 text-[10px] uppercase text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
                         {clinicItems.length === 0 ? (
                           <div className="text-center text-neutral-500 dark:text-neutral-400">
                             Nenhum item designado.
@@ -1276,7 +1276,7 @@ const CustosClinicas: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
               <div>
                 <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide dark:text-neutral-100">
@@ -1289,7 +1289,7 @@ const CustosClinicas: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setShowUnifyModal(true)}
-                  className="inline-flex items-center justify-center rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                  className="inline-flex items-center justify-center rounded-full border border-neutral-300 bg-neutral-200 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-700 transition-colors hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
                 >
                   Unificar Produtos
                 </button>
@@ -1410,7 +1410,7 @@ const CustosClinicas: React.FC = () => {
                             stores.map((storeRow) => (
                               <tr
                                 key={`${product}-${storeRow.store}`}
-                                className="border-b border-neutral-100 bg-neutral-50/60 dark:border-neutral-800 dark:bg-neutral-900/60"
+                                className="border-b border-neutral-100 bg-neutral-200/60 dark:border-neutral-800 dark:bg-neutral-900/60"
                               >
                                 <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">
                                   <span className="ml-6">{product}</span>
@@ -1436,7 +1436,7 @@ const CustosClinicas: React.FC = () => {
             )}
           </div>
 
-          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide dark:text-neutral-100">
                 Transporte (Uber)
@@ -1469,7 +1469,7 @@ const CustosClinicas: React.FC = () => {
                     </div>
                   </button>
                   {selectedUberClinic === clinic.key && (
-                    <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50/70 px-2 py-2 text-[10px] uppercase text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
+                    <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-200/70 px-2 py-2 text-[10px] uppercase text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
                       {uberRowsByClinic[clinic.key]?.length ? (
                         <div className="overflow-x-auto">
                           <table className="min-w-full">
@@ -1517,7 +1517,7 @@ const CustosClinicas: React.FC = () => {
 
       {showMovementModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 backdrop-blur-sm p-4">
-          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col dark:bg-neutral-900/95 dark:border-neutral-800">
+          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col dark:bg-neutral-900/95 dark:border-neutral-800">
             <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-neutral-800 dark:text-neutral-100">
                 Gerar movimentacao
@@ -1542,11 +1542,11 @@ const CustosClinicas: React.FC = () => {
                       }}
                       onFocus={() => setShowProductSuggestions(true)}
                       onBlur={() => setTimeout(() => setShowProductSuggestions(false), 150)}
-                      className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                      className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-200 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                       placeholder="Digite para filtrar"
                     />
                     {showSuggestions && (
-                      <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+                      <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-200 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
                         {filteredProductOptions.map((product) => (
                           <button
                             key={product}
@@ -1561,7 +1561,7 @@ const CustosClinicas: React.FC = () => {
                               setProductSearch(product);
                               setShowProductSuggestions(false);
                             }}
-                            className="w-full px-3 py-2 text-left text-[11px] uppercase text-neutral-700 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-neutral-800"
+                            className="w-full px-3 py-2 text-left text-[11px] uppercase text-neutral-700 hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800"
                           >
                             {product}
                           </button>
@@ -1584,7 +1584,7 @@ const CustosClinicas: React.FC = () => {
                         quantity: '',
                       }))
                     }
-                    className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                    className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-200 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                   >
                     <option value="">Selecione</option>
                     {filteredProductOptions.map((product) => (
@@ -1613,7 +1613,7 @@ const CustosClinicas: React.FC = () => {
                               : prev.quantity,
                         }));
                       }}
-                      className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                      className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-200 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                     >
                       <option value="">Selecione</option>
                       {storeOptions.map((option) => (
@@ -1623,7 +1623,7 @@ const CustosClinicas: React.FC = () => {
                       ))}
                     </select>
                   ) : (
-                    <div className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-50 text-neutral-600 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200">
+                    <div className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-200 text-neutral-600 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200">
                       {selectedStoreInfo?.store || storeOptions[0]?.store || 'SEM LOJA'}
                     </div>
                   )}
@@ -1652,7 +1652,7 @@ const CustosClinicas: React.FC = () => {
                         };
                       })
                     }
-                    className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                    className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-200 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                   />
                   <p className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">
                     Disponivel: {availableQuantity}
@@ -1670,7 +1670,7 @@ const CustosClinicas: React.FC = () => {
                         clinic: event.target.value as ClinicKey | '',
                       }))
                     }
-                    className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                    className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-200 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                   >
                     <option value="">Selecione</option>
                     {CLINICAS.map((clinic) => (
@@ -1682,7 +1682,7 @@ const CustosClinicas: React.FC = () => {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+              <div className="rounded-xl border border-neutral-200 bg-neutral-200 px-4 py-3 text-xs text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
                 <div className="flex items-center justify-between">
                   <span>Custo unitario</span>
                   <span className="font-semibold">{formatCurrency(movementUnitCost)}</span>
@@ -1716,7 +1716,7 @@ const CustosClinicas: React.FC = () => {
                       return (
                         <div
                           key={clinic.key}
-                          className="rounded-lg border border-neutral-200 bg-neutral-50/70 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900/70"
+                          className="rounded-lg border border-neutral-200 bg-neutral-200/70 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900/70"
                         >
                           <button
                             type="button"
@@ -1783,13 +1783,13 @@ const CustosClinicas: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-50/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-wrap justify-end gap-2">
+            <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-200/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-wrap justify-end gap-2">
               <button
                 onClick={() => {
                   setShowMovementModal(false);
                   setMovementError('');
                 }}
-                className="rounded-full border border-neutral-300 bg-neutral-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                className="rounded-full border border-neutral-300 bg-neutral-200 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
               >
                 Fechar
               </button>
@@ -1811,7 +1811,7 @@ const CustosClinicas: React.FC = () => {
 
       {showUnifyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 backdrop-blur-sm p-4">
-          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col dark:bg-neutral-900/95 dark:border-neutral-800">
+          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col dark:bg-neutral-900/95 dark:border-neutral-800">
             <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-neutral-800 dark:text-neutral-100">
                 Unificar produtos
@@ -1844,7 +1844,7 @@ const CustosClinicas: React.FC = () => {
                       type="text"
                       value={unifySearch}
                       onChange={(event) => setUnifySearch(event.target.value.toUpperCase())}
-                      className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                      className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-200 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                       placeholder="Digite para filtrar"
                     />
                   </div>
@@ -1896,7 +1896,7 @@ const CustosClinicas: React.FC = () => {
                       type="text"
                       value={unifyName}
                       onChange={(event) => setUnifyName(event.target.value.toUpperCase())}
-                      className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                      className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-[11px] uppercase bg-neutral-200 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                       placeholder="Ex.: COOLER"
                     />
                   </div>
@@ -1920,7 +1920,7 @@ const CustosClinicas: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-50/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-wrap justify-end gap-2">
+            <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-200/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-wrap justify-end gap-2">
               <button
                 onClick={() => {
                   if (unifyStep === 'name') {
@@ -1929,7 +1929,7 @@ const CustosClinicas: React.FC = () => {
                   }
                   setShowUnifyModal(false);
                 }}
-                className="rounded-full border border-neutral-300 bg-neutral-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                className="rounded-full border border-neutral-300 bg-neutral-200 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
               >
                 {unifyStep === 'name' ? 'Voltar' : 'Cancelar'}
               </button>

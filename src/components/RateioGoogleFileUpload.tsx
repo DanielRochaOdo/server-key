@@ -150,7 +150,7 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
 
   return (
     <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">Importar Rateio Google</h2>
           <button onClick={handleCancel} className="text-neutral-400 hover:text-neutral-600">
@@ -215,7 +215,7 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
 
               <div className="overflow-x-auto mb-4">
                 <table className="min-w-full divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
-                  <thead className="bg-neutral-50">
+                  <thead className="bg-neutral-200">
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Nome Completo</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Email</th>
@@ -225,7 +225,7 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
                       <th className="px-4 py-2 text-left text-xs font-medium text-neutral-500 uppercase">Situação</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-neutral-50 divide-y divide-neutral-200">
+                  <tbody className="bg-neutral-200 divide-y divide-neutral-200">
                     {preview.map((row, index) => (
                       <tr key={index}>
                         <td className="px-4 py-2 text-sm text-neutral-900 max-w-xs truncate">{row.nome_completo}</td>
@@ -243,7 +243,7 @@ const RateioGoogleFileUpload: React.FC<RateioGoogleFileUploadProps> = ({ onSucce
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50"
+                  className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-200"
                 >
                   Voltar
                 </button>

@@ -438,7 +438,7 @@ const VisitasClinicas: React.FC = () => {
         actions={(
           <button
             onClick={handleToday}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
           >
             <Calendar className="h-4 w-4" />
             Ir para hoje
@@ -447,12 +447,12 @@ const VisitasClinicas: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_1fr] gap-6">
-        <div className="bg-neutral-50 rounded-xl shadow-md border border-neutral-200 p-4 sm:p-6 dark:bg-neutral-900 dark:border-neutral-700">
+        <div className="bg-neutral-200 rounded-xl shadow-md border border-neutral-200 p-4 sm:p-6 dark:bg-neutral-900 dark:border-neutral-700">
           <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={handlePrevMonth}
-              className="p-2 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              className="p-2 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-200 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
               aria-label="Mes anterior"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -463,7 +463,7 @@ const VisitasClinicas: React.FC = () => {
             <button
               type="button"
               onClick={handleNextMonth}
-              className="p-2 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              className="p-2 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-200 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
               aria-label="Proximo mes"
             >
               <ChevronRight className="h-4 w-4" />
@@ -500,12 +500,12 @@ const VisitasClinicas: React.FC = () => {
                           ? 'bg-primary-600 text-white border-primary-600 dark:bg-primary-500 dark:border-primary-400'
                           : isToday
                             ? 'border-primary-500 text-primary-700 dark:border-primary-400 dark:text-primary-200'
-                            : 'border-neutral-200 text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800'}`}
+                            : 'border-neutral-200 text-neutral-700 hover:bg-neutral-200 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800'}`}
                     >
                       {day.getDate()}
                       {visitCount > 0 && (
                         <span
-                          className={`absolute top-1 right-1 text-[10px] rounded-full px-1.5 py-0.5 ${isSelected ? 'bg-neutral-50 text-primary-700 dark:bg-neutral-900 dark:text-primary-200' : 'bg-primary-100 text-primary-700 dark:bg-primary-900/60 dark:text-primary-200'}`}
+                          className={`absolute top-1 right-1 text-[10px] rounded-full px-1.5 py-0.5 ${isSelected ? 'bg-neutral-200 text-primary-700 dark:bg-neutral-900 dark:text-primary-200' : 'bg-primary-100 text-primary-700 dark:bg-primary-900/60 dark:text-primary-200'}`}
                         >
                           {visitCount}
                         </span>
@@ -518,7 +518,7 @@ const VisitasClinicas: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-neutral-50 rounded-xl shadow-md border border-neutral-200 p-4 sm:p-6 dark:bg-neutral-900 dark:border-neutral-700">
+        <div className="bg-neutral-200 rounded-xl shadow-md border border-neutral-200 p-4 sm:p-6 dark:bg-neutral-900 dark:border-neutral-700">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg sm:text-xl font-semibold text-neutral-900 dark:text-neutral-100">
@@ -545,7 +545,7 @@ const VisitasClinicas: React.FC = () => {
                 type="date"
                 value={formData.date}
                 onChange={(event) => handleDateChange(event.target.value)}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder-neutral-500"
+                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-200 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder-neutral-500"
               />
             </div>
 
@@ -557,7 +557,7 @@ const VisitasClinicas: React.FC = () => {
                 type="text"
                 value={formData.servico}
                 onChange={(event) => handleFormChange('servico', event.target.value)}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder-neutral-500"
+                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-200 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder-neutral-500"
                 placeholder="Digite o servico"
               />
             </div>
@@ -569,7 +569,7 @@ const VisitasClinicas: React.FC = () => {
               <select
                 value={formData.clinica}
                 onChange={(event) => handleFormChange('clinica', event.target.value)}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-200 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
               >
                 <option value="">Selecione</option>
                 {CLINICAS.map((clinica) => (
@@ -588,7 +588,7 @@ const VisitasClinicas: React.FC = () => {
                 <select
                   value={formData.pessoa1}
                   onChange={(event) => handleFormChange('pessoa1', event.target.value)}
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-200 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                 >
                   <option value="">Selecione</option>
                   {PESSOAS.map((pessoa) => (
@@ -606,7 +606,7 @@ const VisitasClinicas: React.FC = () => {
                 <select
                   value={formData.pessoa2}
                   onChange={(event) => handleFormChange('pessoa2', event.target.value)}
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-200 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                 >
                   <option value="">Selecione</option>
                   {PESSOAS.map((pessoa) => (
@@ -624,7 +624,7 @@ const VisitasClinicas: React.FC = () => {
                 <select
                   value={formData.pessoa3}
                   onChange={(event) => handleFormChange('pessoa3', event.target.value)}
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-200 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
                 >
                   <option value="">Selecione</option>
                   {PESSOAS.map((pessoa) => (
@@ -643,7 +643,7 @@ const VisitasClinicas: React.FC = () => {
               <select
                 value={formData.status}
                 onChange={(event) => handleFormChange('status', event.target.value)}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-200 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
               >
                 {STATUS_OPTIONS.map((status) => (
                   <option key={status.value} value={status.value}>
@@ -672,7 +672,7 @@ const VisitasClinicas: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleCancelEdit}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 bg-neutral-50 border border-neutral-300 rounded-lg hover:bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 bg-neutral-200 border border-neutral-300 rounded-lg hover:bg-neutral-200 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
                 >
                   Cancelar edicao
                 </button>

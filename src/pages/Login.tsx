@@ -54,7 +54,7 @@ const Login: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 dark:from-neutral-900 dark:to-neutral-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto" />
           <p className="mt-4 text-primary-700">Verificando autenticação...</p>
@@ -64,7 +64,7 @@ const Login: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 dark:from-neutral-900 dark:to-neutral-950 flex items-center justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950 flex items-center justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-6 sm:space-y-8">
         <div className="text-center">
           <div className="flex justify-center">
@@ -78,7 +78,7 @@ const Login: React.FC = () => {
           </p>
         </div>
 
-        <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-2xl p-6 sm:p-8">
+        <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-2xl p-6 sm:p-8">
           <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 sm:p-4 flex items-start space-x-2">

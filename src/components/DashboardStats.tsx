@@ -30,7 +30,7 @@ const StatCard: React.FC<StatCardProps> = ({
   className
 }) => (
   <div 
-    className={`bg-neutral-50 dark:bg-neutral-900 rounded-xl shadow-md p-4 sm:p-6 transition-all duration-200 hover:scale-105 min-w-0 ${
+    className={`bg-neutral-200 dark:bg-neutral-900 rounded-xl shadow-md p-4 sm:p-6 transition-all duration-200 hover:scale-105 min-w-0 ${
       onClick ? 'cursor-pointer hover:shadow-lg' : ''
     } ${className || ''}`}
     onClick={onClick}

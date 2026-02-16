@@ -9,7 +9,7 @@ interface ModuleHeaderProps {
 
 const ModuleHeader: React.FC<ModuleHeaderProps> = ({ sectionLabel, title, subtitle, actions }) => {
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
+    <div className="rounded-2xl border border-neutral-200 bg-neutral-200 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
       <div className="flex flex-col gap-3 p-4 sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>

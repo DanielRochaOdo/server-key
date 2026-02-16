@@ -213,7 +213,7 @@ const RateioClaroSyncModal: React.FC<RateioClaroSyncModalProps> = ({ isOpen, onC
 
   return (
     <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm z-50">
-      <div className="bg-neutral-50 w-full h-full overflow-hidden flex flex-col">
+      <div className="bg-neutral-200 w-full h-full overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-neutral-200">
           <div>
             <h2 className="text-lg font-semibold text-neutral-900">Sincronizar com Google Sheets</h2>
@@ -307,13 +307,13 @@ const RateioClaroSyncModal: React.FC<RateioClaroSyncModalProps> = ({ isOpen, onC
 
           {preview && (
             <div className="border border-neutral-200 rounded-lg overflow-hidden">
-              <div className="px-4 py-2 bg-neutral-50 text-sm font-semibold text-neutral-700 flex items-center gap-2">
+              <div className="px-4 py-2 bg-neutral-200 text-sm font-semibold text-neutral-700 flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-green-600" />
                 Diferencas encontradas ({visibleDiffs.length})
               </div>
               <div className="max-h-[360px] overflow-auto">
                 <table className="min-w-full text-xs">
-                  <thead className="bg-neutral-50 sticky top-0 shadow-sm">
+                  <thead className="bg-neutral-200 sticky top-0 shadow-sm">
                     <tr className="text-left text-neutral-500 border-b border-neutral-200">
                       <th className="px-4 py-2">Numero</th>
                       <th className="px-4 py-2">Tipo</th>
@@ -357,7 +357,7 @@ const RateioClaroSyncModal: React.FC<RateioClaroSyncModalProps> = ({ isOpen, onC
                                 className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-neutral-600 hover:bg-neutral-200 ${
                                   selectionMap[diff.numero_da_linha] === 'PLANILHA'
                                     ? 'bg-neutral-900 text-white shadow-sm'
-                                    : 'bg-neutral-100'
+                                    : 'bg-neutral-200'
                                 }`}
                                 title="Usar dados da planilha para substituir o HUB"
                               >
@@ -379,7 +379,7 @@ const RateioClaroSyncModal: React.FC<RateioClaroSyncModalProps> = ({ isOpen, onC
                                 className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-neutral-600 hover:bg-neutral-200 ${
                                   selectionMap[diff.numero_da_linha] === 'HUB'
                                     ? 'bg-neutral-900 text-white shadow-sm'
-                                    : 'bg-neutral-100'
+                                    : 'bg-neutral-200'
                                 }`}
                                 title="Manter dados do HUB (ignorar planilha)"
                               >

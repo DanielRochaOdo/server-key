@@ -226,7 +226,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   if (!userProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-950">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
           <p className="mt-4 text-primary-700">Carregando perfil...</p>
@@ -238,11 +238,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigationItems = getNavigationItems();
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-950 flex">
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950 flex">
       {/* Sidebar */}
       <div
         className={`
-          bg-neutral-50 dark:bg-neutral-950 shadow-xl transition-all duration-300 ease-in-out
+          bg-neutral-200 dark:bg-neutral-950 shadow-xl transition-all duration-300 ease-in-out
           ${sidebarCollapsed ? 'w-16' : 'w-64'}
           flex flex-col
         `}
@@ -275,7 +275,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2 text-sm font-medium rounded-lg transition-colors duration-200
                 ${isActive(item.href)
                   ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
-                  : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                  : 'text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
               `}
             >
               <item.icon className="h-5 w-5" />
@@ -309,7 +309,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     flex items-center w-full ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2 text-sm font-medium rounded-lg transition-colors duration-200
                     ${isSectionActive
                       ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
-                      : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                      : 'text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
                   `}
                 >
                   <section.icon className="h-5 w-5" />
@@ -335,7 +335,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           flex items-center px-3 py-2 pl-10 text-sm font-medium rounded-lg transition-colors duration-200
                           ${isActive(item.href)
                             ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
-                            : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                            : 'text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
                         `}
                       >
                         <item.icon className="h-4 w-4" />
@@ -345,7 +345,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </div>
                 )}
                 {sidebarCollapsed && isSectionOpen && (
-                  <div className="absolute left-full top-0 ml-2 z-50 min-w-[13rem] rounded-lg border border-neutral-200 bg-neutral-50 p-2 shadow-xl dark:border-neutral-800 dark:bg-neutral-950">
+                  <div className="absolute left-full top-0 ml-2 z-50 min-w-[13rem] rounded-lg border border-neutral-200 bg-neutral-200 p-2 shadow-xl dark:border-neutral-800 dark:bg-neutral-950">
                     <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                       {section.name}
                     </div>
@@ -361,7 +361,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             flex items-center px-2 py-2 text-sm font-medium rounded-lg transition-colors duration-200
                             ${isActive(item.href)
                               ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
-                              : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                              : 'text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
                           `}
                         >
                           <item.icon className="h-4 w-4" />
@@ -398,7 +398,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className={`flex ${sidebarCollapsed ? 'flex-col items-center' : 'flex-row'} gap-2`}>
             <button
               onClick={toggleTheme}
-              className="w-full flex items-center justify-center px-2 py-2 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white transition-colors"
+              className="w-full flex items-center justify-center px-2 py-2 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white transition-colors"
               aria-label={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
               title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
             >
@@ -407,7 +407,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </button>
             <button
               onClick={handleSignOut}
-              className="w-full flex items-center justify-center px-2 py-2 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white transition-colors"
+              className="w-full flex items-center justify-center px-2 py-2 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white transition-colors"
               aria-label="Sair"
               title="Sair"
             >

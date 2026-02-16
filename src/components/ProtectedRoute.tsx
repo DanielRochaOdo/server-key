@@ -21,7 +21,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Show loading while checking authentication
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-neutral-900 dark:to-neutral-950">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto" />
           <p className="mt-4 text-primary-700">Verificando autenticação...</p>
@@ -52,7 +52,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Show loading while fetching user profile
   if (loadingProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-neutral-900 dark:to-neutral-950">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto" />
           <p className="mt-4 text-primary-700">Carregando perfil do usuário...</p>
@@ -64,7 +64,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // If no profile after loading is complete, user will be redirected by AuthContext
   if (!userProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-neutral-900 dark:to-neutral-950">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950">
         <div className="text-center">
           <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-neutral-900 mb-2">Perfil não encontrado</h2>
@@ -91,7 +91,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             <p className="text-neutral-600 mb-4">
               Sua conta foi desativada pelo administrador.
             </p>
-            <div className="bg-neutral-50 rounded-lg p-4 text-sm text-neutral-700">
+            <div className="bg-neutral-200 rounded-lg p-4 text-sm text-neutral-700">
               <p><strong>Usuário:</strong> {userProfile.name}</p>
               <p><strong>Email:</strong> {userProfile.email}</p>
               <p><strong>Status:</strong> <span className="text-red-600">Inativo</span></p>
@@ -116,7 +116,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             <p className="text-neutral-600 mb-4">
               Esta página requer privilégios de administrador.
             </p>
-            <div className="bg-neutral-50 rounded-lg p-4 text-sm text-neutral-700">
+            <div className="bg-neutral-200 rounded-lg p-4 text-sm text-neutral-700">
               <p><strong>Seu perfil:</strong> {userProfile.role}</p>
               <p><strong>Necessário:</strong> admin</p>
               <p><strong>Módulos disponíveis:</strong></p>
@@ -145,7 +145,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             <p className="text-neutral-600 mb-4">
               Você não tem permissão para acessar o módulo "{requiredModule}".
             </p>
-            <div className="bg-neutral-50 rounded-lg p-4 text-sm text-neutral-700">
+            <div className="bg-neutral-200 rounded-lg p-4 text-sm text-neutral-700">
               <p><strong>Seu perfil:</strong> {userProfile.role}</p>
               <p><strong>Módulo solicitado:</strong> {requiredModule}</p>
               <p><strong>Módulos disponíveis:</strong></p>
