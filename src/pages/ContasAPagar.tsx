@@ -2092,22 +2092,81 @@ const ContasAPagar: React.FC = () => {
     if (!editingLoteId || !editingLoteType) return;
     const existing = lotes.find((lote) => lote.id === editingLoteId);
     if (!existing) return;
+
+    const getRowKey = (row: { id: string; contaId?: string }) => row.contaId || row.id;
+
     const updated: LoteRegistro = editingLoteType === 'resumido'
-      ? {
-        ...existing,
-        resumido: true,
-        resumidoRows: editingLoteRows as LoteRowResumido[],
-      }
-      : {
-        ...existing,
-        detalhado: true,
-        detalhadoRows: editingLoteRows as LoteRowDetalhado[],
-      };
+      ? (() => {
+        const resumidoRows = editingLoteRows as LoteRowResumido[];
+        const detalhadoSource = existing.detalhadoRows && existing.detalhadoRows.length > 0
+          ? existing.detalhadoRows
+          : mapResumidoToDetalhado(resumidoRows);
+        const resumoByKey = new Map(resumidoRows.map((row) => [getRowKey(row), row]));
+        const detalhadoRows = detalhadoSource.map((row) => {
+          const resumo = resumoByKey.get(getRowKey(row));
+          if (!resumo) return row;
+          return {
+            ...row,
+            contaId: resumo.contaId ?? row.contaId,
+            fornecedor: resumo.fornecedor ?? row.fornecedor,
+            valor: resumo.valor ?? row.valor,
+            vencimento: resumo.vencimento ?? row.vencimento,
+            descricao: resumo.descricao ?? row.descricao,
+            notaFiscal: resumo.notaFiscal ?? row.notaFiscal,
+            tipoRegistro: resumo.tipoRegistro ?? row.tipoRegistro,
+          };
+        });
+        return {
+          ...existing,
+          resumido: true,
+          detalhado: true,
+          resumidoRows,
+          detalhadoRows,
+        };
+      })()
+      : (() => {
+        const detalhadoRows = editingLoteRows as LoteRowDetalhado[];
+        const resumidoSource = existing.resumidoRows && existing.resumidoRows.length > 0
+          ? existing.resumidoRows
+          : mapDetalhadoToResumido(detalhadoRows);
+        const detalhadoByKey = new Map(detalhadoRows.map((row) => [getRowKey(row), row]));
+        const resumidoRows = resumidoSource.map((row) => {
+          const detalhado = detalhadoByKey.get(getRowKey(row));
+          if (!detalhado) return row;
+          return {
+            ...row,
+            contaId: detalhado.contaId ?? row.contaId,
+            fornecedor: detalhado.fornecedor ?? row.fornecedor,
+            valor: detalhado.valor ?? row.valor,
+            vencimento: detalhado.vencimento ?? row.vencimento,
+            descricao: detalhado.descricao ?? row.descricao,
+            notaFiscal: detalhado.notaFiscal ?? row.notaFiscal,
+            tipoRegistro: detalhado.tipoRegistro ?? row.tipoRegistro,
+          };
+        });
+        return {
+          ...existing,
+          resumido: true,
+          detalhado: true,
+          detalhadoRows,
+          resumidoRows,
+        };
+      })();
+
     setLotes((prev) => prev.map((lote) => (lote.id === editingLoteId ? updated : lote)));
     persistLoteToDb(updated);
     setToast({ type: 'success', message: 'Lote atualizado' });
     handleCancelEditLote();
-  }, [editingLoteId, editingLoteRows, editingLoteType, handleCancelEditLote, lotes, persistLoteToDb]);
+  }, [
+    editingLoteId,
+    editingLoteRows,
+    editingLoteType,
+    handleCancelEditLote,
+    lotes,
+    mapDetalhadoToResumido,
+    mapResumidoToDetalhado,
+    persistLoteToDb,
+  ]);
 
   const handleDeleteLote = useCallback((id: string) => {
     if (!confirm('Deseja excluir este lote?')) return;
@@ -3723,8 +3782,8 @@ const ContasAPagar: React.FC = () => {
                 </h3>
                 <p className="text-sm text-neutral-600 mt-1">
                   {editingLoteReadOnly
-                    ? 'VisualizaÃ§Ã£o do lote. EdiÃ§Ãµes estÃ£o bloqueadas.'
-                    : 'Edite os dados do lote. Todos os campos sÃ£o editÃ¡veis.'}
+                    ? 'Visualizacao do lote. Edicoes estao bloqueadas.'
+                    : 'Edite os dados do lote. Todos os campos sao editaveis.'}
                 </p>
               </div>
               <button
@@ -3900,7 +3959,7 @@ const ContasAPagar: React.FC = () => {
               >
                 Cancelar
               </button>
-              {editingLoteType === 'detalhado' && !editingLoteReadOnly && (
+              {editingLoteType === 'detalhado' && editingLoteReadOnly && (
                 <button
                   onClick={() => {
                     const rows = buildDetalhadoEmailRows(editingLoteRows as LoteRowDetalhado[]);
