@@ -395,7 +395,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
   return (
     <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">
             {user ? 'Editar Usuario' : 'Novo Usuario'}
@@ -490,7 +490,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
                   type="text"
                   value="Owner (apenas via banco)"
                   disabled
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg bg-neutral-50 text-neutral-500"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg bg-neutral-200 text-neutral-500"
                 />
               </div>
             ) : (
@@ -530,7 +530,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
                 <h3 className="text-lg font-medium text-neutral-900 mb-2">
                   Modulos permitidos (personalizado)
                 </h3>
-                <div className="bg-neutral-50 p-3 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="bg-neutral-200 p-3 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-2">
                   {moduleOptions.map((module) => (
                     <label key={module.value} className="flex items-center space-x-2 text-sm text-neutral-700">
                       <input
@@ -553,7 +553,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
                 <h3 className="text-lg font-medium text-neutral-900 mb-2">
                   Modulos Permitidos para {roleLabels[formData.role]}
                 </h3>
-                <div className="bg-neutral-50 p-3 rounded-lg grid grid-cols-2 md:grid-cols-3 gap-2">
+                <div className="bg-neutral-200 p-3 rounded-lg grid grid-cols-2 md:grid-cols-3 gap-2">
                   {currentModules.map((module) => (
                     <div key={module} className="flex items-center space-x-2">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -573,7 +573,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
               type="button"
               onClick={handleCancel}
               disabled={loading}
-              className="px-4 py-2 border border-neutral-300 rounded-lg text-neutral-700 hover:bg-neutral-50"
+              className="px-4 py-2 border border-neutral-300 rounded-lg text-neutral-700 hover:bg-neutral-200"
             >
               Cancelar
             </button>

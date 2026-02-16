@@ -211,7 +211,7 @@ const DadosPessoais: React.FC = () => {
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center space-x-2">
           <div className="h-5 w-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-            <div className="h-2 w-2 bg-neutral-50 rounded-full"></div>
+            <div className="h-2 w-2 bg-neutral-200 rounded-full"></div>
           </div>
           <span className="text-sm text-green-700">{success}</span>
         </div>
@@ -219,7 +219,7 @@ const DadosPessoais: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* Informações do Perfil */}
-        <div className="bg-neutral-50 rounded-xl shadow-md p-6">
+        <div className="bg-neutral-200 rounded-xl shadow-md p-6">
           <div className="flex items-center mb-6">
             <User className="h-6 w-6 text-primary-600 mr-3" />
             <h2 className="text-xl font-semibold text-neutral-900">Informações do Perfil</h2>
@@ -237,7 +237,7 @@ const DadosPessoais: React.FC = () => {
                   type="email"
                   value={profileData.email}
                   disabled
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg bg-neutral-50 text-neutral-500 cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg bg-neutral-200 text-neutral-500 cursor-not-allowed"
                 />
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                   <Lock className="h-4 w-4 text-neutral-400" />
@@ -317,7 +317,7 @@ const DadosPessoais: React.FC = () => {
         </div>
 
         {/* Alteração de Senha */}
-        <div className="bg-neutral-50 rounded-xl shadow-md p-6">
+        <div className="bg-neutral-200 rounded-xl shadow-md p-6">
           <div className="flex items-center mb-6">
             <Lock className="h-6 w-6 text-primary-600 mr-3" />
             <h2 className="text-xl font-semibold text-neutral-900">Alterar Senha</h2>
@@ -415,22 +415,22 @@ const DadosPessoais: React.FC = () => {
       </div>
 
       {/* Informações da Conta */}
-      <div className="bg-neutral-50 rounded-xl shadow-md p-6">
+      <div className="bg-neutral-200 rounded-xl shadow-md p-6">
         <h3 className="text-lg font-semibold text-neutral-900 mb-4">Informações da Conta</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="bg-neutral-50 rounded-lg p-4">
+          <div className="bg-neutral-200 rounded-lg p-4">
             <p className="text-sm font-medium text-neutral-700">Função</p>
             <span className={`inline-block mt-1 px-2 py-1 text-xs rounded-full ${getRoleBadge(profileData.role).color}`}>
               {getRoleBadge(profileData.role).label}
             </span>
           </div>
-          <div className="bg-neutral-50 rounded-lg p-4">
+          <div className="bg-neutral-200 rounded-lg p-4">
             <p className="text-sm font-medium text-neutral-700">Status</p>
             <span className="inline-block mt-1 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
               Ativo
             </span>
           </div>
-          <div className="bg-neutral-50 rounded-lg p-4">
+          <div className="bg-neutral-200 rounded-lg p-4">
             <p className="text-sm font-medium text-neutral-700">Módulos Disponíveis</p>
             <p className="text-xs text-neutral-600 mt-1">
               {userProfile?.modules?.length || 0} módulo{(userProfile?.modules?.length || 0) !== 1 ? 's' : ''}

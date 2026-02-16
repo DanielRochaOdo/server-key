@@ -287,7 +287,7 @@ const RateioMkm: React.FC = () => {
               <select
                 value={selectedCompetencia}
                 onChange={(event) => setSelectedCompetencia(event.target.value)}
-                className="w-full sm:w-48 pl-9 pr-3 py-2 border border-neutral-200 rounded-lg text-sm bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full sm:w-48 pl-9 pr-3 py-2 border border-neutral-200 rounded-lg text-sm bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 {competenciaOptions.length === 0 && (
                   <option value="">Nenhuma competencia</option>
@@ -304,7 +304,7 @@ const RateioMkm: React.FC = () => {
                   {hasData && (
                     <button
                       onClick={() => openForm('edit')}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
                     >
                       Editar Rateio
                     </button>
@@ -322,7 +322,7 @@ const RateioMkm: React.FC = () => {
         )}
       />
 
-      <div className="bg-neutral-50 rounded-xl shadow-md p-4 sm:p-5">
+      <div className="bg-neutral-200 rounded-xl shadow-md p-4 sm:p-5">
         <p className="text-sm font-semibold text-neutral-700 mb-2">Legenda</p>
         <div className="text-sm text-neutral-600 space-y-1">
           <div>COBRANCA: Atualizacao de cartao + Disparo antes do vencimento</div>
@@ -331,7 +331,7 @@ const RateioMkm: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-neutral-50 rounded-xl shadow-md p-4 sm:p-6">
+      <div className="bg-neutral-200 rounded-xl shadow-md p-4 sm:p-6">
         {layoutLoading ? (
           <div className="flex items-center justify-center min-h-48">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -366,7 +366,7 @@ const RateioMkm: React.FC = () => {
                   return (
                     <tr
                       key={`${row['Centro de custo']}-${index}`}
-                      className={`border-b border-neutral-100 last:border-b-0 ${isTotal ? 'font-semibold bg-neutral-50' : ''}`}
+                      className={`border-b border-neutral-100 last:border-b-0 ${isTotal ? 'font-semibold bg-neutral-200' : ''}`}
                     >
                       <td className="py-2 pr-4">{row['Centro de custo']}</td>
                       <td className="py-2 pr-4">{formatQtd(Number(row['QTD SMS/WABA ENVIADOS a 0,045'] || 0))}</td>
@@ -383,7 +383,7 @@ const RateioMkm: React.FC = () => {
 
       {showForm && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-3 sm:p-4 border-b border-neutral-200">
               <h2 className="text-base sm:text-lg font-semibold text-neutral-900">
                 {formMode === 'edit' ? 'Editar Rateio MKM' : 'Novo Rateio MKM'}
@@ -445,7 +445,7 @@ const RateioMkm: React.FC = () => {
                           />
                         </td>
                         <td className="py-1 pr-2 sm:pr-4">
-                          <div className="px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-200 text-neutral-700">
+                          <div className="px-2 py-0.5 rounded-md bg-neutral-200 border border-neutral-200 text-neutral-700">
                             {formatCusto(calcCusto(row.qtd))}
                           </div>
                         </td>
@@ -462,7 +462,7 @@ const RateioMkm: React.FC = () => {
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t border-neutral-200 font-semibold bg-neutral-50">
+                    <tr className="border-t border-neutral-200 font-semibold bg-neutral-200">
                       <td className="py-1 pr-2 sm:pr-4">TOTAL</td>
                       <td className="py-1 pr-2 sm:pr-4">{formatQtd(formTotals.qtd)}</td>
                       <td className="py-1 pr-2 sm:pr-4">{formatCusto(Number(formTotals.custo.toFixed(3)))}</td>

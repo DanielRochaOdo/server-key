@@ -265,7 +265,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
 
   return (
     <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-neutral-50 rounded-2xl border border-neutral-200 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">Importar Contas a Pagar</h2>
           <button onClick={handleCancel} className="text-neutral-400 hover:text-neutral-600">
@@ -283,7 +283,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
 
           {!showPreview ? (
             <div>
-              <div className="border-2 border-dashed border-neutral-300 rounded-2xl bg-neutral-50 p-8 text-center">
+              <div className="border-2 border-dashed border-neutral-300 rounded-2xl bg-neutral-200 p-8 text-center">
                 <Upload className="mx-auto h-12 w-12 text-neutral-400" />
                 <div className="mt-4">
                   <label htmlFor="file-upload" className="cursor-pointer">
@@ -330,7 +330,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
 
               <div className="overflow-x-hidden mb-4">
                 <table className="w-full table-fixed divide-y divide-neutral-200 border border-neutral-200 rounded-xl text-xs sm:text-sm lg:text-base uppercase">
-                  <thead className="bg-neutral-50 text-[11px] sm:text-xs lg:text-sm uppercase tracking-wide text-neutral-500">
+                  <thead className="bg-neutral-200 text-[11px] sm:text-xs lg:text-sm uppercase tracking-wide text-neutral-500">
                     <tr>
                       <th className="px-4 py-2 lg:px-5 lg:py-3 text-left font-semibold break-words whitespace-normal leading-tight">Status do Documento</th>
                       <th className="px-4 py-2 lg:px-5 lg:py-3 text-left font-semibold break-words whitespace-normal leading-tight">Pagamento</th>
@@ -340,7 +340,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
                       <th className="px-4 py-2 lg:px-5 lg:py-3 text-left font-semibold break-words whitespace-normal leading-tight">Vencimento</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-neutral-50 divide-y divide-neutral-200">
+                  <tbody className="bg-neutral-200 divide-y divide-neutral-200">
                     {preview.map((row, index) => (
                       <tr key={index}>
                         <td className="px-4 py-2 lg:px-5 lg:py-3 text-xs sm:text-sm lg:text-base text-neutral-900 break-words whitespace-normal">{row.status_documento || '-'}</td>
@@ -358,7 +358,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-xl hover:bg-neutral-50"
+                  className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-xl hover:bg-neutral-200"
                 >
                   Voltar
                 </button>

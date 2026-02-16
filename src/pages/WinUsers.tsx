@@ -253,7 +253,7 @@ const WinUsers: React.FC = () => {
           <>
             <button
               onClick={() => setShowUpload(true)}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
             >
                 <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
               Importar
@@ -261,32 +261,32 @@ const WinUsers: React.FC = () => {
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
               >
                   <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                 Exportar ({filteredUsers.length})
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-neutral-50 rounded-md shadow-lg z-10 border border-neutral-200">
+                <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-10 border border-neutral-200">
                   <div className="py-1">
                     <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
                       {searchTerm ? `Exportando ${filteredUsers.length} registros filtrados` : `Exportando todos os ${filteredUsers.length} registros`}
                     </div>
                     <button
                       onClick={() => exportData('csv')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-200"
                     >
                       Exportar como CSV
                     </button>
                     <button
                       onClick={() => exportData('xlsx')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-200"
                     >
                       Exportar como XLSX
                     </button>
                     <button
                       onClick={() => exportData('template')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 border-t border-neutral-200"
+                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-200 border-t border-neutral-200"
                     >
                       Baixar Modelo
                     </button>
@@ -341,7 +341,7 @@ const WinUsers: React.FC = () => {
       {/* Dashboard Stats */}
       <DashboardStats stats={dashboardStats} />
 
-      <div className="bg-neutral-50 rounded-xl shadow-md overflow-hidden">
+      <div className="bg-neutral-200 rounded-xl shadow-md overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-neutral-200">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
             <div className="relative flex-1 max-w-md">
@@ -365,7 +365,7 @@ const WinUsers: React.FC = () => {
 
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-neutral-200">
-            <thead className="bg-neutral-50">
+            <thead className="bg-neutral-200">
               <tr>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Login</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Senha</th>
@@ -373,9 +373,9 @@ const WinUsers: React.FC = () => {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
-            <tbody className="bg-neutral-50 divide-y divide-neutral-200">
+            <tbody className="bg-neutral-200 divide-y divide-neutral-200">
               {currentItems.map((user) => (
-                <tr key={user.id} className="hover:bg-neutral-50">
+                <tr key={user.id} className="hover:bg-neutral-200">
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-900">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="truncate max-w-[100px] sm:max-w-none">{user.login}</span>
@@ -492,7 +492,7 @@ const WinUsers: React.FC = () => {
 
       {viewingUser && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Usuário Windows</h2>
             <div className="space-y-2 text-xs sm:text-sm text-neutral-700">
               <div>

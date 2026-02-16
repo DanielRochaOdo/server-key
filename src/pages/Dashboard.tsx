@@ -686,7 +686,7 @@ const Dashboard: React.FC = () => {
         bgColor: group.bgColor,
         description: group.description,
         className:
-          'bg-neutral-50/80 dark:bg-neutral-900/80 border border-white/70 dark:border-neutral-800/80 backdrop-blur-sm shadow-[0_10px_30px_rgba(15,23,42,0.08)]',
+          'bg-neutral-200/80 dark:bg-neutral-900/80 border border-white/70 dark:border-neutral-800/80 backdrop-blur-sm shadow-[0_10px_30px_rgba(15,23,42,0.08)]',
       })),
     [groupedModules]
   );
@@ -740,7 +740,7 @@ const Dashboard: React.FC = () => {
                   bgColor: module.bgColor,
                   description: module.description,
                   className:
-                    'bg-neutral-50/80 dark:bg-neutral-900/80 border border-white/70 dark:border-neutral-800/80 backdrop-blur-sm shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.12)]',
+                    'bg-neutral-200/80 dark:bg-neutral-900/80 border border-white/70 dark:border-neutral-800/80 backdrop-blur-sm shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.12)]',
                 }))}
                 layout="row"
                 className="mb-2"
@@ -749,7 +749,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2 rounded-xl border border-white/70 dark:border-neutral-800/80 bg-neutral-50/80 dark:bg-neutral-900/80 p-4 backdrop-blur-sm">
+              <div className="lg:col-span-2 rounded-xl border border-white/70 dark:border-neutral-800/80 bg-neutral-200/80 dark:bg-neutral-900/80 p-4 backdrop-blur-sm">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                     Recentes
@@ -788,7 +788,7 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
               </div>
-              <div className="rounded-xl border border-white/70 dark:border-neutral-800/80 bg-neutral-50/80 dark:bg-neutral-900/80 p-4 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/70 dark:border-neutral-800/80 bg-neutral-200/80 dark:bg-neutral-900/80 p-4 backdrop-blur-sm">
                 <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Resumo</p>
                 <div className="mt-3 space-y-3">
                   {group.modules.map((module) => (

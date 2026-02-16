@@ -9,6 +9,15 @@
 }
 
 @layer utilities {
+  :root:not(.dark) .bg-white {
+    @apply bg-neutral-200;
+  }
+  :root:not(.dark) .bg-neutral-50 {
+    @apply bg-neutral-200;
+  }
+  :root:not(.dark) .bg-neutral-100 {
+    @apply bg-neutral-200;
+  }
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -20,13 +29,13 @@
     @apply bg-neutral-900;
   }
   .dark .bg-neutral-50 {
-    @apply bg-neutral-800;
+    @apply bg-neutral-900;
   }
   .dark .bg-neutral-100 {
-    @apply bg-neutral-800;
+    @apply bg-neutral-900;
   }
   .dark .bg-neutral-200 {
-    @apply bg-neutral-700;
+    @apply bg-neutral-900;
   }
   .dark .border-neutral-100 {
     @apply border-neutral-800;
