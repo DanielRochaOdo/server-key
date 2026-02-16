@@ -739,12 +739,14 @@ const Dashboard: React.FC = () => {
                   color: module.color,
                   bgColor: module.bgColor,
                   description: module.description,
-                  className:
-                    'bg-neutral-200/80 dark:bg-neutral-900/80 border border-white/70 dark:border-neutral-800/80 backdrop-blur-sm shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.12)]',
+                  className: `bg-neutral-200/80 dark:bg-neutral-900/80 border border-white/70 dark:border-neutral-800/80 backdrop-blur-sm shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.12)] ${
+                    module.key === 'contas_a_pagar'
+                      ? 'min-w-[220px]'
+                      : 'min-w-[286px] min-h-[170px] p-[1.25rem] sm:p-[2rem]'
+                  }`,
                 }))}
                 layout="row"
                 className="mb-2"
-                cardClassName="min-w-[220px]"
               />
             </div>
 

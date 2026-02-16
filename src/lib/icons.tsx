@@ -1,5 +1,6 @@
 import type { IconType } from 'react-icons';
 import { RiShieldKeyholeLine } from 'react-icons/ri';
+import { FaCarSide } from 'react-icons/fa6';
 import {
   HiArrowsUpDown,
   HiArrowDown,
@@ -69,7 +70,7 @@ export const BarChart3 = HiOutlineChartBar;
 export const Building = HiOutlineBuildingOffice2;
 export const Building2 = HiOutlineBuildingOffice2;
 export const Calendar = HiOutlineCalendarDays;
-export const Car = HiOutlineTruck;
+export const Car = FaCarSide;
 export const CheckCircle = HiOutlineCheckCircle;
 export const ChevronDown = HiChevronDown;
 export const ChevronLeft = HiChevronLeft;
