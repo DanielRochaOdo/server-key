@@ -3,7 +3,6 @@ import { X, Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { encryptPassword } from '../utils/encryption';
-import * as XLSX from 'xlsx';
 
 interface TeamFileUploadProps {
   onSuccess: () => void;
@@ -17,6 +16,29 @@ interface PreviewTeam {
   observacao?: string;
   departamento?: string;
 }
+
+const resolveXlsx = async () => {
+  const pickCandidate = (moduleRef: any) => {
+    const candidates = [
+      moduleRef,
+      moduleRef?.default,
+      moduleRef?.XLSX,
+      moduleRef?.default?.XLSX,
+      (globalThis as any)?.XLSX,
+    ];
+    return candidates.find((candidate) => candidate?.read && candidate?.utils?.sheet_to_json);
+  };
+
+  const baseModule: any = await import('xlsx');
+  const baseCandidate = pickCandidate(baseModule);
+  if (baseCandidate) return baseCandidate;
+
+  const styledModule: any = await import('xlsx-js-style/dist/xlsx.bundle.js');
+  const styledCandidate = pickCandidate(styledModule);
+  if (styledCandidate) return styledCandidate;
+
+  throw new Error('Biblioteca XLSX indisponivel no navegador.');
+};
 
 const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) => {
   const [file, setFile] = useState<File | null>(null);
@@ -52,6 +74,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
   const processFile = async (file: File) => {
     setLoading(true);
     try {
+      const XLSX = await resolveXlsx();
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];
@@ -165,6 +188,7 @@ const TeamFileUpload: React.FC<TeamFileUploadProps> = ({ onSuccess, onCancel }) 
 
     setLoading(true);
     try {
+      const XLSX = await resolveXlsx();
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];

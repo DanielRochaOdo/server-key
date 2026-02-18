@@ -7,7 +7,6 @@ import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { usePersistence } from '../contexts/PersistenceContext';
-import * as XLSX from 'xlsx';
 import { decryptPassword } from '../utils/encryption';
 
 interface WinUser {
@@ -184,38 +183,64 @@ const WinUsers: React.FC = () => {
     );
   }, [winUsers, searchTerm]);
 
-  const exportData = (format: 'csv' | 'xlsx' | 'template') => {
-    if (format === 'template') {
-      // Create template with headers only
-      const templateData = [{
-        login: '',
-        senha: '',
-        usuario: ''
-      }];
-      const ws = XLSX.utils.json_to_sheet(templateData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Template');
-      XLSX.writeFile(wb, 'template_usuarios_windows.xlsx', { bookType: 'xlsx' });
-    } else {
-      // Usar dados filtrados em vez de todos os dados
-      const dataToExport = filteredUsers.map(({ id, created_at, ...rest }) => rest);
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'UsuariosWindows');
-      
-      // Incluir informações sobre filtros no nome do arquivo
-      const filterInfo = searchTerm ? `_filtrado` : '';
-      const filename = `usuarios_windows${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-      
-      if (format === 'csv') {
-        XLSX.writeFile(wb, filename, { bookType: 'csv' });
-      } else {
-        XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
-      }
-    }
-    setShowExportMenu(false);
-  };
 
+  const exportData = async (format: 'csv' | 'xlsx' | 'template') => {
+    try {
+      const modules = await Promise.allSettled([
+        import('xlsx-js-style/dist/xlsx.bundle.js'),
+        import('xlsx')
+      ]);
+      const candidates: any[] = [];
+      for (const result of modules) {
+        if (result.status === 'fulfilled') {
+          const moduleValue: any = result.value;
+          candidates.push(moduleValue, moduleValue?.default, moduleValue?.XLSX, moduleValue?.default?.XLSX);
+        }
+      }
+      candidates.push((globalThis as any).XLSX);
+
+      const xlsx = candidates.find((candidate) =>
+        candidate?.utils?.json_to_sheet &&
+        candidate?.utils?.book_new &&
+        candidate?.utils?.book_append_sheet &&
+        candidate?.writeFile
+      );
+
+      if (!xlsx) {
+        throw new Error('Biblioteca de exportacao indisponivel.');
+      }
+
+      if (format === 'template') {
+        const templateData = [{
+          login: '',
+          senha: '',
+          usuario: ''
+        }];
+        const ws = xlsx.utils.json_to_sheet(templateData);
+        const wb = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(wb, ws, 'Template');
+        xlsx.writeFile(wb, 'template_usuarios_windows.xlsx', { bookType: 'xlsx' });
+      } else {
+        const dataToExport = filteredUsers.map(({ id, created_at, ...rest }) => rest);
+        const ws = xlsx.utils.json_to_sheet(dataToExport);
+        const wb = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(wb, ws, 'UsuariosWindows');
+
+        const filterInfo = searchTerm ? `_filtrado` : '';
+        const filename = `usuarios_windows${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
+
+        if (format === 'csv') {
+          xlsx.writeFile(wb, filename, { bookType: 'csv' });
+        } else {
+          xlsx.writeFile(wb, filename, { bookType: 'xlsx' });
+        }
+      }
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro ao exportar usuarios windows:', error);
+      alert('Nao foi possivel exportar os dados. Tente novamente.');
+    }
+  };
   const currentItems = React.useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredUsers.slice(start, start + itemsPerPage);
@@ -267,7 +292,7 @@ const WinUsers: React.FC = () => {
                 Exportar ({filteredUsers.length})
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-10 border border-neutral-200">
+                <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-50 border border-neutral-200">
                   <div className="py-1">
                     <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
                       {searchTerm ? `Exportando ${filteredUsers.length} registros filtrados` : `Exportando todos os ${filteredUsers.length} registros`}
@@ -551,7 +576,7 @@ const WinUsers: React.FC = () => {
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (
         <div 
-          className="fixed inset-0 z-5" 
+          className="fixed inset-0 z-40" 
           onClick={() => setShowExportMenu(false)}
         />
       )}
@@ -560,5 +585,4 @@ const WinUsers: React.FC = () => {
 };
 
 export default WinUsers;
-
 

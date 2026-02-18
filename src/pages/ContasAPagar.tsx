@@ -1952,7 +1952,12 @@ const ContasAPagar: React.FC = () => {
     return `PROTOCOLO TI CONTAS A PAGAR ${day}-${month}-${year}`;
   }, []);
 
-  const upsertLote = useCallback((tipo: 'resumido' | 'detalhado', nome: string, rows: LoteRowDetalhado[] | LoteRowResumido[]) => {
+  const upsertLote = useCallback((
+    tipo: 'resumido' | 'detalhado',
+    nome: string,
+    rows: LoteRowDetalhado[] | LoteRowResumido[],
+    options?: { silentToast?: boolean }
+  ) => {
     const trimmed = nome.trim();
     if (!trimmed) return false;
     const origem: ContaTipo = activeTab === 'avulsa'
@@ -2010,10 +2015,12 @@ const ContasAPagar: React.FC = () => {
     if (nextLote) {
       persistLoteToDb(nextLote);
     }
-    setToast({
-      type: 'success',
-      message: `Lote ${tipo} registrado`,
-    });
+    if (!options?.silentToast) {
+      setToast({
+        type: 'success',
+        message: `Lote ${tipo} registrado`,
+      });
+    }
     return true;
   }, [activeTab, currentLoteId, getRowsCounts, persistLoteToDb]);
 
@@ -2037,24 +2044,21 @@ const ContasAPagar: React.FC = () => {
       setLoteNomeError('Informe o nome do lote.');
       return;
     }
-    const rows = buildDetalhadoRows();
-    const saved = upsertLote('detalhado', trimmed, rows);
+    const detalhadoRows = buildDetalhadoRows();
+    const resumidoRows = buildResumidoRows();
+    const saved = upsertLote('detalhado', trimmed, detalhadoRows, { silentToast: true });
+    if (!saved) return;
+    upsertLote('resumido', trimmed, resumidoRows, { silentToast: true });
+    setToast({
+      type: 'success',
+      message: 'Lote detalhado e resumido registrados',
+    });
     if (saved) {
       setShowExportNfModal(false);
       setLoteNomeError(null);
       setCurrentLoteId(null);
     }
-  }, [buildDetalhadoRows, loteNome, upsertLote]);
-
-  const handleCreateResumidoLote = useCallback(() => {
-    const nome = loteNome.trim();
-    if (!nome) {
-      setLoteNomeError('Informe o nome do lote.');
-      return;
-    }
-    const rows = buildResumidoRows();
-    upsertLote('resumido', nome, rows);
-  }, [buildResumidoRows, loteNome, upsertLote]);
+  }, [buildDetalhadoRows, buildResumidoRows, loteNome, upsertLote]);
 
   const handleStartEditLote = useCallback((lote: LoteRegistro, tipo: 'resumido' | 'detalhado', readOnly = false) => {
     setEditingLoteId(lote.id);
@@ -3409,12 +3413,6 @@ const ContasAPagar: React.FC = () => {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                onClick={handleCreateResumidoLote}
-                className="px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 hover:bg-primary-50 transition-colors"
-              >
-                Resumido
-              </button>
               <button
                 onClick={handleOpenEmailRecipientsModal}
                 disabled={sendingEmail}

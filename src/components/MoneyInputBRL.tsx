@@ -1,11 +1,12 @@
 import React, { useMemo } from "react";
 
 type Props = {
-  value: number;                 // valor real numérico (ex: 1234.56)
+  value: number;
   onChange: (value: number) => void;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  showPlaceholderWhenZero?: boolean;
 };
 
 function formatBRLFromCents(cents: number) {
@@ -23,8 +24,8 @@ export default function MoneyInputBRL({
   placeholder,
   className,
   disabled,
+  showPlaceholderWhenZero,
 }: Props) {
-  // converte valor numérico p/ cents (pra manter precisão)
   const cents = useMemo(() => Math.round((Number(value || 0)) * 100), [value]);
 
   return (
@@ -34,7 +35,7 @@ export default function MoneyInputBRL({
       disabled={disabled}
       placeholder={placeholder}
       className={className}
-      value={formatBRLFromCents(cents)}
+      value={showPlaceholderWhenZero && cents === 0 ? "" : formatBRLFromCents(cents)}
       onChange={(e) => {
         const digits = onlyDigits(e.target.value);
         const newCents = Number(digits || 0);

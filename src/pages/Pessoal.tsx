@@ -8,7 +8,6 @@ import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
-import * as XLSX from 'xlsx';
 import { decryptPassword } from '../utils/encryption';
 
 interface Pessoal {
@@ -213,39 +212,86 @@ const Pessoal: React.FC = () => {
     return filtered;
   }, [pessoais, searchTerm, sortOrder]);
 
-  const exportData = useCallback((format: 'csv' | 'xlsx' | 'template') => {
-    if (format === 'template') {
-      const templateData = [{
-        descricao: '',
-        para_que_serve: '',
-        ip_url: '',
-        usuario_login: '',
-        senha: '',
-        observacao: '',
-        suporte_contato: '',
-        email: '',
-        dia_pagamento: ''
-      }];
-      const ws = XLSX.utils.json_to_sheet(templateData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Template');
-      XLSX.writeFile(wb, 'template_pessoal.xlsx', { bookType: 'xlsx' });
-    } else {
-      const dataToExport = filteredPessoaisSorted.map(({ id, created_at, ...rest }) => rest);
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Pessoal');
-      
-      const filterInfo = searchTerm ? `_filtrado` : '';
-      const filename = `pessoal${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-      
-      if (format === 'csv') {
-        XLSX.writeFile(wb, filename, { bookType: 'csv' });
-      } else {
-        XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+  const exportData = useCallback(async (format: 'csv' | 'xlsx' | 'template') => {
+    try {
+      const XLSXModule: any = await import('xlsx-js-style/dist/xlsx.bundle.js');
+      const candidates = [
+        XLSXModule,
+        XLSXModule?.default,
+        XLSXModule?.XLSX,
+        XLSXModule?.default?.XLSX,
+        (globalThis as any)?.XLSX,
+      ];
+      let XLSX = candidates.find(
+        (candidate) =>
+          candidate?.utils?.json_to_sheet &&
+          candidate?.utils?.book_new &&
+          candidate?.utils?.book_append_sheet &&
+          candidate?.writeFile
+      );
+
+      if (!XLSX) {
+        const FallbackModule: any = await import('xlsx');
+        const fallbackCandidates = [
+          FallbackModule,
+          FallbackModule?.default,
+          FallbackModule?.XLSX,
+          FallbackModule?.default?.XLSX,
+          (globalThis as any)?.XLSX,
+        ];
+        XLSX = fallbackCandidates.find(
+          (candidate) =>
+            candidate?.utils?.json_to_sheet &&
+            candidate?.utils?.book_new &&
+            candidate?.utils?.book_append_sheet &&
+            candidate?.writeFile
+        );
       }
+
+      if (!XLSX) {
+        console.error('XLSX module shape:', {
+          bundleKeys: XLSXModule ? Object.keys(XLSXModule) : null,
+          hasGlobalXLSX: Boolean((globalThis as any)?.XLSX),
+        });
+        throw new Error('Biblioteca de exportacao indisponivel.');
+      }
+
+      if (format === 'template') {
+        const templateData = [{
+          descricao: '',
+          para_que_serve: '',
+          ip_url: '',
+          usuario_login: '',
+          senha: '',
+          observacao: '',
+          suporte_contato: '',
+          email: '',
+          dia_pagamento: ''
+        }];
+        const ws = XLSX.utils.json_to_sheet(templateData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, 'template_pessoal.xlsx', { bookType: 'xlsx' });
+      } else {
+        const dataToExport = filteredPessoaisSorted.map(({ id, created_at, ...rest }) => rest);
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Pessoal');
+
+        const filterInfo = searchTerm ? `_filtrado` : '';
+        const filename = `pessoal${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
+
+        if (format === 'csv') {
+          XLSX.writeFile(wb, filename, { bookType: 'csv' });
+        } else {
+          XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+        }
+      }
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro ao exportar dados de pessoal:', error);
+      alert('Nao foi possivel exportar agora. Tente novamente.');
     }
-    setShowExportMenu(false);
   }, [filteredPessoaisSorted, searchTerm]);
 
   const currentItems = useMemo(() => {
@@ -330,7 +376,7 @@ const Pessoal: React.FC = () => {
                 Exportar ({filteredPessoaisSorted.length})
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-10 border border-neutral-200">
+                <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-50 border border-neutral-200">
                   <div className="py-1">
                     <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
                       {searchTerm ? `Exportando ${filteredPessoaisSorted.length} registros filtrados` : `Exportando todos os ${filteredPessoaisSorted.length} registros`}
@@ -640,7 +686,7 @@ const Pessoal: React.FC = () => {
       {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (
         <div 
-          className="fixed inset-0 z-5" 
+          className="fixed inset-0 z-40" 
           onClick={() => setShowExportMenu(false)}
         />
       )}

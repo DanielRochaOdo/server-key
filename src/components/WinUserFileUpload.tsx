@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { encryptPassword } from '../utils/encryption';
@@ -15,6 +14,32 @@ interface ParsedRow {
   usuario?: string;
 }
 
+const resolveXlsx = async () => {
+  const modules = await Promise.allSettled([
+    import('xlsx-js-style/dist/xlsx.bundle.js'),
+    import('xlsx')
+  ]);
+  const candidates: any[] = [];
+  for (const result of modules) {
+    if (result.status === 'fulfilled') {
+      const moduleValue: any = result.value;
+      candidates.push(moduleValue, moduleValue?.default, moduleValue?.XLSX, moduleValue?.default?.XLSX);
+    }
+  }
+  candidates.push((globalThis as any).XLSX);
+
+  const xlsx = candidates.find((candidate) =>
+    candidate?.read &&
+    candidate?.utils?.sheet_to_json
+  );
+
+  if (!xlsx) {
+    throw new Error('Biblioteca XLSX indisponivel.');
+  }
+
+  return xlsx;
+};
+
 const WinUserFileUpload: React.FC<WinUserFileUploadProps> = ({ onSuccess, onCancel }) => {
   const [loading, setLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -27,32 +52,33 @@ const WinUserFileUpload: React.FC<WinUserFileUploadProps> = ({ onSuccess, onCanc
     const reader = new FileReader();
 
     reader.onload = async (evt) => {
-      const data = evt.target?.result;
-      if (!data) return;
-
-      const workbook = XLSX.read(data, { type: 'binary' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData: ParsedRow[] = XLSX.utils.sheet_to_json(worksheet);
-
-      // Validação simples
-      const validRows = jsonData
-        .filter(row => row.login && row.senha && row.usuario)
-        .map(row => ({
-          ...row,
-          senha: encryptPassword(row.senha), // Encrypt password for storage
-          user_id: user?.id
-        }));
-
-      if (validRows.length === 0) {
-        setFileError('Arquivo inválido ou sem dados válidos');
-        return;
-      }
-
-      setLoading(true);
-      setFileError(null);
-
       try {
+        const data = evt.target?.result;
+        if (!data) return;
+
+        const xlsx = await resolveXlsx();
+        const workbook = xlsx.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData: ParsedRow[] = xlsx.utils.sheet_to_json(worksheet);
+
+        // Validacao simples
+        const validRows = jsonData
+          .filter(row => row.login && row.senha && row.usuario)
+          .map(row => ({
+            ...row,
+            senha: encryptPassword(row.senha),
+            user_id: user?.id
+          }));
+
+        if (validRows.length === 0) {
+          setFileError('Arquivo invalido ou sem dados validos');
+          return;
+        }
+
+        setLoading(true);
+        setFileError(null);
+
         const { error } = await supabase.from('win_users').insert(validRows);
         if (error) throw error;
         onSuccess();
@@ -70,7 +96,7 @@ const WinUserFileUpload: React.FC<WinUserFileUploadProps> = ({ onSuccess, onCanc
   return (
     <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-neutral-200 p-6 rounded-2xl border border-neutral-200 shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4">Importar Usuários Windows</h2>
+        <h2 className="text-xl font-bold mb-4">Importar Usuarios Windows</h2>
         <input type="file" accept=".xls,.xlsx,.csv" onChange={handleFile} disabled={loading} />
         {fileError && <p className="mt-2 text-red-600">{fileError}</p>}
         <div className="mt-4 flex justify-end space-x-2">

@@ -1148,13 +1148,15 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                     <MoneyInputBRL
                                         value={draft.valor_unit}
                                         onChange={(val) => setDraft((d) => ({ ...d, valor_unit: val }))}
-                                        placeholder="Valor"
+                                        placeholder="Valor (R$)"
+                                        showPlaceholderWhenZero
                                         className="w-32 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
                                     <MoneyInputBRL
                                         value={draft.frete}
                                         onChange={(val) => setDraft((d) => ({ ...d, frete: val }))}
-                                        placeholder="Frete"
+                                        placeholder="Frete (R$)"
+                                        showPlaceholderWhenZero
                                         className="w-32 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
                                     <input
@@ -1190,7 +1192,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                 <th className="px-2 py-2 text-left font-semibold w-[32%]">Produto</th>
                                                 <th className="px-2 py-2 text-center font-semibold">Prioridade</th>
                                                 <th className="px-2 py-2 text-right font-semibold">Quant</th>
-                                                <th className="px-2 py-2 text-right font-semibold">Valor</th>
+                                                <th className="px-2 py-2 text-right font-semibold">Valor Unit.</th>
                                                 <th className="px-2 py-2 text-right font-semibold">Frete</th>
                                                 <th className="px-2 py-2 text-right font-semibold">Total + Frete</th>
                                                 <th className="px-2 py-2 text-center font-semibold">
@@ -1319,13 +1321,15 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                     <MoneyInputBRL
                                                         value={editDraft.valor_unit}
                                                         onChange={(val) => setEditDraft((d) => ({ ...d, valor_unit: val }))}
-                                                        placeholder="Valor"
+                                                        placeholder="Valor (R$)"
+                                                        showPlaceholderWhenZero
                                                         className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                     />
                                                     <MoneyInputBRL
                                                         value={editDraft.frete}
                                                         onChange={(val) => setEditDraft((d) => ({ ...d, frete: val }))}
-                                                        placeholder="Frete"
+                                                        placeholder="Frete (R$)"
+                                                        showPlaceholderWhenZero
                                                         className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                     />
 
