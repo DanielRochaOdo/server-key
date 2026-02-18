@@ -52,6 +52,22 @@ function formatError(value: unknown) {
   }
 }
 
+const normalizeRole = (role?: string | null) => {
+  if (!role) return "";
+  const value = role
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (value === "administrador") return "admin";
+  if (value === "admin") return "admin";
+  if (value === "owner") return "owner";
+  if (value === "financeiro") return "financeiro";
+  if (value === "usuario") return "usuario";
+  return value;
+};
+
 function normalizePrivateKey(raw: string) {
   const trimmed = (raw || "").trim();
   if (!trimmed) return "";
@@ -252,16 +268,50 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
 
-  const expectedSecret = (Deno.env.get("GOOGLE_WORKSPACE_SYNC_SECRET") || "").trim();
-  const providedSecret = (req.headers.get("x-sync-secret") || "").trim();
-  if (!expectedSecret || providedSecret !== expectedSecret) {
-    return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
-  }
-
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) {
     return jsonResponse({ ok: false, error: "Missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY" }, 500);
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const expectedSecret = (Deno.env.get("GOOGLE_WORKSPACE_SYNC_SECRET") || "").trim();
+  const providedSecret = (req.headers.get("x-sync-secret") || "").trim();
+  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
+  const bearerToken = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
+
+  const secretAuthorized = Boolean(expectedSecret) && providedSecret === expectedSecret;
+
+  if (!secretAuthorized) {
+    if (!bearerToken) return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+
+    const { data: authData, error: authError } = await supabase.auth.getUser(bearerToken);
+    if (authError || !authData?.user) {
+      return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("users")
+      .select("role, modules, is_active")
+      .eq("auth_uid", authData.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return jsonResponse({ ok: false, error: "Forbidden" }, 403);
+    }
+
+    const role = normalizeRole(profile.role);
+    const modules = Array.isArray(profile.modules) ? profile.modules : [];
+    const hasAccess =
+      profile.is_active === true &&
+      (role === "admin" || role === "owner" || modules.includes("rateio_google"));
+
+    if (!hasAccess) {
+      return jsonResponse({ ok: false, error: "Forbidden" }, 403);
+    }
   }
 
   const domainCredentialsJsonRaw = (Deno.env.get("GOOGLE_DOMAIN_CREDENTIALS_JSON") || "").trim();
@@ -305,10 +355,6 @@ Deno.serve(async (req) => {
   const defaultDomains = ["odontoart.com", "odontoartonline.com.br"];
   const mode: SyncMode = payload.mode === "incremental" ? "incremental" : "full";
   const domains = Array.isArray(payload.domains) && payload.domains.length ? payload.domains : defaultDomains;
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 
   const scope = "https://www.googleapis.com/auth/admin.directory.user.readonly https://www.googleapis.com/auth/admin.reports.usage.readonly";
   const runStartedAt = new Date().toISOString();

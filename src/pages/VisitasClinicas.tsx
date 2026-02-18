@@ -83,6 +83,12 @@ const parseDateKey = (dateKey: string) => {
   return new Date(year, month - 1, day);
 };
 
+const formatDateKeyToPtBr = (dateKey: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
+  const [year, month, day] = dateKey.split('-');
+  return `${day}-${month}-${year}`;
+};
+
 const buildMonthGrid = (year: number, monthIndex: number) => {
   const firstDay = new Date(year, monthIndex, 1);
   const lastDay = new Date(year, monthIndex + 1, 0);
@@ -525,7 +531,7 @@ const VisitasClinicas: React.FC = () => {
                 Detalhes da visita
               </h2>
               <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                Data selecionada: {selectedDateKey}
+                Data selecionada: {formatDateKeyToPtBr(selectedDateKey)}
               </p>
             </div>
           </div>
