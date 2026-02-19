@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx-js-style/dist/xlsx.bundle.js";
+import * as XLSX from "xlsx-js-style";
 
 type Prioridade = "BAIXA" | "MEDIA" | "ALTA";
 

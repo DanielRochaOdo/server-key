@@ -9,10 +9,12 @@ export default defineConfig({
     alias: {
       'lucide-react': fileURLToPath(new URL('./src/lib/icons.tsx', import.meta.url)),
       xlsx: 'xlsx/dist/xlsx.full.min.js',
+      'xlsx-js-style': 'xlsx-js-style/dist/xlsx.bundle.js',
       stream: fileURLToPath(new URL('./src/shims/stream.ts', import.meta.url)),
     },
   },
   optimizeDeps: {
-    exclude: ['xlsx', 'xlsx-js-style'],
+    include: ['xlsx-js-style'],
+    exclude: ['xlsx'],
   },
 });

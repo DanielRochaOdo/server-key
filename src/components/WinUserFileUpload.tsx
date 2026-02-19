@@ -16,7 +16,7 @@ interface ParsedRow {
 
 const resolveXlsx = async () => {
   const modules = await Promise.allSettled([
-    import('xlsx-js-style/dist/xlsx.bundle.js'),
+    import('xlsx-js-style'),
     import('xlsx')
   ]);
   const candidates: any[] = [];

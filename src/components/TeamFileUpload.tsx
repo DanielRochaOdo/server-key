@@ -33,7 +33,7 @@ const resolveXlsx = async () => {
   const baseCandidate = pickCandidate(baseModule);
   if (baseCandidate) return baseCandidate;
 
-  const styledModule: any = await import('xlsx-js-style/dist/xlsx.bundle.js');
+  const styledModule: any = await import('xlsx-js-style');
   const styledCandidate = pickCandidate(styledModule);
   if (styledCandidate) return styledCandidate;
 

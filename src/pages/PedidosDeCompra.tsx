@@ -37,6 +37,8 @@ type Protocolo = {
 
 
 const PC_STATE_KEY = "serverkey:pedidos_compra_state";
+const PC_EMAIL_RECIPIENTS_KEY = "serverkey:pedidos_compra_email_recipients";
+const DEFAULT_EMAIL_RECIPIENTS = ["daniel.rocha@odontoart.com", "ryanmendes@odontoart.com"];
 
 type PcUiState = {
     tab: "MENSAL" | "PROTOCOLO";
@@ -65,6 +67,25 @@ function savePcUiState(state: PcUiState) {
     try {
         localStorage.setItem(PC_STATE_KEY, JSON.stringify(state));
     } catch { }
+}
+
+function loadEmailRecipients(): string[] {
+    const normalize = (value: string) => value.trim().toLowerCase();
+    const defaults = DEFAULT_EMAIL_RECIPIENTS
+        .map((value) => (typeof value === "string" ? normalize(value) : ""))
+        .filter((value) => value.length > 0);
+    try {
+        const raw = localStorage.getItem(PC_EMAIL_RECIPIENTS_KEY);
+        if (!raw) return Array.from(new Set(defaults));
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return Array.from(new Set(defaults));
+        const normalized = parsed
+            .map((value) => (typeof value === "string" ? normalize(value) : ""))
+            .filter((value) => value.length > 0);
+        return Array.from(new Set([...defaults, ...normalized]));
+    } catch {
+        return Array.from(new Set(defaults));
+    }
 }
 
 
@@ -161,6 +182,10 @@ export default function PedidosDeCompra() {
         diretoria: false,
     });
     const [sendingEmail, setSendingEmail] = useState(false);
+    const [showEmailRecipientsModal, setShowEmailRecipientsModal] = useState(false);
+    const [emailRecipientsError, setEmailRecipientsError] = useState<string | null>(null);
+    const [emailRecipients, setEmailRecipients] = useState<string[]>(() => loadEmailRecipients());
+    const [emailRecipientInput, setEmailRecipientInput] = useState("");
     const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
     const [observacoesModalOpen, setObservacoesModalOpen] = useState(false);
     const [observacoesDraft, setObservacoesDraft] = useState("");
@@ -202,6 +227,59 @@ export default function PedidosDeCompra() {
         }, 0);
         return 2500 - totalConsiderados;
     }, [mensal]);
+
+    const normalizeEmail = (value: string) => value.trim().toLowerCase();
+    const defaultEmailRecipients = useMemo(
+        () => DEFAULT_EMAIL_RECIPIENTS.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0),
+        []
+    );
+    const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(PC_EMAIL_RECIPIENTS_KEY, JSON.stringify(emailRecipients));
+        } catch { }
+    }, [emailRecipients]);
+
+    const handleOpenEmailRecipientsModal = useCallback(() => {
+        if (!protocoloSel) return;
+        setEmailRecipientsError(null);
+        setShowEmailRecipientsModal(true);
+    }, [protocoloSel]);
+
+    const handleAddEmailRecipient = useCallback(() => {
+        const normalized = normalizeEmail(emailRecipientInput);
+        if (!normalized || !isValidEmail(normalized)) {
+            setEmailRecipientsError("Informe um e-mail valido.");
+            return;
+        }
+        setEmailRecipients((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
+        setEmailRecipientInput("");
+        setEmailRecipientsError(null);
+    }, [emailRecipientInput, normalizeEmail, isValidEmail]);
+
+    const handleRemoveEmailRecipient = useCallback((recipient: string) => {
+        const normalized = normalizeEmail(recipient);
+        if (defaultEmailRecipients.includes(normalized)) return;
+        setEmailRecipients((prev) => prev.filter((item) => item !== normalized));
+    }, [defaultEmailRecipients, normalizeEmail]);
+
+    const handleConfirmSendEmail = useCallback(async () => {
+        const normalizedRecipients = emailRecipients
+            .map((recipient) => normalizeEmail(recipient))
+            .filter((recipient) => recipient.length > 0);
+        if (normalizedRecipients.length === 0) {
+            setEmailRecipientsError("Adicione ao menos um destinatario.");
+            return;
+        }
+        if (!normalizedRecipients.every(isValidEmail)) {
+            setEmailRecipientsError("Existe um destinatario invalido.");
+            return;
+        }
+        setShowEmailRecipientsModal(false);
+        setEmailRecipientsError(null);
+        await enviarEmailProtocolo(normalizedRecipients);
+    }, [emailRecipients, enviarEmailProtocolo, isValidEmail, normalizeEmail]);
 
     const handleMensalSort = (column: "item" | "quantidade" | "valor_unit" | "frete" | "valor_total" | "diretoria" | "status") => {
         setMensalSort((prev) => {
@@ -667,12 +745,15 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         return token;
     };
 
-    async function enviarEmailProtocolo() {
+    async function enviarEmailProtocolo(recipients?: string[]) {
         if (!protocoloSel || sendingEmail) return;
         setSendingEmail(true);
 
         try {
             const token = await getAccessToken();
+            const normalizedRecipients = Array.isArray(recipients)
+                ? recipients.map((recipient) => normalizeEmail(recipient)).filter((recipient) => recipient.length > 0)
+                : undefined;
             const response = await fetch(
                 `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-protocolo-email`,
                 {
@@ -682,7 +763,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                         Authorization: `Bearer ${token}`,
                         apikey: `${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
                     },
-                    body: JSON.stringify({ protocoloId: protocoloSel.id }),
+                    body: JSON.stringify({ protocoloId: protocoloSel.id, recipients: normalizedRecipients }),
                 }
             );
 
@@ -1078,7 +1159,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                 <button
                                     disabled={!protocoloSel || sendingEmail}
-                                    onClick={enviarEmailProtocolo}
+                                    onClick={handleOpenEmailRecipientsModal}
                                     className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-xs font-semibold uppercase tracking-wide transition-colors
                                         ${protocoloSel && !sendingEmail
                                             ? "bg-neutral-200/10 text-white shadow-lg hover:bg-neutral-200/20"
@@ -1437,6 +1518,123 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                 </div>
             )}
 
+            {showEmailRecipientsModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm px-4">
+                    <div className="w-full max-w-lg rounded-3xl border border-neutral-800 bg-neutral-950/90 p-6 text-white shadow-2xl">
+                        <div className="flex items-center justify-between gap-2">
+                            <div>
+                                <h3 className="text-lg font-bold">Enviar E-mail</h3>
+                                <p className="text-xs text-neutral-400">
+                                    Gerencie os destinatarios. Os e-mails adicionados ficam salvos para os proximos envios.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowEmailRecipientsModal(false);
+                                    setEmailRecipientsError(null);
+                                    setEmailRecipientInput("");
+                                }}
+                                className="rounded-2xl border border-neutral-800 bg-neutral-200/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-neutral-600 hover:bg-neutral-200/10"
+                                disabled={sendingEmail}
+                            >
+                                Fechar
+                            </button>
+                        </div>
+
+                        <div className="mt-4">
+                            <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-neutral-400">
+                                <span>Destinatarios cadastrados</span>
+                                <span>{emailRecipients.length}</span>
+                            </div>
+                            <div className="mt-2 rounded-2xl border border-neutral-800 bg-neutral-900/60 px-3 py-2">
+                                {emailRecipients.length === 0 ? (
+                                    <div className="text-xs text-neutral-400">Nenhum destinatario cadastrado.</div>
+                                ) : (
+                                    <div className="flex flex-wrap gap-2">
+                                        {emailRecipients.map((recipient) => {
+                                            const isDefault = defaultEmailRecipients.includes(recipient);
+                                            return (
+                                                <span
+                                                    key={recipient}
+                                                    className="inline-flex items-center gap-2 rounded-full bg-neutral-900/70 px-3 py-1 text-xs text-white/80 shadow-sm uppercase"
+                                                >
+                                                    {recipient}
+                                                    {isDefault ? (
+                                                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase text-emerald-300">
+                                                            Padrao
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleRemoveEmailRecipient(recipient)}
+                                                            className="text-neutral-400 hover:text-neutral-200"
+                                                            disabled={sendingEmail}
+                                                            aria-label={`Remover ${recipient}`}
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    )}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                            <input
+                                type="email"
+                                value={emailRecipientInput}
+                                onChange={(event) => setEmailRecipientInput(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        handleAddEmailRecipient();
+                                    }
+                                }}
+                                className="flex-1 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm focus:border-primary-500 focus:outline-none"
+                                placeholder="email@exemplo.com"
+                                disabled={sendingEmail}
+                            />
+                            <button
+                                onClick={handleAddEmailRecipient}
+                                className="rounded-2xl bg-button px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-button-hover disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={sendingEmail}
+                            >
+                                Adicionar
+                            </button>
+                        </div>
+
+                        {emailRecipientsError && (
+                            <p className="mt-2 text-xs text-red-400">{emailRecipientsError}</p>
+                        )}
+
+                        <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-white/10">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowEmailRecipientsModal(false);
+                                    setEmailRecipientsError(null);
+                                }}
+                                className="rounded-2xl border border-neutral-800 bg-neutral-200/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-neutral-600 hover:bg-neutral-200/10"
+                                disabled={sendingEmail}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmSendEmail}
+                                className="rounded-2xl bg-button px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-button-hover disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={sendingEmail}
+                            >
+                                {sendingEmail ? "Enviando..." : "Enviar"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showSaveConfirm && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm"
@@ -1452,4 +1650,3 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         </>
     );
 }
-

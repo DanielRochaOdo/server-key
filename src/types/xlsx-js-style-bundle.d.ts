@@ -1,4 +1,4 @@
-declare module 'xlsx-js-style/dist/xlsx.bundle.js' {
-  import * as XLSX from 'xlsx-js-style';
+declare module 'xlsx-js-style' {
+  import * as XLSX from 'xlsx';
   export = XLSX;
 }

@@ -8,7 +8,37 @@ import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
-import * as XLSX from 'xlsx-js-style/dist/xlsx.bundle.js';
+const resolveXlsx = async () => {
+  const isStyled = (candidate: any) => Boolean(candidate?.style_version);
+  const pickCandidate = (moduleRef: any) => {
+    const candidates = [
+      moduleRef,
+      moduleRef?.default,
+      moduleRef?.XLSX,
+      moduleRef?.default?.XLSX,
+      moduleRef?.default?.default,
+      moduleRef?.default?.default?.XLSX,
+    ];
+    return candidates.find(
+      (candidate) =>
+        candidate?.utils?.aoa_to_sheet &&
+        candidate?.utils?.book_new &&
+        candidate?.utils?.book_append_sheet &&
+        candidate?.writeFile &&
+        isStyled(candidate)
+    );
+  };
+
+  try {
+    const styledBundle: any = await import('xlsx-js-style');
+    const candidate = pickCandidate(styledBundle);
+    if (candidate) return candidate;
+  } catch {
+    // ignore and try next source
+  }
+
+  throw new Error('Biblioteca XLSX com estilos indisponível.');
+};
 
 type ContaTipo = 'fixa' | 'avulsa' | 'ressarcimento';
 type LoteOrigem = ContaTipo | 'misto';
@@ -101,7 +131,7 @@ const XLSX_EXPORT_HEADERS = [
   'AGÊNCIA',
   'CONTA',
   'TIPO DE CONTA',
-  'CPF/CNPJ',
+  'CPF/CNPJ/CHAVE PIX',
   'Anexos (Sim/Não)',
 ];
 
@@ -153,10 +183,57 @@ const normalizeEntriesMap = (entries: Record<string, ExportEntry>) => {
   return normalizedEntries;
 };
 
+const parseExportValor = (value: string | number | null | undefined) => {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return value;
+  const cleaned = value.toString().replace(/[^\d,.-]/g, '');
+  if (!cleaned) return null;
+  const hasComma = cleaned.includes(',');
+  const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const parseExportDate = (value?: string | null) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+      return new Date(year, month - 1, day);
+    }
+  }
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+
+  const match = trimmed.match(/^(\d{1,2})[\\/.-](\d{1,2})[\\/.-](\d{2,4})$/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  let year = Number(match[3]);
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
+  if (year < 100) year += 2000;
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 
 
 
 type ExportFormat = 'csv' | 'xlsx' | 'template' | 'xlsx_resumido';
+
+type ExportOverrides = {
+  resumidoRows?: LoteRowResumido[];
+  detalhadoRows?: LoteRowDetalhado[];
+  filenameBase?: string;
+};
 
 type ExportEntryField =
   | 'fornecedor'
@@ -210,7 +287,7 @@ const EXPORT_TABLE_COLUMNS: {
   { label: 'AGÊNCIA', field: 'agencia', align: 'left' },
   { label: 'CONTA', field: 'conta', align: 'left' },
   { label: 'TIPO DE CONTA', field: 'tipoConta', align: 'left' },
-  { label: 'CPF/CNPJ', field: 'cpfCnpj', align: 'left' },
+  { label: 'CPF/CNPJ/CHAVE PIX', field: 'cpfCnpj', align: 'left' },
   { label: 'ANEXOS (SIM/NÃO)', field: 'anexos', align: 'center' },
 ];
 
@@ -235,7 +312,7 @@ const LOTE_DETALHADO_COLUMNS: {
   { label: 'AGÊNCIA', field: 'agencia', align: 'left' },
   { label: 'CONTA', field: 'conta', align: 'left' },
   { label: 'TIPO DE CONTA', field: 'tipoConta', align: 'left' },
-  { label: 'CPF/CNPJ', field: 'cpfCnpj', align: 'left' },
+  { label: 'CPF/CNPJ/CHAVE PIX', field: 'cpfCnpj', align: 'left' },
   { label: 'ANEXOS (SIM/NÃO)', field: 'anexos', align: 'center' },
 ];
 
@@ -1458,25 +1535,10 @@ const ContasAPagar: React.FC = () => {
   }, []);
 
   const buildXlsxDataRows = useCallback((entryMap: Record<string, ExportEntry>) => {
-    const parseValor = (value: string | number | null) => {
-      if (value === null || value === undefined || value === '') return null;
-      if (typeof value === 'number') return value;
-      const cleaned = value.toString().replace(/[^\d,.-]/g, '');
-      if (!cleaned) return null;
-      const hasComma = cleaned.includes(',');
-      const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
-      const numeric = Number(normalized);
-      return Number.isFinite(numeric) ? numeric : null;
-    };
-
     return filteredContasSorted.map((conta) => {
-      const valorNum = parseValor(conta.valor);
+      const valorNum = parseExportValor(conta.valor);
       const entry = mergeExportEntryWithDefaults(conta, entryMap[conta.id]);
-      let vencDate: Date | null = null;
-      if (entry.vencimento) {
-        const parsedDate = new Date(entry.vencimento);
-        vencDate = Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
-      }
+      const vencDate = parseExportDate(entry.vencimento);
 
       return [
         entry.fornecedor,
@@ -1496,13 +1558,19 @@ const ContasAPagar: React.FC = () => {
       ];
     });
   }, [filteredContasSorted, mergeExportEntryWithDefaults]);
-  const exportData = useCallback((format: ExportFormat, entryMap: Record<string, ExportEntry> = {}) => {
+  const exportData = useCallback(async (
+    format: ExportFormat,
+    entryMap: Record<string, ExportEntry> = {},
+    overrides?: ExportOverrides
+  ) => {
+    try {
+      const XLSX = await resolveXlsx();
     // ===== base do arquivo (igual ao anexo) =====
     const TITLE = 'PROTOCOLO FINANCEIRO';
     const HEADERS = XLSX_EXPORT_HEADERS;
 
     // larguras (igual ao arquivo anexado)
-    const COL_WIDTHS = [34.71, 15.0, 19.855, 20.425, 13.0, 62.57, 27.285, 19.855, 16.855, 13.0, 10.71, 14.71, 18.71, 17.425];
+    const COL_WIDTHS = [35.21, 15.5, 20.36, 20.93, 13.5, 63.07, 27.79, 20.36, 17.36, 13.5, 11.21, 15.21, 29.5, 17.93];
 
     const thin = { style: 'thin', color: { rgb: 'FFBFBFBF' } };
 
@@ -1515,7 +1583,7 @@ const ContasAPagar: React.FC = () => {
     const styleHeader = {
       font: { bold: true, sz: 11 },
       alignment: { horizontal: 'center', vertical: 'center' },
-      fill: { patternType: 'solid', fgColor: { rgb: 'FFE7E6E6' } }, // cinza claro (bem próximo do Excel do anexo)
+      fill: { patternType: 'solid', fgColor: { rgb: 'E7E6E6' } },
       border: { left: thin, right: thin, top: thin, bottom: thin },
     };
 
@@ -1528,17 +1596,17 @@ const ContasAPagar: React.FC = () => {
     const styleDate = {
       ...styleCell,
       alignment: { horizontal: 'center', vertical: 'center' },
-      numFmt: 'mm-dd-yy', // no anexo está assim
-    };
-
-    const styleMoney = {
-      ...styleCell,
-      alignment: { horizontal: 'right', vertical: 'center' },
-      numFmt: '_-"R$"* #,##0.00_-;_-"R$"* -#,##0.00_-;_-"R$"* "-"??_-;_-@_-',
+      numFmt: 'dd/mm/yy;@',
     };
 
     const brlFinanceiroFmt =
       '_-"R$"\\ * #,##0.00_-;\\-"R$"\\ * #,##0.00_-;_-"R$"\\ * "-"??_-;_-@_-';
+    const styleMoney = {
+      ...styleCell,
+      alignment: { horizontal: 'right', vertical: 'center' },
+      numFmt: brlFinanceiroFmt,
+    };
+    const dateStamp = new Date().toISOString().slice(0, 10);
 
     // ===== monta linhas =====
     const rows: any[][] = [];
@@ -1552,7 +1620,7 @@ const ContasAPagar: React.FC = () => {
       const HEADERS = ['FORNECEDOR', 'VALOR', 'VENCIMENTO', 'DESCRIÇÃO', 'NF', null]; // F fica oculto
 
       // larguras iguais ao anexo (A..F)
-      const COL_WIDTHS = [31.71, 18.285, 19.855, 62.57, 18.285, 0];
+      const COL_WIDTHS = [32.21, 18.79, 20.36, 63.07, 21.93, 0.5];
 
       const thin = { style: 'thin', color: { rgb: 'FFBFBFBF' } };
 
@@ -1565,7 +1633,7 @@ const ContasAPagar: React.FC = () => {
       const styleHeader = {
         font: { bold: true, sz: 11 },
         alignment: { horizontal: 'center', vertical: 'center' },
-        fill: { patternType: 'solid', fgColor: { rgb: 'FFE7E6E6' } }, // aproxima o "theme 9"
+        fill: { patternType: 'solid', fgColor: { rgb: 'E7E6E6' } },
         border: { left: thin, right: thin, top: thin, bottom: thin },
       };
 
@@ -1584,52 +1652,27 @@ const ContasAPagar: React.FC = () => {
       const styleDate = {
         ...styleCell,
         alignment: { horizontal: 'center', vertical: 'center' },
-        numFmt: 'mm-dd-yy',
+        numFmt: 'dd/mm/yy;@',
       };
 
-      // helpers (use os seus se já existirem no escopo)
-      const parseValorLocal = (value: string | number | null) => {
-        if (value === null || value === undefined || value === '') return null;
-        if (typeof value === 'number') return value;
-        const cleaned = value.toString().replace(/[^\d,.-]/g, '');
-        if (!cleaned) return null;
-        const hasComma = cleaned.includes(',');
-        const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
-        const n = Number(normalized);
-        return Number.isFinite(n) ? n : null;
-      };
-
-      const now = new Date();
-      const startOfDayLocal = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      const getDaysInMonthLocal = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
-
-      const getDayValueLocal = (value: number | null | undefined) => {
-        if (value === null || value === undefined) return null;
-        const parsed = Number(value);
-        if (!Number.isFinite(parsed)) return null;
-        const day = Math.trunc(parsed);
-        if (day < 1 || day > 31) return null;
-        return day;
-      };
-
-      const getNextDueDateLocal = (day: number, baseDate: Date) => {
-        let year = baseDate.getFullYear();
-        let month = baseDate.getMonth();
-        const todayStart = startOfDayLocal(baseDate);
-
-        const monthDays = getDaysInMonthLocal(year, month);
-        let due = new Date(year, month, Math.min(day, monthDays));
-
-        if (due < todayStart) {
-          month += 1;
-          if (month > 11) {
-            month = 0;
-            year += 1;
-          }
-          const nextMonthDays = getDaysInMonthLocal(year, month);
-          due = new Date(year, month, Math.min(day, nextMonthDays));
-        }
-        return due;
+      const pushResumidoRow = (row: {
+        fornecedor?: string;
+        valor?: string | number | null;
+        vencimento?: string | null;
+        descricao?: string;
+        notaFiscal?: string;
+      }) => {
+        const valorNum = parseExportValor(row.valor ?? null);
+        const vencDate = parseExportDate(row.vencimento ?? null);
+        const vencCell = vencDate ?? (row.vencimento ? row.vencimento : null);
+        rows.push([
+          row.fornecedor ?? '',
+          valorNum ?? null,
+          vencCell ?? null,
+          row.descricao ?? '',
+          row.notaFiscal ?? '',
+          null,
+        ]);
       };
 
       // monta AOA (1..)
@@ -1639,35 +1682,34 @@ const ContasAPagar: React.FC = () => {
       rows.push(HEADERS);                                    // linha 3
 
       // dados (linha 4+)
-      filteredContasSorted.forEach((conta) => {
-        const valorNum = parseValorLocal(conta.valor);
-        const entry = mergeExportEntryWithDefaults(conta, entryMap[conta.id]);
-        let vencDate: Date | string = '-';
-        if (entry.vencimento) {
-          const parsedDate = new Date(entry.vencimento);
-          vencDate = Number.isNaN(parsedDate.getTime()) ? '-' : parsedDate;
-        }
-
-        rows.push([
-          entry.fornecedor || '',
-          valorNum ?? null,
-          vencDate,
-          entry.descricao || '',
-          entry.notaFiscal || '',
-          null,
-        ]);
-      });
+      if (overrides?.resumidoRows) {
+        overrides.resumidoRows.forEach((row) => pushResumidoRow(row));
+      } else {
+        filteredContasSorted.forEach((conta) => {
+          const entry = mergeExportEntryWithDefaults(conta, entryMap[conta.id]);
+          pushResumidoRow({
+            fornecedor: entry.fornecedor,
+            valor: conta.valor,
+            vencimento: entry.vencimento,
+            descricao: entry.descricao,
+            notaFiscal: entry.notaFiscal,
+          });
+        });
+      }
 
       // TOTAL (igual ao anexo) - soma de B4 até última linha de dados
       const firstDataRow = 4;
       const lastDataRow = rows.length; // antes de adicionar total
       rows.push(['TOTAL', { f: `SUM(B${firstDataRow}:B${lastDataRow})` }, null, null, null, null]);
 
-      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const ws = XLSX.utils.aoa_to_sheet(rows, { cellDates: true });
 
       const totalRowIndex = rows.length - 1; // índice 0-based dentro do AOA
       const totalCellAddr = XLSX.utils.encode_cell({ r: totalRowIndex, c: 1 }); // coluna B
-      if (ws[totalCellAddr]) ws[totalCellAddr].s = styleMoney;
+      if (ws[totalCellAddr]) {
+        ws[totalCellAddr].s = styleMoney;
+        ws[totalCellAddr].t = 'n';
+      }
 
       // merge título: A1:E2 (não inclui F)
       ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 1, c: 4 } }];
@@ -1693,13 +1735,15 @@ const ContasAPagar: React.FC = () => {
           // col B (VALOR)
           if (c === 1) {
             ws[addr].s = styleMoney;
+            if (typeof ws[addr].v === 'number' || ws[addr].f) {
+              ws[addr].t = 'n';
+            }
             continue;
           }
 
-          // col C (VENCIMENTO) - só aplica date se for Date
+          // col C (VENCIMENTO)
           if (c === 2) {
-            if (ws[addr].v instanceof Date) ws[addr].s = styleDate;
-            else ws[addr].s = styleCell;
+            ws[addr].s = styleDate;
             continue;
           }
 
@@ -1715,7 +1759,8 @@ const ContasAPagar: React.FC = () => {
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Planilha 3'); // igual ao anexo
-      XLSX.writeFile(wb, `PROTOCOLO_FINANCEIRO_RESUMIDO_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const filenameBase = overrides?.filenameBase ?? `PROTOCOLO_FINANCEIRO_RESUMIDO_${dateStamp}`;
+      XLSX.writeFile(wb, `${filenameBase}.xlsx`, { bookType: 'xlsx', cellStyles: true });
       return;
     }
 
@@ -1734,17 +1779,39 @@ const ContasAPagar: React.FC = () => {
         '',     // AGÊNCIA
         '',     // CONTA
         '',     // TIPO DE CONTA
-        '',     // CPF/CNPJ
+        '',     // CPF/CNPJ/CHAVE PIX
         'Não',  // Anexos (Sim/Não)
       ]);
     } else {
       // export real (usa o filtro atual da tela)
-      const dataRows = buildXlsxDataRows(entryMap);
+      const dataRows = overrides?.detalhadoRows
+        ? overrides.detalhadoRows.map((row) => {
+          const valorNum = parseExportValor(row.valor);
+          const vencDate = parseExportDate(row.vencimento ?? null);
+          const vencCell = vencDate ?? (row.vencimento ? row.vencimento : null);
+          return [
+            row.fornecedor ?? '',
+            valorNum ?? null,
+            vencCell ?? null,
+            row.pagamento ?? '',
+            row.empresa ?? '',
+            row.descricao ?? '',
+            row.notaFiscal ?? '',
+            row.setorResponsavel ?? '',
+            row.banco ?? '',
+            row.agencia ?? '',
+            row.conta ?? '',
+            row.tipoConta ?? '',
+            row.cpfCnpj ?? '',
+            row.anexos ?? '',
+          ];
+        })
+        : buildXlsxDataRows(entryMap);
       dataRows.forEach((row) => rows.push(row));
     }
 
     // ===== cria planilha =====
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const ws = XLSX.utils.aoa_to_sheet(rows, { cellDates: true });
 
     // merge A1:N2
     ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 1, c: 13 } }];
@@ -1770,11 +1837,14 @@ const ContasAPagar: React.FC = () => {
         // VALOR (col B)
         if (c === 1) {
           ws[addr].s = styleMoney;
+          if (typeof ws[addr].v === 'number' || ws[addr].f) {
+            ws[addr].t = 'n';
+          }
           continue;
         }
 
-        // VENCIMENTO (col C) e DATA INCLUSÃO (col I)
-        if (c === 2 || c === 8) {
+        // VENCIMENTO (col C)
+        if (c === 2) {
           ws[addr].s = styleDate;
           continue;
         }
@@ -1786,15 +1856,19 @@ const ContasAPagar: React.FC = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Planilha1');
 
-    const filenameBase = format === 'template'
+    const filenameBase = overrides?.filenameBase ?? (format === 'template'
       ? 'PROTOCOLO_FINANCEIRO_MODELO'
-      : `PROTOCOLO_FINANCEIRO_${new Date().toISOString().slice(0, 10)}`;
+      : `PROTOCOLO_FINANCEIRO_${dateStamp}`);
 
-    XLSX.writeFile(wb, `${filenameBase}.xlsx`);
-  }, [buildXlsxDataRows, filteredContasSorted]);
+    XLSX.writeFile(wb, `${filenameBase}.xlsx`, { bookType: 'xlsx', cellStyles: true });
+  } catch (error) {
+      console.error('Erro ao exportar contas a pagar:', error);
+      setToast({ type: 'error', message: 'Falha ao exportar planilha.' });
+    }
+  }, [buildXlsxDataRows, filteredContasSorted, setToast]);
 
   const handleExportSelection = useCallback((format: ExportFormat) => {
-    exportData(format);
+    void exportData(format);
     setShowExportMenu(false);
   }, [exportData]);
 
@@ -2474,26 +2548,27 @@ const ContasAPagar: React.FC = () => {
 
   const handleExportEditingLote = useCallback(() => {
     if (!editingLoteType) return;
-    const columns = editingLoteType === 'resumido' ? LOTE_RESUMIDO_COLUMNS : LOTE_DETALHADO_COLUMNS;
-    const rows = [
-      columns.map((column) => column.label),
-      ...editingLoteRows.map((row) =>
-        columns.map((column) => (row as Record<string, string>)[column.field as string] ?? '')
-      ),
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Lote');
-
+    const dateStamp = new Date().toISOString().slice(0, 10);
     const safeName = (editingLoteNome || 'lote')
       .replace(/[^\w\d-]+/g, '_')
       .replace(/_+/g, '_')
       .slice(0, 40);
     const suffix = editingLoteType === 'resumido' ? 'RESUMIDO' : 'DETALHADO';
-    const filename = `${safeName}_${suffix}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(wb, filename);
-  }, [editingLoteNome, editingLoteRows, editingLoteType]);
+    const filenameBase = `${safeName}_${suffix}_${dateStamp}`;
+
+    if (editingLoteType === 'resumido') {
+      void exportData('xlsx_resumido', {}, {
+        filenameBase,
+        resumidoRows: editingLoteRows as LoteRowResumido[],
+      });
+      return;
+    }
+
+    void exportData('xlsx', {}, {
+      filenameBase,
+      detalhadoRows: editingLoteRows as LoteRowDetalhado[],
+    });
+  }, [editingLoteNome, editingLoteRows, editingLoteType, exportData]);
 
 
   const handleNewContaClick = useCallback(() => {

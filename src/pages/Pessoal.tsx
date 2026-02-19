@@ -214,7 +214,7 @@ const Pessoal: React.FC = () => {
 
   const exportData = useCallback(async (format: 'csv' | 'xlsx' | 'template') => {
     try {
-      const XLSXModule: any = await import('xlsx-js-style/dist/xlsx.bundle.js');
+      const XLSXModule: any = await import('xlsx-js-style');
       const candidates = [
         XLSXModule,
         XLSXModule?.default,

@@ -187,7 +187,7 @@ const WinUsers: React.FC = () => {
   const exportData = async (format: 'csv' | 'xlsx' | 'template') => {
     try {
       const modules = await Promise.allSettled([
-        import('xlsx-js-style/dist/xlsx.bundle.js'),
+        import('xlsx-js-style'),
         import('xlsx')
       ]);
       const candidates: any[] = [];

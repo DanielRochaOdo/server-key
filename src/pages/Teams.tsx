@@ -207,7 +207,7 @@ const Teams: React.FC = () => {
 
   const exportData = async (format: 'csv' | 'xlsx' | 'template') => {
     try {
-      const styledModule: any = await import('xlsx-js-style/dist/xlsx.bundle.js');
+      const styledModule: any = await import('xlsx-js-style');
       const styledCandidates = [
         styledModule,
         styledModule?.default,

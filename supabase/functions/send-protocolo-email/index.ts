@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, error: "Server configuration error" }, 500);
   }
 
-  let body: { protocoloId?: string };
+  let body: { protocoloId?: string; recipients?: string[] };
   try {
     body = await req.json();
   } catch (error) {
@@ -123,6 +123,17 @@ Deno.serve(async (req) => {
   if (!protocoloId) {
     return jsonResponse({ ok: false, error: "Missing protocoloId" }, 400);
   }
+
+  const normalizeEmail = (value: string) => value.trim().toLowerCase();
+  const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  const defaultRecipients = ["daniel.rocha@odontoart.com", "ryanmendes@odontoart.com"];
+  const providedRecipients = Array.isArray(body?.recipients)
+    ? body.recipients
+        .map((recipient) => (typeof recipient === "string" ? normalizeEmail(recipient) : ""))
+        .filter((recipient) => recipient.length > 0)
+    : [];
+  const uniqueRecipients = Array.from(new Set(providedRecipients)).filter(isValidEmail);
+  const recipients = uniqueRecipients.length > 0 ? uniqueRecipients : defaultRecipients;
 
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
@@ -288,7 +299,7 @@ Deno.serve(async (req) => {
   try {
     await transporter.sendMail({
       from: smtpFrom,
-      to: ["daniel.rocha@odontoart.com", "ryanmendes@odontoart.com"],
+      to: recipients,
       subject,
       html: htmlBody,
     });
