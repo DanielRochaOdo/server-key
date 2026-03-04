@@ -218,7 +218,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!userProfile || !userProfile.is_active) {
       return false;
     }
-    if (normalizeRole(userProfile.role) === 'owner') {
+    const role = normalizeRole(userProfile.role);
+    if (role === 'owner' || role === 'admin') {
       return true;
     }
     return userProfile.modules?.includes(module) || false;

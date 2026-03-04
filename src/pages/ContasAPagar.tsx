@@ -8,6 +8,7 @@ import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
+import { getLocalDateKey, getUsdBrlRate } from '../utils/usdBrlRate';
 const resolveXlsx = async () => {
   const isStyled = (candidate: any) => Boolean(candidate?.style_version);
   const pickCandidate = (moduleRef: any) => {
@@ -99,6 +100,10 @@ interface ContaAPagar {
   link?: string | null;
   descricao: string | null;
   valor: string | number | null;
+  valor_moeda?: string | number | null;
+  moeda?: 'BRL' | 'USD' | null;
+  cotacao_usd_brl?: string | number | null;
+  cotacao_atualizada_em?: string | null;
   vencimento?: number | null;
   observacoes?: string | null;
   tipo_conta?: ContaTipo | null;
@@ -618,6 +623,7 @@ const ContasAPagar: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { getState, setState, clearState } = usePersistence();
+  const USD_UPDATE_DATE_KEY = 'serverkey:contas_apagar_usd_update_date';
 
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => getState('contasAPagar_activeTab') || 'fixa');
   const [newContaTipo, setNewContaTipo] = useState<ContaTipo>(() => getState('contasAPagar_newContaTipo') || 'fixa');
@@ -730,7 +736,7 @@ const ContasAPagar: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('contas_a_pagar')
-        .select('id, status_documento, fornecedor, tipo_pagto, link, descricao, valor, vencimento, observacoes, tipo_conta, created_at')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -742,9 +748,64 @@ const ContasAPagar: React.FC = () => {
     }
   }, []);
 
+  const refreshUsdContasIfNeeded = useCallback(async () => {
+    if (!user?.id || typeof window === 'undefined') return;
+    const today = getLocalDateKey();
+    const lastUpdate = localStorage.getItem(USD_UPDATE_DATE_KEY);
+    if (lastUpdate === today) return;
+
+    const usdContas = contas.filter((conta) => (conta.moeda || 'BRL') === 'USD');
+    if (usdContas.length === 0) {
+      localStorage.setItem(USD_UPDATE_DATE_KEY, today);
+      return;
+    }
+
+    try {
+      const rate = await getUsdBrlRate({ forceRefresh: true });
+      const parseValorMoeda = (value: string | number | null | undefined) => {
+        if (value === null || value === undefined || value === '') return null;
+        if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+        const cleaned = value.toString().replace(/[^\d,.-]/g, '');
+        if (!cleaned) return null;
+        const hasComma = cleaned.includes(',');
+        const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+        const numeric = Number(normalized);
+        return Number.isFinite(numeric) ? numeric : null;
+      };
+      const updates = usdContas
+        .map((conta) => {
+          const valorMoeda = parseValorMoeda(conta.valor_moeda ?? null);
+          if (!Number.isFinite(valorMoeda ?? NaN)) return null;
+          const valorFinal = Math.round((valorMoeda as number) * rate * 100) / 100;
+          return supabase
+            .from('contas_a_pagar')
+            .update({
+              valor: valorFinal,
+              cotacao_usd_brl: rate,
+              cotacao_atualizada_em: today,
+            })
+            .eq('id', conta.id);
+        })
+        .filter(Boolean);
+
+      if (updates.length) {
+        await Promise.all(updates);
+        await fetchContas();
+      }
+      localStorage.setItem(USD_UPDATE_DATE_KEY, today);
+    } catch (error) {
+      console.error('Erro ao atualizar cotacao USD/BRL:', error);
+    }
+  }, [USD_UPDATE_DATE_KEY, contas, fetchContas, user?.id]);
+
   useEffect(() => {
     fetchContas();
   }, [fetchContas]);
+
+  useEffect(() => {
+    if (!contas.length) return;
+    refreshUsdContasIfNeeded();
+  }, [contas, refreshUsdContasIfNeeded]);
 
   useEffect(() => {
     setState('contasAPagar_activeTab', activeTab);
@@ -802,7 +863,8 @@ const ContasAPagar: React.FC = () => {
   const formatBRLFromInput = (input: string) => {
     const cleaned = input.replace(/[^\d,.-]/g, '');
     if (!cleaned) return '';
-    const normalized = cleaned.replace(/\./g, '').replace(',', '.');
+    const hasComma = cleaned.includes(',');
+    const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
     const numeric = Number(normalized);
     if (!Number.isFinite(numeric)) return '';
     return new Intl.NumberFormat('pt-BR', {
@@ -1463,18 +1525,8 @@ const ContasAPagar: React.FC = () => {
   }, [exportEntries, filteredContasSorted, mergeExportEntryWithDefaults, normalizeContaTipo]);
 
   const buildDetalhadoEmailRows = useCallback((rows: LoteRowDetalhado[]) => {
-    const parseValor = (value: string | number | null | undefined) => {
-      if (value === null || value === undefined || value === '') return null;
-      if (typeof value === 'number') return value;
-      const cleaned = value.toString().replace(/[^\d,.-]/g, '');
-      if (!cleaned) return null;
-      const normalized = cleaned.replace(/\./g, '').replace(',', '.');
-      const numeric = Number(normalized);
-      return Number.isFinite(numeric) ? numeric : null;
-    };
-
     return rows.map((row) => {
-      const valorNum = parseValor(row.valor);
+      const valorNum = parseExportValor(row.valor ?? null);
       let vencDate: Date | null = null;
       if (row.vencimento) {
         const parsedDate = new Date(row.vencimento);
@@ -2645,9 +2697,16 @@ const ContasAPagar: React.FC = () => {
 
   const formatCurrency = (value: string | number | null) => {
     if (value === null || value === undefined || value === '') return '-';
-    const numericValue = typeof value === 'number'
-      ? value
-      : Number(value.toString().replace(/\./g, '').replace(',', '.'));
+    let numericValue: number;
+    if (typeof value === 'number') {
+      numericValue = value;
+    } else {
+      const cleaned = value.toString().replace(/[^\d,.-]/g, '');
+      if (!cleaned) return value.toString();
+      const hasComma = cleaned.includes(',');
+      const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+      numericValue = Number(normalized);
+    }
     if (!Number.isFinite(numericValue)) {
       return value.toString();
     }

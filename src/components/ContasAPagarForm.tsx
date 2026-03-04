@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getLocalDateKey, getUsdBrlRate } from '../utils/usdBrlRate';
 
 interface ContaAPagar {
   id: string;
@@ -11,6 +12,10 @@ interface ContaAPagar {
   link?: string | null;
   descricao: string;
   valor: string | number;
+  valor_moeda?: string | number | null;
+  moeda?: 'BRL' | 'USD' | null;
+  cotacao_usd_brl?: number | string | null;
+  cotacao_atualizada_em?: string | null;
   vencimento?: number | null;
   observacoes?: string | null;
   tipo_conta?: 'fixa' | 'avulsa' | 'ressarcimento' | null;
@@ -57,24 +62,25 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
+  const [isUsd, setIsUsd] = useState(false);
 
   const persistenceKey = conta ? `contasAPagarForm_edit_${conta.id}` : `contasAPagarForm_new_${defaultTipoConta}`;
 
-  const formatBRL = (value: number) => {
+  const formatCurrency = (value: number, currency: 'BRL' | 'USD') => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency
     }).format(value);
   };
 
-  const formatBRLFromInput = (input: string) => {
+  const formatCurrencyFromInput = (input: string, currency: 'BRL' | 'USD') => {
     const digits = input.replace(/\D/g, '');
     if (!digits) return '';
     const numberValue = Number(digits) / 100;
-    return formatBRL(numberValue);
+    return formatCurrency(numberValue, currency);
   };
 
-  const parseBRLToNumber = (input: string | number) => {
+  const parseCurrencyToNumber = (input: string | number) => {
     if (typeof input === 'number') return input;
     const cleaned = input.replace(/[^\d,.-]/g, '');
     if (!cleaned) return Number.NaN;
@@ -99,7 +105,10 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
       try {
         const parsedData = JSON.parse(savedData);
         if (parsedData && Object.keys(parsedData).length > 0) {
-          setFormData(prev => ({ ...prev, ...parsedData }));
+          const savedMoeda = (parsedData.moeda || 'BRL').toUpperCase();
+          setIsUsd(savedMoeda === 'USD');
+          const { moeda: _moeda, ...rest } = parsedData;
+          setFormData(prev => ({ ...prev, ...rest }));
         }
         return;
       } catch (error) {
@@ -108,7 +117,12 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
     }
 
     if (conta) {
-      const parsedValor = parseBRLToNumber(String(conta.valor));
+      const moedaConta = (conta.moeda || 'BRL').toUpperCase() === 'USD' ? 'USD' : 'BRL';
+      setIsUsd(moedaConta === 'USD');
+      const baseValor = moedaConta === 'USD'
+        ? (conta.valor_moeda ?? conta.valor)
+        : conta.valor;
+      const parsedValor = parseCurrencyToNumber(String(baseValor));
       const storedTipo = (conta.tipo_pagto || '').trim().toUpperCase();
       const normalizedTipoPagto = PAGTO_OPTIONS.includes(storedTipo as any) ? storedTipo : PAGTO_OPTIONS[0];
       const contaTipo: ContaTipo = conta.tipo_conta === 'avulsa'
@@ -122,12 +136,13 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         tipo_pagto: normalizedTipoPagto,
         link: conta.link || '',
         descricao: conta.descricao || '',
-        valor: Number.isFinite(parsedValor) ? formatBRL(parsedValor) : '',
+        valor: Number.isFinite(parsedValor) ? formatCurrency(parsedValor, moedaConta) : '',
         vencimento: conta.vencimento !== null && conta.vencimento !== undefined ? String(conta.vencimento) : '',
         observacoes: conta.observacoes || '',
         tipo_conta: contaTipo
       });
     } else {
+      setIsUsd(false);
       setFormData({
         status_documento: STATUS_OPTIONS[0],
         fornecedor: '',
@@ -145,17 +160,40 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
 
   useEffect(() => {
     if (formData.fornecedor || formData.descricao) {
-      localStorage.setItem(persistenceKey, JSON.stringify(formData));
+      localStorage.setItem(
+        persistenceKey,
+        JSON.stringify({
+          ...formData,
+          moeda: isUsd ? 'USD' : 'BRL',
+        })
+      );
     }
-  }, [formData, persistenceKey]);
+  }, [formData, isUsd, persistenceKey]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'valor') {
-      setFormData(prev => ({ ...prev, valor: formatBRLFromInput(value) }));
+      setFormData(prev => ({
+        ...prev,
+        valor: formatCurrencyFromInput(value, isUsd ? 'USD' : 'BRL')
+      }));
       return;
     }
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleToggleUsd = () => {
+    setIsUsd((prev) => {
+      const next = !prev;
+      const parsedValor = parseCurrencyToNumber(formData.valor);
+      if (Number.isFinite(parsedValor)) {
+        setFormData((current) => ({
+          ...current,
+          valor: formatCurrency(parsedValor, next ? 'USD' : 'BRL'),
+        }));
+      }
+      return next;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -166,7 +204,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
     setError('');
 
     try {
-      const parsedValor = parseBRLToNumber(formData.valor);
+      const parsedValor = parseCurrencyToNumber(formData.valor);
       if (!Number.isFinite(parsedValor)) {
         setError('Valor invalido');
         return;
@@ -191,9 +229,31 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         return;
       }
 
+      let valorFinal = parsedValor;
+      let cotacaoUsd: number | null = null;
+      let cotacaoDate: string | null = null;
+      const moeda = isUsd ? 'USD' : 'BRL';
+
+      if (isUsd) {
+        try {
+          const rate = await getUsdBrlRate({ forceRefresh: true });
+          cotacaoUsd = rate;
+          cotacaoDate = getLocalDateKey();
+          valorFinal = Math.round(parsedValor * rate * 100) / 100;
+        } catch (rateError) {
+          console.error('Erro ao obter cotacao USD/BRL:', rateError);
+          setError('Falha ao obter a cotacao do dolar.');
+          return;
+        }
+      }
+
       const dataToSave = {
         ...formData,
-        valor: parsedValor,
+        valor: valorFinal,
+        valor_moeda: parsedValor,
+        moeda,
+        cotacao_usd_brl: cotacaoUsd,
+        cotacao_atualizada_em: cotacaoDate,
         tipo_pagto: tipoPagto,
         vencimento: normalizedVencimento,
         link: normalizedLink ? normalizedLink : null,
@@ -337,18 +397,32 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                 <label htmlFor="valor" className="block text-sm font-medium text-neutral-700 mb-2">
                   Valor *
                 </label>
-                <input
-                  type="text"
-                  id="valor"
-                  name="valor"
-                  required
-                  value={formData.valor}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
-                  disabled={loading}
-                  inputMode="numeric"
-                  placeholder="R$ 0,00"
-                />
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    id="valor"
+                    name="valor"
+                    required
+                    value={formData.valor}
+                    onChange={handleChange}
+                    className="flex-1 rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                    disabled={loading}
+                    inputMode="numeric"
+                    placeholder={isUsd ? 'US$ 0,00' : 'R$ 0,00'}
+                  />
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-neutral-700">
+                    <input
+                      type="checkbox"
+                      checked={isUsd}
+                      onChange={handleToggleUsd}
+                      disabled={loading}
+                      className="h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-200"
+                    />
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-neutral-300 bg-neutral-100 text-sm font-semibold text-neutral-700">
+                      $
+                    </span>
+                  </label>
+                </div>
               </div>
 
               <div className="md:col-span-2">

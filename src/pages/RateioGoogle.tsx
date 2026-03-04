@@ -78,32 +78,60 @@ const RateioGoogle: React.FC = () => {
     fetchRateios();
   }, [fetchRateios]);
 
+  const getFreshAccessToken = useCallback(async () => {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    const session = sessionData.session;
+    if (!session?.access_token) throw new Error('Sessao expirada. Faca login novamente.');
+
+    const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
+    const shouldRefresh = !expiresAtMs || expiresAtMs - Date.now() < 2 * 60 * 1000;
+    if (!shouldRefresh) return session.access_token;
+
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshData.session?.access_token) {
+      throw new Error('Sessao expirada. Faca login novamente.');
+    }
+    return refreshData.session.access_token;
+  }, []);
+
   const handleSyncWorkspace = useCallback(async () => {
     try {
       setSyncingWorkspace(true);
       setSyncMessage(null);
 
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !sessionData?.session?.access_token) {
-        throw new Error('Sessao invalida. Faca login novamente.');
+      const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+      if (!supabaseAnonKey) {
+        throw new Error('Configuracao de ambiente invalida (VITE_SUPABASE_ANON_KEY).');
       }
 
-      const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
-      if (!supabaseUrl) {
-        throw new Error('Configuracao de ambiente invalida (VITE_SUPABASE_URL).');
-      }
+      const token = await getFreshAccessToken();
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/google-workspace-sync`, {
-        method: 'POST',
+      const { data: payload, error } = await supabase.functions.invoke('google-workspace-sync', {
+        body: { mode: 'full' },
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionData.session.access_token}`,
+          Authorization: `Bearer ${token}`,
+          apikey: supabaseAnonKey,
         },
-        body: JSON.stringify({ mode: 'full' }),
       });
 
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.ok) {
+      if (error) {
+        const status = (error as any)?.context?.status;
+        let details = '';
+        try {
+          if ((error as any)?.context?.clone) {
+            details = await (error as any).context.clone().text();
+          }
+        } catch {
+          // ignore parse errors
+        }
+        if (status === 401) {
+          throw new Error(details || 'Sessao expirada. Faca login novamente.');
+        }
+        throw new Error(details || error.message || 'Falha ao sincronizar dados do Google Workspace.');
+      }
+
+      if (!payload?.ok) {
         throw new Error(payload?.error || 'Falha ao sincronizar dados do Google Workspace.');
       }
 
@@ -552,6 +580,3 @@ const RateioGoogle: React.FC = () => {
 };
 
 export default RateioGoogle;
-
-
-

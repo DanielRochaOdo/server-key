@@ -10,13 +10,13 @@
 
 @layer utilities {
   :root:not(.dark) .bg-white {
-    @apply bg-neutral-200;
+    background-color: #E4E4E7;
   }
   :root:not(.dark) .bg-neutral-50 {
-    @apply bg-neutral-200;
+    background-color: #E4E4E7;
   }
   :root:not(.dark) .bg-neutral-100 {
-    @apply bg-neutral-200;
+    background-color: #E4E4E7;
   }
   .no-scrollbar {
     -ms-overflow-style: none;
@@ -26,57 +26,57 @@
     display: none;
   }
   .dark .bg-white {
-    @apply bg-neutral-900;
+    background-color: #18181B;
   }
   .dark .bg-neutral-50 {
-    @apply bg-neutral-900;
+    background-color: #18181B;
   }
   .dark .bg-neutral-100 {
-    @apply bg-neutral-900;
+    background-color: #18181B;
   }
   .dark .bg-neutral-200 {
-    @apply bg-neutral-900;
+    background-color: #18181B;
   }
   .dark .border-neutral-100 {
-    @apply border-neutral-800;
+    border-color: #27272A;
   }
   .dark .border-neutral-200 {
-    @apply border-neutral-800;
+    border-color: #27272A;
   }
   .dark .border-neutral-300 {
-    @apply border-neutral-700;
+    border-color: #3F3F46;
   }
   .dark .text-neutral-900 {
-    @apply text-neutral-100;
+    color: #F4F4F5;
   }
   .dark .text-neutral-800 {
-    @apply text-neutral-200;
+    color: #E4E4E7;
   }
   .dark .text-neutral-700 {
-    @apply text-neutral-300;
+    color: #D4D4D8;
   }
   .dark .text-neutral-600 {
-    @apply text-neutral-300;
+    color: #D4D4D8;
   }
   .dark .text-neutral-500 {
-    @apply text-neutral-400;
+    color: #A1A1AA;
   }
   .dark .text-primary-900 {
-    @apply text-primary-200;
+    color: #BBF7D0;
   }
   .dark .text-primary-800 {
-    @apply text-primary-200;
+    color: #BBF7D0;
   }
   .dark .text-primary-700 {
-    @apply text-primary-300;
+    color: #86EFAC;
   }
   .dark .text-primary-600 {
-    @apply text-primary-300;
+    color: #86EFAC;
   }
   .dark .hover\:bg-neutral-50:hover {
-    @apply bg-neutral-800;
+    background-color: #27272A;
   }
   .dark .hover\:bg-neutral-100:hover {
-    @apply bg-neutral-800;
+    background-color: #27272A;
   }
 }

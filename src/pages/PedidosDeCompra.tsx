@@ -4,6 +4,7 @@ import { Plus, Download, ExternalLink, Save, Trash2, Pencil, Star, Mail, Loader2
 import { exportProtocoloXlsx } from "../utils/exportProtocoloXlsx";
 import MoneyInputBRL from "../components/MoneyInputBRL";
 import ModuleHeader from "../components/ModuleHeader";
+import { useAuth } from "../contexts/AuthContext";
 
 type PcStatusMensal = "ENTREGUE" | "PEDIDO_FEITO";
 type PcPrioridade = "BAIXA" | "MEDIA" | "ALTA";
@@ -18,6 +19,7 @@ type MensalItem = {
     valor_unit: number;
     valor_total_frete: number;
     setor: string | null;
+    previsao?: string | null;
     status: PcStatusMensal;
     diretoria: boolean;
     protocolo_item_id?: string | null;
@@ -118,6 +120,13 @@ function round2(n: number) {
     return Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
 }
 
+function formatDatePtBr(value?: string | null) {
+    if (!value) return "";
+    const [year, month, day] = value.split("-");
+    if (!year || !month || !day) return value;
+    return `${day}/${month}/${year}`;
+}
+
 function getMensalBaseTotal(item: MensalItem) {
     return round2(Number(item.quantidade || 0) * Number(item.valor_unit || 0));
 }
@@ -139,6 +148,12 @@ function prioridadeBadge(p: PcPrioridade) {
 
 export default function PedidosDeCompra() {
     const { ano: anoNow, mes: mesNow } = getNowYM();
+    const { hasModuleAccess, isAdmin, isFinanceiro, loadingProfile } = useAuth();
+    const canViewPedidos = hasModuleAccess("pedidos_de_compra");
+    const isFinanceiroUser = isFinanceiro();
+    const isAdminUser = isAdmin();
+    const canEditPrevisao = Boolean(canViewPedidos && (isFinanceiroUser || isAdminUser));
+    const canAccessProtocoloTab = Boolean(canViewPedidos && isAdminUser);
 
     const initialUi = loadPcUiState({
         tab: "MENSAL",
@@ -153,6 +168,17 @@ export default function PedidosDeCompra() {
 
     const [protocoloSel, setProtocoloSel] = useState<Protocolo | null>(null);
     const [protocoloSelId, setProtocoloSelId] = useState<string | null>(initialUi.protocoloSelId);
+
+    useEffect(() => {
+        if (loadingProfile) return;
+        if (!canAccessProtocoloTab) {
+            if (tab === "PROTOCOLO") setTab("MENSAL");
+            setProtocoloSel(null);
+            setProtocoloSelId(null);
+            setItens([]);
+            setProtocolos([]);
+        }
+    }, [loadingProfile, canAccessProtocoloTab, tab]);
 
 
     const [mensal, setMensal] = useState<MensalItem[]>([]);
@@ -378,6 +404,10 @@ export default function PedidosDeCompra() {
     }, [ano, mes]);
 
     const loadProtocolos = useCallback(async () => {
+        if (!canAccessProtocoloTab) {
+            setProtocolos([]);
+            return;
+        }
         const { data, error } = await supabase
             .from("pc_protocolos")
             .select("*")
@@ -391,7 +421,7 @@ export default function PedidosDeCompra() {
             return;
         }
         setProtocolos((data ?? []) as Protocolo[]);
-    }, [ano, mes]);
+    }, [ano, mes, canAccessProtocoloTab]);
 
     useEffect(() => {
         if (!protocoloSelId) return;
@@ -402,6 +432,10 @@ export default function PedidosDeCompra() {
     }, [protocolos, protocoloSelId]);
 
     const loadItens = useCallback(async (protocoloId: string) => {
+        if (!canAccessProtocoloTab) {
+            setItens([]);
+            return;
+        }
         const { data, error } = await supabase
             .from("pc_protocolo_itens")
             .select("*")
@@ -414,7 +448,7 @@ export default function PedidosDeCompra() {
             return;
         }
         setItens((data ?? []) as ProtocoloItem[]);
-    }, []);
+    }, [canAccessProtocoloTab]);
 
     useEffect(() => {
         loadMensal();
@@ -855,16 +889,18 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                 Mensal
             </button>
 
-            <button
-                onClick={() => setTab("PROTOCOLO")}
-                className={`flex-1 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold transition-colors duration-150
-                    ${tab === "PROTOCOLO"
-                        ? "bg-button text-white shadow-lg"
-                        : "bg-neutral-950/90 text-neutral-300 hover:bg-neutral-900/80"
-                    }`}
-            >
-                Protocolo
-            </button>
+            {canAccessProtocoloTab && (
+                <button
+                    onClick={() => setTab("PROTOCOLO")}
+                    className={`flex-1 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold transition-colors duration-150
+                        ${tab === "PROTOCOLO"
+                            ? "bg-button text-white shadow-lg"
+                            : "bg-neutral-950/90 text-neutral-300 hover:bg-neutral-900/80"
+                        }`}
+                >
+                    Protocolo
+                </button>
+            )}
         </div>
 
             {/* ================= MENSAL ================= */}
@@ -875,28 +911,30 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                             <h2 className="text-lg font-bold">Compras do mês</h2>
                             <p className="text-sm text-neutral-400">Dados mensais consultados com base no mês selecionado.</p>
                         </div>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                            <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
-                                <p className="text-xs uppercase tracking-widest text-neutral-400">Total Aprovado</p>
-                                <p className="text-2xl font-semibold text-white">{currency(totais?.total_aprovado ?? 0)}</p>
-                                <p className="text-xs text-neutral-400">Aprovações do mês corrente</p>
+                        {!isFinanceiroUser && (
+                            <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                                <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
+                                    <p className="text-xs uppercase tracking-widest text-neutral-400">Total Aprovado</p>
+                                    <p className="text-2xl font-semibold text-white">{currency(totais?.total_aprovado ?? 0)}</p>
+                                    <p className="text-xs text-neutral-400">Aprovações do mês corrente</p>
+                                </div>
+                                <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
+                                    <p className="text-xs uppercase tracking-widest text-neutral-400">Total Entregue</p>
+                                    <p className="text-2xl font-semibold text-white">{currency(totais?.total_entregue ?? 0)}</p>
+                                    <p className="text-xs text-neutral-400">Atualizado automaticamente</p>
+                                </div>
+                                <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
+                                    <p className="text-xs uppercase tracking-widest text-neutral-400">Aprovado diretoria</p>
+                                    <p className="text-2xl font-semibold text-white">{currency(aprovadoDiretoria)}</p>
+                                    <p className="text-xs text-neutral-400">Itens marcados como diretoria</p>
+                                </div>
+                                <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
+                                    <p className="text-xs uppercase tracking-widest text-neutral-400">Saldo Restante</p>
+                                    <p className={`text-2xl font-semibold ${saldo < 0 ? "text-red-500" : "text-emerald-400"}`}>{currency(saldo)}</p>
+                                    <p className="text-xs text-neutral-400">Base R$ 2.500,00</p>
+                                </div>
                             </div>
-                            <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
-                                <p className="text-xs uppercase tracking-widest text-neutral-400">Total Entregue</p>
-                                <p className="text-2xl font-semibold text-white">{currency(totais?.total_entregue ?? 0)}</p>
-                                <p className="text-xs text-neutral-400">Atualizado automaticamente</p>
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
-                                <p className="text-xs uppercase tracking-widest text-neutral-400">Aprovado diretoria</p>
-                                <p className="text-2xl font-semibold text-white">{currency(aprovadoDiretoria)}</p>
-                                <p className="text-xs text-neutral-400">Itens marcados como diretoria</p>
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
-                                <p className="text-xs uppercase tracking-widest text-neutral-400">Saldo Restante</p>
-                                <p className={`text-2xl font-semibold ${saldo < 0 ? "text-red-500" : "text-emerald-400"}`}>{currency(saldo)}</p>
-                                <p className="text-xs text-neutral-400">Base R$ 2.500,00</p>
-                            </div>
-                        </div>
+                        )}
                     </div>
 
                     <div className="overflow-x-auto p-4">
@@ -976,6 +1014,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                             </button>
                                         </th>
                                         <th className="px-2 py-2 text-center font-semibold">Setor</th>
+                                        <th className="px-2 py-2 text-center font-semibold">Previsão</th>
                                         <th className="px-2 py-2 text-center font-semibold">
                                             <button
                                                 type="button"
@@ -1015,6 +1054,21 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                             />
                                         </td>
                                         <td className="px-3 py-2 border-b border-white/5">
+                                            {canEditPrevisao ? (
+                                                <input
+                                                    type="date"
+                                                    className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
+                                                    value={m.previsao ?? ""}
+                                                    onChange={(e) => updateMensalItem(m.id, { previsao: e.target.value || null })}
+                                                    aria-label="Previsão"
+                                                />
+                                            ) : (
+                                                <div className="text-center text-sm text-neutral-200">
+                                                    {formatDatePtBr(m.previsao) || "-"}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-3 py-2 border-b border-white/5">
                                             <select
                                                 className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
                                                 value={m.status}
@@ -1030,7 +1084,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
                                 {!mensal.length && (
                                     <tr>
-                                        <td className="px-3 py-6 text-center text-neutral-400" colSpan={8}>
+                                        <td className="px-3 py-6 text-center text-neutral-400" colSpan={9}>
                                             Nenhum item no mensal para {String(mes).padStart(2, "0")}/{ano}.
                                         </td>
                                     </tr>
@@ -1042,7 +1096,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
             )}
 
             {/* ================= PROTOCOLO ================= */}
-            {tab === "PROTOCOLO" && (
+            {canAccessProtocoloTab && tab === "PROTOCOLO" && (
                 <div className="grid grid-cols-12 gap-6 mt-4">
                 <div className="col-span-12 lg:col-span-4 rounded-2xl border border-neutral-800 bg-neutral-900/70 text-white shadow-xl overflow-hidden">
                         <div className="px-4 py-3">
