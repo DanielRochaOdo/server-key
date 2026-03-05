@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Globe, Download, Search, Users, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Globe, Download, Search, Users } from 'lucide-react';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { usePersistence } from '../contexts/PersistenceContext';
-import * as XLSX from 'xlsx';
 
 interface RateioGoogle {
   id: string;
@@ -23,7 +22,6 @@ const formatDateTime = (value?: string | null) => {
   return date.toLocaleString('pt-BR');
 };
 
-
 const RateioGoogle: React.FC = () => {
   const [rateios, setRateios] = useState<RateioGoogle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,8 +35,11 @@ const RateioGoogle: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_viewingRateio') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [syncingWorkspace, setSyncingWorkspace] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportStage, setExportStage] = useState('');
+  const exportStartRef = useRef<number | null>(null);
+  const exportHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | null>(null);
   const [pendingActionRateio, setPendingActionRateio] = useState<RateioGoogle | null>(null);
@@ -76,82 +77,6 @@ const RateioGoogle: React.FC = () => {
 
   useEffect(() => {
     fetchRateios();
-  }, [fetchRateios]);
-
-  const getFreshAccessToken = useCallback(async () => {
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) throw sessionError;
-    const session = sessionData.session;
-    if (!session?.access_token) throw new Error('Sessao expirada. Faca login novamente.');
-
-    const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
-    const shouldRefresh = !expiresAtMs || expiresAtMs - Date.now() < 2 * 60 * 1000;
-    if (!shouldRefresh) return session.access_token;
-
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError || !refreshData.session?.access_token) {
-      throw new Error('Sessao expirada. Faca login novamente.');
-    }
-    return refreshData.session.access_token;
-  }, []);
-
-  const handleSyncWorkspace = useCallback(async () => {
-    try {
-      setSyncingWorkspace(true);
-      setSyncMessage(null);
-
-      const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
-      if (!supabaseAnonKey) {
-        throw new Error('Configuracao de ambiente invalida (VITE_SUPABASE_ANON_KEY).');
-      }
-
-      const token = await getFreshAccessToken();
-
-      const { data: payload, error } = await supabase.functions.invoke('google-workspace-sync', {
-        body: { mode: 'full' },
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: supabaseAnonKey,
-        },
-      });
-
-      if (error) {
-        const status = (error as any)?.context?.status;
-        let details = '';
-        try {
-          if ((error as any)?.context?.clone) {
-            details = await (error as any).context.clone().text();
-          }
-        } catch {
-          // ignore parse errors
-        }
-        if (status === 401) {
-          throw new Error(details || 'Sessao expirada. Faca login novamente.');
-        }
-        throw new Error(details || error.message || 'Falha ao sincronizar dados do Google Workspace.');
-      }
-
-      if (!payload?.ok) {
-        throw new Error(payload?.error || 'Falha ao sincronizar dados do Google Workspace.');
-      }
-
-      const domains = Array.isArray(payload?.domains) ? payload.domains : [];
-      const totalUpserts = domains.reduce((acc: number, item: any) => acc + Number(item?.upserts || 0), 0);
-      const totalDeleted = domains.reduce((acc: number, item: any) => acc + Number(item?.marked_deleted || 0), 0);
-      setSyncMessage({
-        type: 'success',
-        text: `Sincronizacao concluida. Atualizados: ${totalUpserts}. Marcados como excluidos: ${totalDeleted}.`,
-      });
-
-      await fetchRateios();
-    } catch (error: any) {
-      setSyncMessage({
-        type: 'error',
-        text: error?.message || 'Erro ao sincronizar o Google Workspace.',
-      });
-    } finally {
-      setSyncingWorkspace(false);
-    }
   }, [fetchRateios]);
 
   useEffect(() => {
@@ -223,24 +148,110 @@ const RateioGoogle: React.FC = () => {
     return filtered;
   }, [rateios, searchTerm, selectedMetric, sortOrder]);
 
-  const exportData = useCallback((format: 'csv' | 'xlsx') => {
-    // Usar dados filtrados em vez de todos os dados
-    const dataToExport = filteredRateiosSorted.map(({ id, created_at, ...rest }) => rest);
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'RateioGoogle');
-
-      // Incluir informações sobre filtros no nome do arquivo
-      const filterInfo = (searchTerm || selectedMetric !== 'all') ? `_filtrado` : '';
-      const filename = `rateio_google${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
-
-      if (format === 'csv') {
-        XLSX.writeFile(wb, filename, { bookType: 'csv' });
-      } else {
-        XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
+  const exportData = useCallback(async (format: 'csv' | 'xlsx') => {
+    try {
+      if (exporting) return;
+      const yieldToUi = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+      if (exportHideTimeoutRef.current) {
+        clearTimeout(exportHideTimeoutRef.current);
+        exportHideTimeoutRef.current = null;
       }
-    setShowExportMenu(false);
-  }, [filteredRateiosSorted, searchTerm, selectedMetric]);
+      setExporting(true);
+      setExportProgress(0);
+      setExportStage('Iniciando exportacao...');
+      exportStartRef.current = Date.now();
+      setShowExportMenu(false);
+      await yieldToUi();
+
+      const XLSXModule: any = await import('xlsx');
+      const candidates = [
+        XLSXModule,
+        XLSXModule?.default,
+        XLSXModule?.XLSX,
+        XLSXModule?.default?.XLSX,
+        (globalThis as any)?.XLSX,
+      ];
+      const XLSX = candidates.find(
+        (candidate) =>
+          candidate?.utils?.json_to_sheet &&
+          candidate?.utils?.book_new &&
+          candidate?.utils?.book_append_sheet &&
+          candidate?.writeFile
+      );
+
+      setExportProgress(20);
+      setExportStage('Carregando biblioteca...');
+      await yieldToUi();
+
+      const tryExport = async (XLSXInstance: any) => {
+        if (!XLSXInstance) {
+          console.error('XLSX module shape:', {
+            bundleKeys: XLSXModule ? Object.keys(XLSXModule) : null,
+            hasGlobalXLSX: Boolean((globalThis as any)?.XLSX),
+          });
+          throw new Error('Biblioteca de exportacao indisponivel.');
+        }
+
+        setExportProgress(45);
+        setExportStage('Preparando dados...');
+        await yieldToUi();
+
+        const dataToExport = filteredRateiosSorted.map(({ id, created_at, ...rest }) => rest);
+        const ws = XLSXInstance.utils.json_to_sheet(dataToExport);
+        const wb = XLSXInstance.utils.book_new();
+        XLSXInstance.utils.book_append_sheet(wb, ws, 'RateioGoogle');
+
+        setExportProgress(75);
+        setExportStage('Gerando planilha...');
+        await yieldToUi();
+
+        const filterInfo = (searchTerm || selectedMetric !== 'all') ? `_filtrado` : '';
+        const filename = `rateio_google${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
+
+        setExportProgress(90);
+        setExportStage('Salvando arquivo...');
+        await yieldToUi();
+
+        if (format === 'csv') {
+          XLSXInstance.writeFile(wb, filename, { bookType: 'csv' });
+        } else {
+          XLSXInstance.writeFile(wb, filename, { bookType: 'xlsx' });
+        }
+      };
+
+      await tryExport(XLSX);
+
+      setExportProgress(100);
+      setExportStage('Concluido.');
+      const startedAt = exportStartRef.current ?? Date.now();
+      const elapsed = Date.now() - startedAt;
+      const minVisibleMs = 1500;
+      const remaining = Math.max(minVisibleMs - elapsed, 300);
+      exportHideTimeoutRef.current = setTimeout(() => {
+        setExporting(false);
+        setExportProgress(0);
+        setExportStage('');
+        exportStartRef.current = null;
+        exportHideTimeoutRef.current = null;
+      }, remaining);
+    } catch (error) {
+      console.error('Erro ao exportar rateio google:', error);
+      alert('Nao foi possivel exportar agora. Tente novamente.');
+      setExportStage('Falha ao exportar.');
+      setExportProgress(0);
+      const startedAt = exportStartRef.current ?? Date.now();
+      const elapsed = Date.now() - startedAt;
+      const minVisibleMs = 1500;
+      const remaining = Math.max(minVisibleMs - elapsed, 300);
+      exportHideTimeoutRef.current = setTimeout(() => {
+        setExporting(false);
+        setExportProgress(0);
+        setExportStage('');
+        exportStartRef.current = null;
+        exportHideTimeoutRef.current = null;
+      }, remaining);
+    }
+  }, [exporting, filteredRateiosSorted, searchTerm, selectedMetric]);
 
   const currentItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -291,7 +302,7 @@ const RateioGoogle: React.FC = () => {
 
     return [
       {
-        title: 'E-mails @odontoart.com',
+        title: '@odontoart.com',
         value: domainStats.odontoart,
         icon: Globe,
         color: 'text-blue-600',
@@ -301,12 +312,13 @@ const RateioGoogle: React.FC = () => {
         className: selectedMetric === 'odontoart' ? 'ring-2 ring-blue-300' : undefined,
       },
       {
-        title: 'E-mails @odontoartonline.com.br',
+        title: '@odontoartonline.com.br',
         value: domainStats.odontoartonline,
         icon: Globe,
         color: 'text-green-600',
         bgColor: 'bg-green-100',
         description: `Custo: ${totalCostOdontoartonlineFormatado}`,
+        titleClassName: 'text-[7px] sm:text-[8px] tracking-[0.14em] whitespace-nowrap pr-2 sm:pr-3',
         onClick: () => setSelectedMetric((prev) => (prev === 'odontoartonline' ? 'all' : 'odontoartonline')),
         className: selectedMetric === 'odontoartonline' ? 'ring-2 ring-green-300' : undefined,
       },
@@ -354,26 +366,19 @@ const RateioGoogle: React.FC = () => {
         title="Rateio Google"
         subtitle="Gerenciamento de usuários Google Workspace"
         actions={(
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={handleSyncWorkspace}
-              disabled={syncingWorkspace}
-              className={`inline-flex w-full items-center justify-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors sm:w-auto ${
-                syncingWorkspace
-                  ? 'cursor-not-allowed border-neutral-300 bg-neutral-200 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400'
-                  : 'border-primary-400 bg-primary-100 text-primary-800 hover:bg-primary-200 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-200 dark:hover:bg-primary-900/50'
-              }`}
-            >
-              <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 ${syncingWorkspace ? 'animate-spin' : ''}`} />
-              {syncingWorkspace ? 'Sincronizando...' : 'Sincronizar'}
-            </button>
-            <div className="relative">
+          <div className="flex flex-wrap items-start gap-2">
+            <div className="relative flex flex-col items-start">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+                disabled={exporting}
+                className={`inline-flex w-full items-center justify-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors sm:w-auto ${
+                  exporting
+                    ? 'cursor-not-allowed border-neutral-300 bg-neutral-200 text-neutral-500'
+                    : 'border-button bg-neutral-200 text-button hover:bg-button-50'
+                }`}
               >
                 <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-                Exportar ({filteredRateiosSorted.length})
+                {exporting ? 'Exportando...' : `Exportar (${filteredRateiosSorted.length})`}
               </button>
               {showExportMenu && (
                 <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-10 border border-neutral-200">
@@ -396,22 +401,24 @@ const RateioGoogle: React.FC = () => {
                   </div>
                 </div>
               )}
+              {exporting && (
+                <div className="mt-2 w-full min-w-[180px] rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span>{exportStage || 'Exportando...'}</span>
+                    <span>{exportProgress}%</span>
+                  </div>
+                  <div className="mt-2 h-2 w-full rounded-full bg-blue-100">
+                    <div
+                      className="h-full rounded-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${exportProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
       />
-
-      {syncMessage && (
-        <div
-          className={`rounded-xl border px-4 py-2 text-sm ${
-            syncMessage.type === 'success'
-              ? 'border-green-200 bg-green-50 text-green-700'
-              : 'border-red-200 bg-red-50 text-red-700'
-          }`}
-        >
-          {syncMessage.text}
-        </div>
-      )}
 
       {/* Dashboard Stats */}
       <DashboardStats stats={dashboardStats} />
@@ -580,3 +587,5 @@ const RateioGoogle: React.FC = () => {
 };
 
 export default RateioGoogle;
+
+

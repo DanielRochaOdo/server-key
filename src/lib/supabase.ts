@@ -2,6 +2,14 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
+const projectRef = (() => {
+  try {
+    return new URL(supabaseUrl).hostname.split('.')[0] || 'local';
+  } catch {
+    return 'local';
+  }
+})();
+const storageKey = `sb-${projectRef}-auth-token`;
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
@@ -9,7 +17,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     persistSession: true,
     detectSessionInUrl: true,
     storage: window.localStorage,
-    storageKey: 'supabase.auth.token',
+    storageKey,
     flowType: 'pkce'
   }
 });

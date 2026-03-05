@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Eye, Lock, AlertCircle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface PasswordVerificationModalProps {
   isOpen: boolean;
@@ -31,26 +31,8 @@ const PasswordVerificationModal: React.FC<PasswordVerificationModalProps> = ({
     setError('');
 
     try {
-      // Create a new Supabase client instance for verification only
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      const tempClient = createClient(supabaseUrl, supabaseKey, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-          detectSessionInUrl: false,
-          storage: {
-            getItem: () => null,
-            setItem: () => {},
-            removeItem: () => {}
-          }
-        }
-      });
-
-      // Verify password with temporary client
-      const { data, error } = await tempClient.auth.signInWithPassword({
+      // Verify password using current client session
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: user.email!,
         password: password
       });
@@ -59,9 +41,6 @@ const PasswordVerificationModal: React.FC<PasswordVerificationModalProps> = ({
         console.error('Password verification failed:', error);
         setError('Senha incorreta');
       } else if (data.user) {
-        // Immediately sign out from the temporary client to avoid session conflicts
-        await tempClient.auth.signOut();
-        
         // Password is correct, call success callback
         onSuccess();
         handleClose();
@@ -157,5 +136,4 @@ const PasswordVerificationModal: React.FC<PasswordVerificationModalProps> = ({
 };
 
 export default PasswordVerificationModal;
-
 
