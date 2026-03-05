@@ -9,7 +9,7 @@ interface ModuleHeaderProps {
 
 const ModuleHeader: React.FC<ModuleHeaderProps> = ({ sectionLabel, title, subtitle, actions }) => {
   return (
-    <div className="surface-card relative overflow-hidden">
+    <div className="surface-card module-header-light relative overflow-hidden">
       <div className="pointer-events-none absolute -top-24 right-0 h-44 w-44 rounded-full bg-primary-100/70 blur-3xl dark:bg-primary-900/40" />
       <div className="pointer-events-none absolute -bottom-28 left-0 h-52 w-52 rounded-full bg-button-100/70 blur-3xl dark:bg-button-900/30" />
       <div className="relative flex flex-col gap-3 p-4 sm:p-6">

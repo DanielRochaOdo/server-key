@@ -445,7 +445,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <div className="relative z-0 flex-1 flex flex-col min-h-0 min-w-0">
         <main className="flex-1 min-h-0 min-w-0 overflow-auto">
           <div className="w-full max-w-full py-6 px-4 sm:px-6 lg:px-10">
-            <div className="page-animate max-w-screen-2xl w-full mx-auto">
+            <div className="page-animate module-reference max-w-screen-2xl w-full mx-auto">
               {children}
             </div>
           </div>
