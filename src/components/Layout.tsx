@@ -29,6 +29,7 @@ import { normalizeRole, getRoleLabel } from '../utils/roles';
 
 interface UserProfileExtended {
   nome?: string;
+  email?: string;
   telefone?: string;
 }
 
@@ -50,7 +51,7 @@ interface NavSection {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { userProfile, signOut, hasModuleAccess, isUsuario, isAdmin } = useAuth();
+  const { user, userProfile, signOut, hasModuleAccess, isUsuario, isAdmin } = useAuth();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [extendedProfile, setExtendedProfile] = useState<UserProfileExtended | null>(null);
@@ -85,13 +86,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('name, email')
+          .select('nome, email')
           .eq('auth_uid', userProfile.auth_uid)
           .single();
 
         if (!error && data) {
           setExtendedProfile({
-            nome: data.name || data.email || undefined,
+            nome: typeof data.nome === 'string' ? data.nome : undefined,
+            email: typeof data.email === 'string' ? data.email : undefined,
           });
         } else if (error) {
           console.error('Error fetching extended profile:', error);
@@ -138,8 +140,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, [openSections]);
 
   // Get display name - use 'nome' if available, otherwise fallback to 'name'
+  const getEmailPrefix = (value?: string | null) => {
+    const safe = (value ?? '').trim();
+    if (!safe) return '';
+    const atIndex = safe.indexOf('@');
+    return atIndex > 0 ? safe.slice(0, atIndex) : safe;
+  };
+
   const getDisplayName = () => {
-    return extendedProfile?.nome || userProfile?.name || '';
+    const nome = (extendedProfile?.nome ?? '').trim();
+    if (nome) return nome;
+    const emailSource = (extendedProfile?.email || userProfile?.email || user?.email || '').trim();
+    const emailPrefix = getEmailPrefix(emailSource);
+    if (emailPrefix) return emailPrefix;
+    return (userProfile?.name ?? '').trim();
   };
 
   // Define navigation items based on user permissions
@@ -226,7 +240,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   if (!userProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950">
+      <div className="min-h-screen flex items-center justify-center app-shell">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
           <p className="mt-4 text-primary-700">Carregando perfil...</p>
@@ -236,27 +250,44 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }
 
   const navigationItems = getNavigationItems();
+  const navItemBase = `group relative flex items-center ${
+    sidebarCollapsed ? 'justify-center w-11 h-11 mx-auto' : 'px-3 py-2.5 w-full'
+  } text-sm font-medium rounded-xl transition-all duration-200`;
+  const navItemBaseExpanded =
+    'group relative flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-200';
+  const navItemActive =
+    'bg-primary-50 text-primary-800 shadow-sm dark:bg-primary-900/30 dark:text-primary-100 before:absolute before:left-1 before:top-1 before:bottom-1 before:w-1 before:rounded-full before:bg-primary-500';
+  const navItemInactive =
+    'text-neutral-600 hover:bg-neutral-100/80 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800/60 dark:hover:text-white';
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950 flex">
+    <div className="app-shell h-screen overflow-hidden flex">
       {/* Sidebar */}
       <div
         className={`
-          bg-neutral-200 dark:bg-neutral-950 shadow-xl transition-all duration-300 ease-in-out
+          relative z-30 flex flex-col transition-all duration-300 ease-in-out
           ${sidebarCollapsed ? 'w-16' : 'w-64'}
-          flex flex-col
+          border-r border-neutral-200/70 dark:border-neutral-800/70 bg-white/75 dark:bg-neutral-950/80 backdrop-blur-xl shadow-card
         `}
       >
-        <div className="flex items-center justify-between h-16 px-2 border-b border-neutral-200 dark:border-neutral-800">
-          <div className="flex items-center">
+        <div
+          className={`h-16 px-3 border-b border-neutral-200/70 dark:border-neutral-800/70 ${
+            sidebarCollapsed ? 'flex flex-col items-center justify-center gap-1.5' : 'flex items-center justify-between'
+          }`}
+        >
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'}`}>
             <Network className="h-6 w-6 text-primary-600 dark:text-primary-400" />
             {!sidebarCollapsed && (
-              <span className="ml-2 text-lg font-bold text-primary-800 dark:text-primary-200">Odontoart Hub</span>
+              <span className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+                Odontoart Hub
+              </span>
             )}
           </div>
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-200"
+            className={`rounded-lg text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100/80 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-800/60 transition-colors ${
+              sidebarCollapsed ? 'p-1' : 'p-1.5'
+            }`}
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -272,10 +303,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               title={item.name}
               aria-label={item.name}
               className={`
-                flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2 text-sm font-medium rounded-lg transition-colors duration-200
-                ${isActive(item.href)
-                  ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
-                  : 'text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                ${navItemBase}
+                ${isActive(item.href) ? navItemActive : navItemInactive}
               `}
             >
               <item.icon className="h-5 w-5" />
@@ -306,10 +335,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   aria-label={section.name}
                   aria-expanded={isSectionOpen}
                   className={`
-                    flex items-center w-full ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2 text-sm font-medium rounded-lg transition-colors duration-200
-                    ${isSectionActive
-                      ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
-                      : 'text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                    ${navItemBase}
+                    ${isSectionActive ? navItemActive : navItemInactive}
                   `}
                 >
                   <section.icon className="h-5 w-5" />
@@ -323,7 +350,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   )}
                 </button>
                 {!sidebarCollapsed && isSectionOpen && (
-                  <div className="space-y-1">
+                  <div className="space-y-1 max-h-[50vh] overflow-y-auto pr-1 no-scrollbar">
                     {section.items.map((item) => (
                       <Link
                         key={item.name}
@@ -332,10 +359,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         title={item.name}
                         aria-label={item.name}
                         className={`
-                          flex items-center px-3 py-2 pl-10 text-sm font-medium rounded-lg transition-colors duration-200
-                          ${isActive(item.href)
-                            ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
-                            : 'text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                          relative flex items-center px-3 py-2.5 pl-10 text-sm font-medium rounded-xl transition-all duration-200
+                          ${isActive(item.href) ? navItemActive : navItemInactive}
                         `}
                       >
                         <item.icon className="h-4 w-4" />
@@ -345,7 +370,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </div>
                 )}
                 {sidebarCollapsed && isSectionOpen && (
-                  <div className="absolute left-full top-0 ml-2 z-50 min-w-[13rem] rounded-lg border border-neutral-200 bg-neutral-200 p-2 shadow-xl dark:border-neutral-800 dark:bg-neutral-950">
+                  <div className="absolute left-full top-0 ml-2 z-50 min-w-[13rem] max-h-[70vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white/90 p-2 shadow-card dark:border-neutral-800 dark:bg-neutral-950/90 backdrop-blur no-scrollbar">
                     <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                       {section.name}
                     </div>
@@ -358,10 +383,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           title={item.name}
                           aria-label={item.name}
                           className={`
-                            flex items-center px-2 py-2 text-sm font-medium rounded-lg transition-colors duration-200
-                            ${isActive(item.href)
-                              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
-                              : 'text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'}
+                            ${navItemBaseExpanded}
+                            ${isActive(item.href) ? navItemActive : navItemInactive}
                           `}
                         >
                           <item.icon className="h-4 w-4" />
@@ -377,18 +400,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </nav>
 
         {/* User info + logout */}
-        <div className="border-t border-neutral-200 dark:border-neutral-800 p-2">
+        <div className="border-t border-neutral-200/70 dark:border-neutral-800/70 p-3">
           {!sidebarCollapsed && (
             <div className="flex items-center mb-3">
-              <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-                <span className="text-sm font-medium text-primary-600">
+              <div className="h-9 w-9 rounded-full bg-primary-100/80 dark:bg-primary-900/40 flex items-center justify-center">
+                <span className="text-sm font-semibold text-primary-700 dark:text-primary-200">
                   {getDisplayName()?.charAt(0).toUpperCase() || 'U'}
                 </span>
               </div>
               <div className="ml-2 flex-1 min-w-0">
                 <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">{getDisplayName()}</p>
                 <div className="flex items-center space-x-1">
-                  <span className={`px-2 py-0.5 text-xs rounded-full ${getRoleBadge(userProfile.role).color}`}>
+                  <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full ${getRoleBadge(userProfile.role).color}`}>
                     {getRoleBadge(userProfile.role).label}
                   </span>
                 </div>
@@ -398,7 +421,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className={`flex ${sidebarCollapsed ? 'flex-col items-center' : 'flex-row'} gap-2`}>
             <button
               onClick={toggleTheme}
-              className="w-full flex items-center justify-center px-2 py-2 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white transition-colors"
+              className="w-full flex items-center justify-center px-2 py-2 border border-neutral-200/80 dark:border-neutral-800/80 rounded-lg text-neutral-600 hover:bg-neutral-100/80 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800/60 dark:hover:text-white transition-colors"
               aria-label={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
               title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
             >
@@ -407,7 +430,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </button>
             <button
               onClick={handleSignOut}
-              className="w-full flex items-center justify-center px-2 py-2 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white transition-colors"
+              className="w-full flex items-center justify-center px-2 py-2 border border-neutral-200/80 dark:border-neutral-800/80 rounded-lg text-neutral-600 hover:bg-neutral-100/80 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800/60 dark:hover:text-white transition-colors"
               aria-label="Sair"
               title="Sair"
             >
@@ -419,10 +442,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-0 min-w-0">
+      <div className="relative z-0 flex-1 flex flex-col min-h-0 min-w-0">
         <main className="flex-1 min-h-0 min-w-0 overflow-auto">
-          <div className="w-full max-w-full py-4 px-4 sm:px-6 lg:px-8">
-            {children}
+          <div className="w-full max-w-full py-6 px-4 sm:px-6 lg:px-10">
+            <div className="page-animate max-w-screen-2xl w-full mx-auto">
+              {children}
+            </div>
           </div>
         </main>
       </div>

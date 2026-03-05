@@ -54,7 +54,7 @@ const Login: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950 flex items-center justify-center">
+      <div className="min-h-screen app-shell flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto" />
           <p className="mt-4 text-primary-700">Verificando autenticação...</p>
@@ -64,21 +64,21 @@ const Login: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-900 dark:to-neutral-950 flex items-center justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen app-shell flex items-center justify-center py-10 sm:py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-6 sm:space-y-8">
         <div className="text-center">
           <div className="flex justify-center">
             <Network className="h-10 w-10 sm:h-12 sm:w-12 text-primary-600" />
           </div>
-          <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-bold text-primary-900">
+          <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-semibold text-neutral-900 dark:text-neutral-100">
             Odontoart Hub
           </h2>
-          <p className="mt-1 sm:mt-2 text-sm text-primary-600">
+          <p className="mt-1 sm:mt-2 text-sm text-neutral-600 dark:text-neutral-300">
             Sistema de Gerenciamento
           </p>
         </div>
 
-        <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-2xl p-6 sm:p-8">
+        <div className="surface-strong p-6 sm:p-8">
           <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 sm:p-4 flex items-start space-x-2">
@@ -106,7 +106,7 @@ const Login: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200 text-sm sm:text-base"
+                  className="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-neutral-200 rounded-lg bg-white/70 dark:bg-neutral-950/70 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200 text-sm sm:text-base"
                   placeholder="E-mail"
                   disabled={loading}
                 />
@@ -132,7 +132,7 @@ const Login: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200 text-sm sm:text-base"
+                  className="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-neutral-200 rounded-lg bg-white/70 dark:bg-neutral-950/70 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200 text-sm sm:text-base"
                   placeholder="Senha"
                   disabled={loading}
                 />
@@ -161,4 +161,3 @@ const Login: React.FC = () => {
 };
 
 export default Login;
-

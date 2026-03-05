@@ -6,19 +6,19 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#F0FDF4',
-          100: '#DCFCE7',
-          200: '#BBF7D0',
-          300: '#86EFAC',
-          400: '#4ADE80',
-          500: '#22C55E',
-          600: '#16A34A',
-          700: '#15803D',
-          800: '#166534',
-          900: '#14532D',
-          light: '#A7F3D0',
-          DEFAULT: '#6EE7B7',
-          dark: '#34D399'
+          50: '#F0FDFA',
+          100: '#CCFBF1',
+          200: '#99F6E4',
+          300: '#5EEAD4',
+          400: '#2DD4BF',
+          500: '#14B8A6',
+          600: '#0D9488',
+          700: '#0F766E',
+          800: '#115E59',
+          900: '#134E4A',
+          light: '#99F6E4',
+          DEFAULT: '#14B8A6',
+          dark: '#0F766E'
         },
         button: {
           50: '#FFF7ED',
@@ -48,7 +48,7 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif']
+        sans: ['Sora', 'system-ui', 'sans-serif']
       },
       spacing: {
         '18': '4.5rem',

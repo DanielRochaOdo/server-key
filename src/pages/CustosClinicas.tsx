@@ -164,14 +164,37 @@ const parseNumberValue = (value?: string | number | null) => {
 
 const normalizeText = (value?: string | null) => (value || '').toLowerCase();
 
+const resolveClinicLabel = (value?: string | null): ClinicKey | null => {
+  const text = normalizeText(value);
+  if (!text) return null;
+  if (text.includes('aguanambi')) return 'AGUANAMBI';
+  if (text.includes('bezerra')) return 'BEZERRA';
+  if (text.includes('parangaba')) return 'PARANGABA';
+  if (text.includes('sobral')) return 'SOBRAL';
+  return null;
+};
+
+const isAdminLocation = (value?: string | null) => {
+  const text = normalizeText(value);
+  if (!text) return false;
+  return (
+    text.includes('administracao') ||
+    text.includes('admin') ||
+    text.includes('adm') ||
+    text.includes('matriz')
+  );
+};
+
 const resolveClinicFromUber = (row: ControleUberRow): ClinicKey | null => {
-  const destino = normalizeText(row.destino);
-  const saida = normalizeText(row.saida_local);
-  const match = (label: string) => destino.includes(label) || saida.includes(label);
-  if (match('aguanambi')) return 'AGUANAMBI';
-  if (match('bezerra')) return 'BEZERRA';
-  if (match('parangaba')) return 'PARANGABA';
-  if (match('sobral')) return 'SOBRAL';
+  const destinoClinic = resolveClinicLabel(row.destino);
+  if (destinoClinic) return destinoClinic;
+
+  const saidaClinic = resolveClinicLabel(row.saida_local);
+  const destinoIsAdmin = isAdminLocation(row.destino);
+
+  if (saidaClinic && destinoIsAdmin) return saidaClinic;
+  if (saidaClinic && !destinoIsAdmin) return saidaClinic;
+
   return null;
 };
 
@@ -1437,10 +1460,15 @@ const CustosClinicas: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide dark:text-neutral-100">
-                Transporte (Uber)
-              </h2>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide dark:text-neutral-100">
+                  Transporte (Uber)
+                </h2>
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-300">
+                  Legenda: Administracao -&gt; Clinica = clinica | Clinica -&gt; Administracao = clinica | Clinica -&gt; Clinica = destino
+                </p>
+              </div>
               <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                 Total por clinica
               </span>

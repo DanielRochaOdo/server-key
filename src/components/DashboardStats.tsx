@@ -30,22 +30,24 @@ const StatCard: React.FC<StatCardProps> = ({
   className
 }) => (
   <div 
-    className={`bg-neutral-200 dark:bg-neutral-900 rounded-xl shadow-md p-4 sm:p-6 transition-all duration-200 hover:scale-105 min-w-0 ${
-      onClick ? 'cursor-pointer hover:shadow-lg' : ''
+    className={`surface-soft min-w-0 p-4 sm:p-6 transition-all duration-200 hover:-translate-y-1 hover:shadow-card ${
+      onClick ? 'cursor-pointer' : ''
     } ${className || ''}`}
     onClick={onClick}
   >
     <div className="flex items-center">
-      <div className={`flex-shrink-0 p-2 sm:p-3 rounded-lg ${bgColor}`}>
+      <div className={`flex-shrink-0 p-2 sm:p-3 rounded-xl ${bgColor} bg-opacity-70`}>
         <Icon className={`h-3 w-3 sm:h-4 sm:w-4 ${color}`} />
       </div>
       <div className="ml-3 sm:ml-4 flex-1 min-w-0">
-        <p className="text-[7px] sm:text-[8px] font-medium text-neutral-600 break-words">{title}</p>
-        <p className="text-[clamp(0.55rem,0.88vw,0.77rem)] font-bold text-neutral-900 leading-tight tracking-tight break-words">
+        <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-[0.22em] text-neutral-500 break-words">
+          {title}
+        </p>
+        <p className="text-[clamp(0.6rem,0.95vw,0.82rem)] font-semibold text-neutral-900 leading-tight tracking-tight break-words">
           {value}
         </p>
         {description && (
-          <p className="text-[7px] sm:text-[8px] text-neutral-500 break-words">{description}</p>
+          <p className="text-[8px] sm:text-[9px] text-neutral-500 break-words">{description}</p>
         )}
       </div>
     </div>

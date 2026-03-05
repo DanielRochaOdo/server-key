@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail } from 'lucide-react';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
@@ -647,6 +647,7 @@ const ContasAPagar: React.FC = () => {
   const savedExportState = useMemo(() => loadExportModalState(), []);
 
   const [showNextWeekModal, setShowNextWeekModal] = useState(false);
+  const nextWeekModalRef = useRef<HTMLDivElement | null>(null);
   const [showExportNfModal, setShowExportNfModal] = useState(savedExportState.showExportNfModal);
   const [exportEntries, setExportEntries] = useState<Record<string, ExportEntry>>(savedExportState.exportEntries);
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -686,6 +687,11 @@ const ContasAPagar: React.FC = () => {
       console.error('Erro ao salvar estado do export modal:', error);
     }
   }, [showExportNfModal, exportEntries]);
+
+  useEffect(() => {
+    if (!showNextWeekModal) return;
+    if (nextWeekModalRef.current) nextWeekModalRef.current.scrollTop = 0;
+  }, [showNextWeekModal]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -4127,7 +4133,10 @@ const ContasAPagar: React.FC = () => {
 
       {showNextWeekModal && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div
+            ref={nextWeekModalRef}
+            className="bg-neutral-200 rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto"
+          >
             <h2 className="text-lg sm:text-xl font-bold mb-2">Fornecedores da Proxima Semana</h2>
             <p className="text-xs sm:text-sm text-neutral-600 mb-4">
               Lista de fornecedores com vencimento na semana seguinte.

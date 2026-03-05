@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Calendar, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   ControleUberRow,
@@ -32,12 +32,21 @@ const LOCATION_FILTERS = ['Bezerra', 'Parangaba', 'Aguanambi'];
 const TIPOS = ['carro', 'moto'];
 const PESSOAS = ['Flash', 'Vinicius', 'Daniel', 'Ryan', 'Cezar'];
 
+const getCurrentMonthValue = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
 const toMonthValue = (competencia?: string) => {
-  if (!competencia) return new Date().toISOString().slice(0, 7);
+  if (!competencia) return getCurrentMonthValue();
   return competencia.slice(0, 7);
 };
 
 const toCompetenciaDate = (monthValue: string) => `${monthValue}-01`;
+
+const getCurrentCompetencia = () => toCompetenciaDate(getCurrentMonthValue());
 
 const formatCompetenciaLabel = (competencia?: string) => {
   if (!competencia) return '--/----';
@@ -51,6 +60,17 @@ const formatDate = (value?: string | null) => {
   const [year, month, day] = value.split('-');
   if (!year || !month || !day) return value;
   return `${day}/${month}/${year}`;
+};
+
+const normalizeTimeValue = (value?: string | null) => {
+  if (!value) return '';
+  if (value.length >= 5) return value.slice(0, 5);
+  return value;
+};
+
+const formatTimeShort = (value?: string | null) => {
+  if (!value) return '-';
+  return normalizeTimeValue(value) || '-';
 };
 
 const formatCurrency = (value?: number | string | null) => {
@@ -92,6 +112,52 @@ const parseCurrencyInput = (value: string) => {
   return parsed;
 };
 
+const applyCurrencyMask = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  const numberValue = Number(digits) / 100;
+  if (!Number.isFinite(numberValue)) return '';
+  return numberValue.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+const normalizeText = (value?: string | null) => (value || '').toLowerCase();
+
+const resolveClinicLabel = (value?: string | null) => {
+  const text = normalizeText(value);
+  if (!text) return null;
+  if (text.includes('aguanambi')) return 'Aguanambi';
+  if (text.includes('bezerra')) return 'Bezerra';
+  if (text.includes('parangaba')) return 'Parangaba';
+  return null;
+};
+
+const isAdminLocation = (value?: string | null) => {
+  const text = normalizeText(value);
+  if (!text) return false;
+  return (
+    text.includes('administracao') ||
+    text.includes('admin') ||
+    text.includes('adm') ||
+    text.includes('matriz')
+  );
+};
+
+const resolveClinicFromRoute = (row: ControleUberRow): string | null => {
+  const destinoClinic = resolveClinicLabel(row.destino);
+  if (destinoClinic) return destinoClinic;
+
+  const saidaClinic = resolveClinicLabel(row.saida_local);
+  const destinoIsAdmin = isAdminLocation(row.destino);
+
+  if (saidaClinic && destinoIsAdmin) return saidaClinic;
+  if (saidaClinic && !destinoIsAdmin) return saidaClinic;
+
+  return null;
+};
+
 const createTempId = () => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -119,8 +185,8 @@ const mapRowToForm = (row: ControleUberRow): FormRow => ({
   id: row.id,
   tempId: row.id,
   data: row.data || '',
-  saidaHora: row.saida_hora || '',
-  retornoHora: row.retorno_hora || '',
+  saidaHora: normalizeTimeValue(row.saida_hora),
+  retornoHora: normalizeTimeValue(row.retorno_hora),
   valorSaida: formatCurrencyInput(row.valor_saida ?? null),
   valorRetorno: formatCurrencyInput(row.valor_retorno ?? null),
   servico: row.servico || '',
@@ -150,8 +216,11 @@ const isRowEmpty = (row: FormRow) => {
   return values.every((value) => !String(value || '').trim());
 };
 
-const matchesLocation = (row: ControleUberRow, location: string) =>
-  row.saida_local === location || row.destino === location;
+const mergeCompetencias = (items: string[]) => {
+  const current = getCurrentCompetencia();
+  const unique = new Set([...items, current]);
+  return Array.from(unique).sort((a, b) => b.localeCompare(a));
+};
 
 const ControleUber: React.FC = () => {
   const { user, isAdmin } = useAuth();
@@ -173,8 +242,9 @@ const ControleUber: React.FC = () => {
     try {
       setLoading(true);
       const competenciasData = await listCompetenciasControleUber();
-      setCompetencias(competenciasData);
-      setSelectedCompetencia(competenciasData[0] || '');
+      const nextCompetencias = mergeCompetencias(competenciasData);
+      setCompetencias(nextCompetencias);
+      setSelectedCompetencia(getCurrentCompetencia());
     } catch (error) {
       console.error('Erro ao carregar competencias do Controle Uber:', error);
     } finally {
@@ -211,9 +281,13 @@ const ControleUber: React.FC = () => {
     loadRows(selectedCompetencia);
   }, [loadRows, selectedCompetencia]);
 
-  const openForm = (mode: 'create' | 'edit') => {
-    const monthValue = toMonthValue(selectedCompetencia);
-    const initialRows = mode === 'edit' ? rows.map(mapRowToForm) : [];
+  const openForm = (mode: 'create' | 'edit', rowToEdit?: ControleUberRow) => {
+    const monthValue =
+      mode === 'create'
+        ? getCurrentMonthValue()
+        : toMonthValue(rowToEdit?.competencia || selectedCompetencia);
+    const initialRows =
+      mode === 'edit' ? (rowToEdit ? [mapRowToForm(rowToEdit)] : rows.map(mapRowToForm)) : [];
 
     setFormCompetenciaMonth(monthValue);
     setFormRows(initialRows.length > 0 ? initialRows : [createEmptyRow()]);
@@ -231,8 +305,17 @@ const ControleUber: React.FC = () => {
   };
 
   const handleRowChange = (rowId: string, field: keyof FormRow, value: string) => {
+    let nextValue = value;
+    if (field === 'valorSaida' || field === 'valorRetorno') {
+      nextValue = applyCurrencyMask(value);
+    } else if (field === 'saidaHora' || field === 'retornoHora') {
+      nextValue = normalizeTimeValue(value);
+    } else if (field === 'servico') {
+      nextValue = value.toLocaleUpperCase('pt-BR');
+    }
+
     setFormRows((prev) =>
-      prev.map((row) => (row.tempId === rowId ? { ...row, [field]: value } : row))
+      prev.map((row) => (row.tempId === rowId ? { ...row, [field]: nextValue } : row))
     );
   };
 
@@ -269,11 +352,11 @@ const ControleUber: React.FC = () => {
       const base = {
         competencia,
         data: row.data,
-        saida_hora: row.saidaHora || null,
-        retorno_hora: row.retornoHora || null,
+        saida_hora: normalizeTimeValue(row.saidaHora) || null,
+        retorno_hora: normalizeTimeValue(row.retornoHora) || null,
         valor_saida: parseCurrencyInput(row.valorSaida),
         valor_retorno: parseCurrencyInput(row.valorRetorno),
-        servico: row.servico ? row.servico.trim() : null,
+        servico: row.servico ? row.servico.trim().toLocaleUpperCase('pt-BR') : null,
         saida_local: row.saidaLocal || null,
         destino: row.destino || null,
         tipo: row.tipo || null,
@@ -300,12 +383,13 @@ const ControleUber: React.FC = () => {
       }
 
       const competenciasAtualizadas = await listCompetenciasControleUber();
-      setCompetencias(competenciasAtualizadas);
+      const nextCompetencias = mergeCompetencias(competenciasAtualizadas);
+      setCompetencias(nextCompetencias);
 
       const nextCompetencia =
-        competenciasAtualizadas.includes(competencia)
+        nextCompetencias.includes(competencia)
           ? competencia
-          : competenciasAtualizadas[0] || '';
+          : nextCompetencias[0] || '';
 
       setSelectedCompetencia(nextCompetencia);
       if (nextCompetencia) {
@@ -338,7 +422,7 @@ const ControleUber: React.FC = () => {
 
   const filteredRows = useMemo(() => {
     if (!locationFilter) return rows;
-    return rows.filter((row) => matchesLocation(row, locationFilter));
+    return rows.filter((row) => resolveClinicFromRoute(row) === locationFilter);
   }, [locationFilter, rows]);
 
   const hasData = filteredRows.length > 0;
@@ -354,7 +438,7 @@ const ControleUber: React.FC = () => {
   const locationTotals = useMemo(() => {
     return LOCATION_FILTERS.map((location) => {
       const total = rows.reduce((acc, row) => {
-        if (!matchesLocation(row, location)) return acc;
+        if (resolveClinicFromRoute(row) !== location) return acc;
         const saida = Number(row.valor_saida || 0);
         const retorno = Number(row.valor_retorno || 0);
         return acc + saida + retorno;
@@ -397,29 +481,30 @@ const ControleUber: React.FC = () => {
               </select>
             </div>
             {isAdmin() && (
-              <>
-                  {hasData && (
-                    <button
-                      onClick={() => openForm('edit')}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
-                    >
-                      Editar Controle
-                    </button>
-                  )}
-                  <button
-                    onClick={() => openForm('create')}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
-                  >
-                    <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-                    Novo Registro
-                  </button>
-              </>
+              <button
+                onClick={() => openForm('create')}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
+              >
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                Novo Registro
+              </button>
             )}
           </>
         )}
       />
 
       <div className="bg-neutral-200 rounded-xl shadow-md p-4 sm:p-6">
+        <div className="mb-3 rounded-lg border border-neutral-200 bg-neutral-200/70 px-3 py-2 text-[11px] text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+            Legenda do fluxo
+          </div>
+          <div>Administracao -&gt; Clinica: custo vai para a clinica</div>
+          <div>Clinica -&gt; Administracao: custo vai para a clinica</div>
+          <div>Clinica -&gt; Clinica: custo vai para a clinica destino</div>
+          <div className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">
+            Clique na clinica para filtrar as corridas.
+          </div>
+        </div>
         <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           {locationTotals.map((item) => {
             const isActive = locationFilter === item.location;
@@ -438,7 +523,7 @@ const ControleUber: React.FC = () => {
                   {item.location.toUpperCase()}
                 </div>
                 <div className="mt-1 text-sm font-semibold">{formatCurrency(item.total)}</div>
-                <div className="text-[11px] text-neutral-500">Saída + Retorno</div>
+                <div className="text-[11px] text-neutral-500">Saida + Retorno (alocado)</div>
               </button>
             );
           })}
@@ -482,14 +567,15 @@ const ControleUber: React.FC = () => {
                   <th className="py-2 pr-2">Pessoa 1</th>
                   <th className="py-2 pr-2">Pessoa 2</th>
                   <th className="py-2">Pessoa 3</th>
+                  {isAdmin() && <th className="py-2">Acoes</th>}
                 </tr>
               </thead>
               <tbody>
                 {filteredRows.map((row) => (
                   <tr key={row.id} className="border-b border-neutral-100 last:border-b-0">
                     <td className="py-2 pr-2 whitespace-normal break-words">{formatDate(row.data)}</td>
-                    <td className="py-2 pr-2 whitespace-normal break-words">{row.saida_hora || '-'}</td>
-                    <td className="py-2 pr-2 whitespace-normal break-words">{row.retorno_hora || '-'}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{formatTimeShort(row.saida_hora)}</td>
+                    <td className="py-2 pr-2 whitespace-normal break-words">{formatTimeShort(row.retorno_hora)}</td>
                     <td className="py-2 pr-2 whitespace-normal break-words">{formatCurrency(row.valor_saida ?? null)}</td>
                     <td className="py-2 pr-2 whitespace-normal break-words">{formatCurrency(row.valor_retorno ?? null)}</td>
                     <td className="py-2 pr-2 whitespace-normal break-words">{row.servico || '-'}</td>
@@ -499,6 +585,19 @@ const ControleUber: React.FC = () => {
                     <td className="py-2 pr-2 whitespace-normal break-words">{row.pessoa_1 || '-'}</td>
                     <td className="py-2 pr-2 whitespace-normal break-words">{row.pessoa_2 || '-'}</td>
                     <td className="py-2 whitespace-normal break-words">{row.pessoa_3 || '-'}</td>
+                    {isAdmin() && (
+                      <td className="py-2">
+                        <button
+                          type="button"
+                          onClick={() => openForm('edit', row)}
+                          className="text-neutral-500 hover:text-primary-600"
+                          title="Editar"
+                          aria-label="Editar"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -506,7 +605,7 @@ const ControleUber: React.FC = () => {
             {hasData && (
               <div className="mt-4 flex justify-end">
                 <div className="inline-flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-200 px-4 py-2 text-sm">
-                  <span className="text-neutral-600">Valor (mês)</span>
+                  <span className="text-neutral-600">Valor (mes)</span>
                   <span className="font-semibold text-neutral-900">{formatCurrency(totalMes)}</span>
                 </div>
               </div>
@@ -548,15 +647,17 @@ const ControleUber: React.FC = () => {
                   className="w-44 px-3 py-1.5 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   disabled={saving || formMode === 'edit'}
                 />
-                <button
-                  type="button"
-                  onClick={handleAddRow}
-                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-neutral-200 rounded-lg hover:bg-neutral-200 transition-colors"
-                  disabled={saving}
-                >
-                  <Plus className="h-4 w-4" />
-                  Adicionar linha
-                </button>
+                {formMode === 'create' && (
+                  <button
+                    type="button"
+                    onClick={handleAddRow}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-neutral-200 rounded-lg hover:bg-neutral-200 transition-colors"
+                    disabled={saving}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Adicionar linha
+                  </button>
+                )}
               </div>
 
               <div className="w-full overflow-x-auto">
@@ -566,8 +667,8 @@ const ControleUber: React.FC = () => {
                       <th className="py-2 pr-2">Data</th>
                       <th className="py-2 pr-2">Saida</th>
                       <th className="py-2 pr-2">Retorno</th>
-                      <th className="py-2 pr-2">Valor Saida (R$ BRL)</th>
-                      <th className="py-2 pr-2">Valor Retorno (R$ BRL)</th>
+                      <th className="py-2 pr-2">Valor Saida</th>
+                      <th className="py-2 pr-2">Valor Retorno</th>
                       <th className="py-2 pr-2">Servico</th>
                       <th className="py-2 pr-2">Saida (local)</th>
                       <th className="py-2 pr-2">Destino</th>
@@ -593,6 +694,7 @@ const ControleUber: React.FC = () => {
                         <td className="py-1 pr-2">
                           <input
                             type="time"
+                            step="60"
                             value={row.saidaHora}
                             onChange={(event) => handleRowChange(row.tempId, 'saidaHora', event.target.value)}
                             className="w-full px-2 py-1 border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -602,6 +704,7 @@ const ControleUber: React.FC = () => {
                         <td className="py-1 pr-2">
                           <input
                             type="time"
+                            step="60"
                             value={row.retornoHora}
                             onChange={(event) => handleRowChange(row.tempId, 'retornoHora', event.target.value)}
                             className="w-full px-2 py-1 border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -771,5 +874,3 @@ const ControleUber: React.FC = () => {
 };
 
 export default ControleUber;
-
-
