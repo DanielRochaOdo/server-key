@@ -13,6 +13,11 @@ interface ParsedRow {
   status_documento?: string | null;
   tipo_pagto?: string | null;
   fornecedor?: string | null;
+  banco?: string | null;
+  agencia?: string | null;
+  conta?: string | null;
+  tipo_de_conta?: string | null;
+  cpf_cnpj?: string | null;
   link?: string | null;
   descricao?: string | null;
   valor?: string | null;
@@ -59,6 +64,18 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
     if (norm.includes('status') && norm.includes('documento')) return 'status_documento';
     if (norm.includes('pagamento') || norm.includes('tipo') && norm.includes('pag')) return 'tipo_pagto';
     if (norm.includes('tipo_pagto')) return 'tipo_pagto';
+    if (norm.includes('nome do banco') || norm === 'banco' || norm.startsWith('banco ')) return 'banco';
+    if (norm.includes('agencia')) return 'agencia';
+    if (norm.includes('tipo de conta') || norm.includes('tipo conta')) return 'tipo_de_conta';
+    if (norm === 'conta' || norm.includes('numero da conta') || norm.includes('n da conta') || norm.includes('n conta')) return 'conta';
+    if (
+      norm.includes('cpf/cnpj/chave pix') ||
+      norm.includes('cpf/cnpj') ||
+      norm.includes('chave pix') ||
+      norm.includes('cpf cnpj') ||
+      norm === 'cpf' ||
+      norm === 'cnpj'
+    ) return 'cpf_cnpj';
     if (norm.includes('fornecedor') || norm.includes('supplier')) return 'fornecedor';
     if (norm.includes('link') || norm.includes('url')) return 'link';
     if (norm.includes('descricao') || norm.includes('description')) return 'descricao';
@@ -148,19 +165,26 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
         const row: ParsedRow = {};
         (json[i] as any[]).forEach((val, idx) => {
           const key = mapHeader(headers[idx]);
+          if (!key) return;
           if (key === 'status_documento') {
             const raw = val?.toString().trim() || '';
             row.status_documento = raw ? normalizeStatus(raw) : STATUS_OPTIONS[0];
-          } else if (key === 'valor') {
-            row.valor = normalizeValor(val);
-          } else if (key === 'vencimento') {
-            row.vencimento = normalizeDay(val);
-          } else if (key) {
-            row[key as keyof ParsedRow] = val?.toString().trim() || '';
-          } else if (key === 'tipo_pagto') {
-            const raw = val?.toString().trim() || '';
-          row.tipo_pagto = raw ? normalizePagto(raw) : 'BOLETO';
+            return;
           }
+          if (key === 'tipo_pagto') {
+            const raw = val?.toString().trim() || '';
+            row.tipo_pagto = raw ? normalizePagto(raw) : 'BOLETO';
+            return;
+          }
+          if (key === 'valor') {
+            row.valor = normalizeValor(val);
+            return;
+          }
+          if (key === 'vencimento') {
+            row.vencimento = normalizeDay(val);
+            return;
+          }
+          row[key as keyof ParsedRow] = val?.toString().trim() || '';
         });
 
         const hasAnyValue = Object.values(row).some((value) => {
@@ -202,19 +226,26 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
         const row: ParsedRow = {};
         (json[i] as any[]).forEach((val, idx) => {
           const key = mapHeader(headers[idx]);
+          if (!key) return;
           if (key === 'status_documento') {
             const raw = val?.toString().trim() || '';
             row.status_documento = raw ? normalizeStatus(raw) : STATUS_OPTIONS[0];
-          } else if (key === 'valor') {
-            row.valor = normalizeValor(val);
-          } else if (key === 'vencimento') {
-            row.vencimento = normalizeDay(val);
-          } else if (key) {
-            row[key as keyof ParsedRow] = val?.toString().trim() || '';
-          } else if (key === 'tipo_pagto') {
+            return;
+          }
+          if (key === 'tipo_pagto') {
             const raw = val?.toString().trim() || '';
             row.tipo_pagto = raw ? normalizePagto(raw) : 'BOLETO';
+            return;
           }
+          if (key === 'valor') {
+            row.valor = normalizeValor(val);
+            return;
+          }
+          if (key === 'vencimento') {
+            row.vencimento = normalizeDay(val);
+            return;
+          }
+          row[key as keyof ParsedRow] = val?.toString().trim() || '';
         });
 
         const hasAnyValue = Object.values(row).some((value) => {
@@ -238,6 +269,11 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
             cotacao_atualizada_em: null,
             vencimento: row.vencimento ?? null,
             observacoes: row.observacoes || null,
+            banco: row.banco || null,
+            agencia: row.agencia || null,
+            conta: row.conta || null,
+            tipo_de_conta: row.tipo_de_conta || null,
+            cpf_cnpj: row.cpf_cnpj || null,
             tipo_conta: 'fixa',
             user_id: user.id,
             created_at: new Date().toISOString(),

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { Plus, Download, ExternalLink, Save, Trash2, Pencil, Star, Mail, Loader2, FileText } from "lucide-react";
 import { exportProtocoloXlsx } from "../utils/exportProtocoloXlsx";
@@ -40,6 +40,9 @@ type Protocolo = {
 
 const PC_STATE_KEY = "serverkey:pedidos_compra_state";
 const PC_EMAIL_RECIPIENTS_KEY = "serverkey:pedidos_compra_email_recipients";
+const PC_MENSAL_COLUMN_WIDTHS_KEY = "serverkey:pedidos_compra_mensal_column_widths";
+const PC_PROTOCOLO_PANEL_WIDTH_KEY = "serverkey:pedidos_compra_protocolo_panel_width";
+const PC_PROTOCOLO_COLUMN_WIDTHS_KEY = "serverkey:pedidos_compra_protocolo_column_widths";
 const DEFAULT_EMAIL_RECIPIENTS = ["daniel.rocha@odontoart.com", "ryanmendes@odontoart.com"];
 
 type PcUiState = {
@@ -103,9 +106,180 @@ type ProtocoloItem = {
     valor_total: number;
     link?: string | null;
     diretoria: boolean;
+    composto?: boolean;
+    filhos?: CompostoFilho[] | null;
 };
 
-type ProtocoloItemDraft = Omit<ProtocoloItem, "id" | "protocolo_id" | "valor_total">;
+type CompostoFilho = {
+    id: string;
+    nome: string;
+    quantidade: number;
+    valor_unit: number;
+};
+
+type ProtocoloItemDraft = {
+    loja: string;
+    produto: string;
+    prioridade: PcPrioridade;
+    quantidade: number;
+    valor_unit: number;
+    frete: number;
+    link?: string | null;
+    diretoria: boolean;
+    composto: boolean;
+    filhos: CompostoFilho[];
+};
+
+type MensalResizableColumn =
+    | "item"
+    | "quantidade"
+    | "valor_unit"
+    | "frete"
+    | "valor_total"
+    | "diretoria"
+    | "setor"
+    | "previsao"
+    | "status";
+
+const MENSAL_RESIZABLE_COLUMNS: MensalResizableColumn[] = [
+    "item",
+    "quantidade",
+    "valor_unit",
+    "frete",
+    "valor_total",
+    "diretoria",
+    "setor",
+    "previsao",
+    "status",
+];
+
+const MENSAL_COLUMN_DEFAULT_WIDTHS: Record<MensalResizableColumn, number> = {
+    item: 420,
+    quantidade: 120,
+    valor_unit: 150,
+    frete: 140,
+    valor_total: 190,
+    diretoria: 110,
+    setor: 170,
+    previsao: 160,
+    status: 180,
+};
+
+const MENSAL_COLUMN_MIN_WIDTHS: Record<MensalResizableColumn, number> = {
+    item: 220,
+    quantidade: 100,
+    valor_unit: 120,
+    frete: 110,
+    valor_total: 140,
+    diretoria: 90,
+    setor: 130,
+    previsao: 130,
+    status: 140,
+};
+
+type ProtocoloResizableColumn =
+    | "loja"
+    | "produto"
+    | "prioridade"
+    | "quantidade"
+    | "valor_unit"
+    | "frete"
+    | "total_frete"
+    | "diretoria"
+    | "link"
+    | "acoes";
+
+const PROTOCOLO_RESIZABLE_COLUMNS: ProtocoloResizableColumn[] = [
+    "loja",
+    "produto",
+    "prioridade",
+    "quantidade",
+    "valor_unit",
+    "frete",
+    "total_frete",
+    "diretoria",
+    "link",
+    "acoes",
+];
+
+const PROTOCOLO_COLUMN_DEFAULT_WIDTHS: Record<ProtocoloResizableColumn, number> = {
+    loja: 140,
+    produto: 460,
+    prioridade: 130,
+    quantidade: 90,
+    valor_unit: 140,
+    frete: 120,
+    total_frete: 170,
+    diretoria: 90,
+    link: 90,
+    acoes: 110,
+};
+
+const PROTOCOLO_COLUMN_MIN_WIDTHS: Record<ProtocoloResizableColumn, number> = {
+    loja: 100,
+    produto: 220,
+    prioridade: 110,
+    quantidade: 80,
+    valor_unit: 110,
+    frete: 100,
+    total_frete: 130,
+    diretoria: 70,
+    link: 70,
+    acoes: 90,
+};
+
+const PROTOCOLO_PANEL_DEFAULT_WIDTH = 360;
+const PROTOCOLO_PANEL_MIN_WIDTH = 280;
+
+function loadProtocolosPanelWidth(): number {
+    try {
+        const raw = localStorage.getItem(PC_PROTOCOLO_PANEL_WIDTH_KEY);
+        if (!raw) return PROTOCOLO_PANEL_DEFAULT_WIDTH;
+        const parsed = Number(JSON.parse(raw));
+        if (!Number.isFinite(parsed)) return PROTOCOLO_PANEL_DEFAULT_WIDTH;
+        return Math.max(PROTOCOLO_PANEL_MIN_WIDTH, Math.round(parsed));
+    } catch {
+        return PROTOCOLO_PANEL_DEFAULT_WIDTH;
+    }
+}
+
+function loadProtocoloColumnWidths(): Record<ProtocoloResizableColumn, number> {
+    const fallback = { ...PROTOCOLO_COLUMN_DEFAULT_WIDTHS };
+    try {
+        const raw = localStorage.getItem(PC_PROTOCOLO_COLUMN_WIDTHS_KEY);
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw) as Partial<Record<ProtocoloResizableColumn, unknown>>;
+        const next = { ...fallback };
+        PROTOCOLO_RESIZABLE_COLUMNS.forEach((column) => {
+            const parsedValue = Number(parsed?.[column]);
+            if (Number.isFinite(parsedValue)) {
+                next[column] = Math.max(PROTOCOLO_COLUMN_MIN_WIDTHS[column], Math.round(parsedValue));
+            }
+        });
+        return next;
+    } catch {
+        return fallback;
+    }
+}
+
+function loadMensalColumnWidths(): Record<MensalResizableColumn, number> {
+    const fallback = { ...MENSAL_COLUMN_DEFAULT_WIDTHS };
+    try {
+        const raw = localStorage.getItem(PC_MENSAL_COLUMN_WIDTHS_KEY);
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw) as Partial<Record<MensalResizableColumn, unknown>>;
+        const next = { ...fallback };
+        MENSAL_RESIZABLE_COLUMNS.forEach((column) => {
+            const parsedValue = Number(parsed?.[column]);
+            if (Number.isFinite(parsedValue)) {
+                next[column] = Math.max(MENSAL_COLUMN_MIN_WIDTHS[column], Math.round(parsedValue));
+            }
+        });
+        return next;
+    } catch {
+        return fallback;
+    }
+}
 
 function getNowYM() {
     const now = new Date();
@@ -144,6 +318,38 @@ function prioridadeBadge(p: PcPrioridade) {
     if (p === "BAIXA") return `${base} bg-blue-100 text-blue-700`;
     if (p === "MEDIA") return `${base} bg-yellow-100 text-yellow-800`;
     return `${base} bg-red-100 text-red-700`;
+}
+
+function createCompostoFilho(): CompostoFilho {
+    const randomId =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `filho-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return {
+        id: randomId,
+        nome: "",
+        quantidade: 1,
+        valor_unit: 0,
+    };
+}
+
+function normalizeCompostoFilhos(raw: unknown): CompostoFilho[] {
+    if (!Array.isArray(raw)) return [];
+    return raw
+        .map((item: any) => {
+            const idRaw = String(item?.id || "").trim();
+            const id = idRaw || createCompostoFilho().id;
+            const nome = String(item?.nome || "").toUpperCase().trim();
+            const quantidade = Number(item?.quantidade || 0);
+            const valor_unit = Number(item?.valor_unit || 0);
+            return {
+                id,
+                nome,
+                quantidade: Number.isFinite(quantidade) ? quantidade : 0,
+                valor_unit: Number.isFinite(valor_unit) ? valor_unit : 0,
+            };
+        })
+        .filter((item) => item.nome.length > 0 && item.quantidade > 0);
 }
 
 export default function PedidosDeCompra() {
@@ -190,6 +396,9 @@ export default function PedidosDeCompra() {
         column: "item",
         direction: "asc",
     });
+    const [mensalColumnWidths, setMensalColumnWidths] = useState<Record<MensalResizableColumn, number>>(
+        () => loadMensalColumnWidths()
+    );
 
     // PROTOCOLOS
     const [protocolos, setProtocolos] = useState<Protocolo[]>([]);
@@ -206,6 +415,8 @@ export default function PedidosDeCompra() {
         frete: 0,
         link: "",
         diretoria: false,
+        composto: false,
+        filhos: [],
     });
     const [sendingEmail, setSendingEmail] = useState(false);
     const [showEmailRecipientsModal, setShowEmailRecipientsModal] = useState(false);
@@ -218,6 +429,8 @@ export default function PedidosDeCompra() {
     const [observacoesModalProtocoloId, setObservacoesModalProtocoloId] = useState<string | null>(null);
     const [observacoesSaving, setObservacoesSaving] = useState(false);
     const [observacoesError, setObservacoesError] = useState<string | null>(null);
+    const [protocolosPanelWidth, setProtocolosPanelWidth] = useState<number>(() => loadProtocolosPanelWidth());
+    const protocoloLayoutRef = useRef<HTMLDivElement | null>(null);
 
     // item editor protocolo
     const [draft, setDraft] = useState<ProtocoloItemDraft>({
@@ -229,7 +442,121 @@ export default function PedidosDeCompra() {
         frete: 0,
         link: "",
         diretoria: false,
+        composto: false,
+        filhos: [],
     });
+    const [protocoloColumnWidths, setProtocoloColumnWidths] = useState<Record<ProtocoloResizableColumn, number>>(
+        () => loadProtocoloColumnWidths()
+    );
+
+    const startMensalColumnResize = useCallback(
+        (event: React.MouseEvent<HTMLDivElement>, column: MensalResizableColumn) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const startX = event.clientX;
+            const startWidth = mensalColumnWidths[column] ?? MENSAL_COLUMN_DEFAULT_WIDTHS[column];
+            const minWidth = MENSAL_COLUMN_MIN_WIDTHS[column];
+
+            const handleMouseMove = (moveEvent: MouseEvent) => {
+                const deltaX = moveEvent.clientX - startX;
+                const nextWidth = Math.max(minWidth, Math.round(startWidth + deltaX));
+                setMensalColumnWidths((prev) => {
+                    if (prev[column] === nextWidth) return prev;
+                    return { ...prev, [column]: nextWidth };
+                });
+            };
+
+            const cleanup = () => {
+                window.removeEventListener("mousemove", handleMouseMove);
+                window.removeEventListener("mouseup", handleMouseUp);
+                document.body.style.cursor = "";
+                document.body.style.userSelect = "";
+            };
+
+            const handleMouseUp = () => {
+                cleanup();
+            };
+
+            document.body.style.cursor = "col-resize";
+            document.body.style.userSelect = "none";
+            window.addEventListener("mousemove", handleMouseMove);
+            window.addEventListener("mouseup", handleMouseUp);
+        },
+        [mensalColumnWidths]
+    );
+
+    const startProtocoloColumnResize = useCallback(
+        (event: React.MouseEvent<HTMLDivElement>, column: ProtocoloResizableColumn) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const startX = event.clientX;
+            const startWidth = protocoloColumnWidths[column] ?? PROTOCOLO_COLUMN_DEFAULT_WIDTHS[column];
+            const minWidth = PROTOCOLO_COLUMN_MIN_WIDTHS[column];
+
+            const handleMouseMove = (moveEvent: MouseEvent) => {
+                const deltaX = moveEvent.clientX - startX;
+                const nextWidth = Math.max(minWidth, Math.round(startWidth + deltaX));
+                setProtocoloColumnWidths((prev) => {
+                    if (prev[column] === nextWidth) return prev;
+                    return { ...prev, [column]: nextWidth };
+                });
+            };
+
+            const cleanup = () => {
+                window.removeEventListener("mousemove", handleMouseMove);
+                window.removeEventListener("mouseup", handleMouseUp);
+                document.body.style.cursor = "";
+                document.body.style.userSelect = "";
+            };
+
+            const handleMouseUp = () => {
+                cleanup();
+            };
+
+            document.body.style.cursor = "col-resize";
+            document.body.style.userSelect = "none";
+            window.addEventListener("mousemove", handleMouseMove);
+            window.addEventListener("mouseup", handleMouseUp);
+        },
+        [protocoloColumnWidths]
+    );
+
+    const startProtocolosPanelResize = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const startX = event.clientX;
+        const startWidth = protocolosPanelWidth;
+        const minLeft = PROTOCOLO_PANEL_MIN_WIDTH;
+        const minRight = 520;
+        const dividerWidth = 10;
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            const deltaX = moveEvent.clientX - startX;
+            const layoutWidth = protocoloLayoutRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+            const maxLeft = Math.max(minLeft, Math.round(layoutWidth - minRight - dividerWidth));
+            const nextWidth = Math.max(minLeft, Math.min(maxLeft, Math.round(startWidth + deltaX)));
+            setProtocolosPanelWidth(nextWidth);
+        };
+
+        const cleanup = () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", handleMouseUp);
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+        };
+
+        const handleMouseUp = () => {
+            cleanup();
+        };
+
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", handleMouseUp);
+    }, [protocolosPanelWidth]);
 
     const valorFinalProtocolo = useMemo(() => {
         return round2(itens.reduce((acc, i) => acc + getProtocoloItemTotal(i), 0));
@@ -266,6 +593,24 @@ export default function PedidosDeCompra() {
             localStorage.setItem(PC_EMAIL_RECIPIENTS_KEY, JSON.stringify(emailRecipients));
         } catch { }
     }, [emailRecipients]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(PC_MENSAL_COLUMN_WIDTHS_KEY, JSON.stringify(mensalColumnWidths));
+        } catch { }
+    }, [mensalColumnWidths]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(PC_PROTOCOLO_PANEL_WIDTH_KEY, JSON.stringify(protocolosPanelWidth));
+        } catch { }
+    }, [protocolosPanelWidth]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(PC_PROTOCOLO_COLUMN_WIDTHS_KEY, JSON.stringify(protocoloColumnWidths));
+        } catch { }
+    }, [protocoloColumnWidths]);
 
     const handleOpenEmailRecipientsModal = useCallback(() => {
         if (!protocoloSel) return;
@@ -447,7 +792,12 @@ export default function PedidosDeCompra() {
             setItens([]);
             return;
         }
-        setItens((data ?? []) as ProtocoloItem[]);
+        const normalized = (data ?? []).map((row: any) => ({
+            ...row,
+            composto: Boolean(row?.composto),
+            filhos: normalizeCompostoFilhos(row?.filhos),
+        }));
+        setItens(normalized as ProtocoloItem[]);
     }, [canAccessProtocoloTab]);
 
     useEffect(() => {
@@ -489,6 +839,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
     const toggleMensalDiretoria = useCallback(
         async (item: MensalItem) => {
+            if (isFinanceiroUser) return;
             const nextValue = !item.diretoria;
             try {
                 const { error } = await supabase
@@ -517,7 +868,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                 console.error("Erro atualizando diretoria do mensal:", error);
             }
         },
-        [loadMensal, loadProtocolos]
+        [isFinanceiroUser, loadMensal, loadProtocolos]
     );
 
     // =============================
@@ -608,11 +959,65 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
             frete: Number(i.frete || 0),
             link: i.link || "",
             diretoria: i.diretoria ?? false,
+            composto: Boolean(i.composto),
+            filhos: normalizeCompostoFilhos(i.filhos),
         });
+    }
+
+    function addEditFilho() {
+        setEditDraft((prev) => ({
+            ...prev,
+            filhos: [...prev.filhos, createCompostoFilho()],
+        }));
+    }
+
+    function removeEditFilho(filhoId: string) {
+        setEditDraft((prev) => ({
+            ...prev,
+            filhos: prev.filhos.filter((filho) => filho.id !== filhoId),
+        }));
+    }
+
+    function changeEditFilho(
+        filhoId: string,
+        field: "nome" | "quantidade" | "valor_unit",
+        value: string | number
+    ) {
+        setEditDraft((prev) => ({
+            ...prev,
+            filhos: prev.filhos.map((filho) => {
+                if (filho.id !== filhoId) return filho;
+                if (field === "nome") {
+                    return { ...filho, nome: String(value).toUpperCase() };
+                }
+                if (field === "quantidade") {
+                    const parsed = Number(value || 0);
+                    return { ...filho, quantidade: Number.isFinite(parsed) ? parsed : 0 };
+                }
+                const parsed = Number(value || 0);
+                return { ...filho, valor_unit: Number.isFinite(parsed) ? parsed : 0 };
+            }),
+        }));
     }
 
     async function saveEdit() {
         if (!editItem) return;
+
+        const filhosNormalizados = editDraft.composto
+            ? editDraft.filhos
+                .map((filho) => ({
+                    id: String(filho.id || "").trim() || createCompostoFilho().id,
+                    nome: String(filho.nome || "").toUpperCase().trim(),
+                    quantidade: Number(filho.quantidade || 0),
+                    valor_unit: Number(filho.valor_unit || 0),
+                }))
+                .filter((filho) => filho.nome.length > 0 && filho.quantidade > 0)
+            : [];
+
+        if (editDraft.composto && filhosNormalizados.length === 0) {
+            setToast({ type: "error", message: "Item composto precisa de ao menos 1 unitario valido." });
+            return;
+        }
 
         const { error } = await supabase
             .from("pc_protocolo_itens")
@@ -625,6 +1030,8 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                 frete: Number(editDraft.frete || 0),
                 link: (editDraft.link || "").trim() || null,
                 diretoria: editDraft.diretoria,
+                composto: Boolean(editDraft.composto),
+                filhos: filhosNormalizados,
             })
             .eq("id", editItem.id);
 
@@ -687,6 +1094,8 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
             frete: Number(draft.frete || 0),
             link: (draft.link || "").trim() || null,
             diretoria: draft.diretoria,
+            composto: false,
+            filhos: [],
         };
 
         const { error } = await supabase.from("pc_protocolo_itens").insert([payload]);
@@ -695,7 +1104,18 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
             return;
         }
 
-        setDraft({ loja: "", produto: "", prioridade: "MEDIA", quantidade: 1, valor_unit: 0, frete: 0, link: "", diretoria: false });
+        setDraft({
+            loja: "",
+            produto: "",
+            prioridade: "MEDIA",
+            quantidade: 1,
+            valor_unit: 0,
+            frete: 0,
+            link: "",
+            diretoria: false,
+            composto: false,
+            filhos: [],
+        });
         await loadItens(protocoloSel.id);
         await loadProtocolos();
     }
@@ -938,114 +1358,198 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                     </div>
 
                     <div className="overflow-x-auto p-4">
-                        <table className="min-w-full divide-y divide-white/5 text-[11px] text-white">
+                        <table className="table-fixed divide-y divide-white/5 text-[11px] text-white" style={{ minWidth: "100%", width: "max-content" }}>
+                            <colgroup>
+                                <col style={{ width: `${mensalColumnWidths.item}px` }} />
+                                <col style={{ width: `${mensalColumnWidths.quantidade}px` }} />
+                                <col style={{ width: `${mensalColumnWidths.valor_unit}px` }} />
+                                <col style={{ width: `${mensalColumnWidths.frete}px` }} />
+                                <col style={{ width: `${mensalColumnWidths.valor_total}px` }} />
+                                <col style={{ width: `${mensalColumnWidths.diretoria}px` }} />
+                                <col style={{ width: `${mensalColumnWidths.setor}px` }} />
+                                <col style={{ width: `${mensalColumnWidths.previsao}px` }} />
+                                <col style={{ width: `${mensalColumnWidths.status}px` }} />
+                            </colgroup>
                             <thead>
                                     <tr className="text-[10px] uppercase tracking-wider text-neutral-400">
-                                        <th className="px-2 py-2 text-center font-semibold">
+                                        <th className="relative px-2 py-2 text-center font-semibold select-none">
                                             <button
                                                 type="button"
                                                 onClick={() => handleMensalSort("item")}
-                                                className="flex items-center justify-center gap-1"
+                                                className="mx-auto flex items-center justify-center gap-1"
                                             >
                                                 Item
                                                 <span className="text-neutral-400">
                                                     {mensalSort.column === "item" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
                                                 </span>
                                             </button>
+                                            <div
+                                                role="separator"
+                                                aria-orientation="vertical"
+                                                onMouseDown={(event) => startMensalColumnResize(event, "item")}
+                                                className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                title="Arraste para redimensionar"
+                                            />
                                         </th>
-                                        <th className="px-2 py-2 text-center font-semibold">
+                                        <th className="relative px-2 py-2 text-center font-semibold select-none">
                                             <button
                                                 type="button"
                                                 onClick={() => handleMensalSort("quantidade")}
-                                                className="flex items-center justify-center gap-1"
+                                                className="mx-auto flex items-center justify-center gap-1"
                                             >
                                                 Quantidade
                                                 <span className="text-neutral-400">
                                                     {mensalSort.column === "quantidade" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
                                                 </span>
                                             </button>
+                                            <div
+                                                role="separator"
+                                                aria-orientation="vertical"
+                                                onMouseDown={(event) => startMensalColumnResize(event, "quantidade")}
+                                                className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                title="Arraste para redimensionar"
+                                            />
                                         </th>
-                                        <th className="px-2 py-2 text-center font-semibold">
+                                        <th className="relative px-2 py-2 text-center font-semibold select-none">
                                             <button
                                                 type="button"
                                                 onClick={() => handleMensalSort("valor_unit")}
-                                                className="flex items-center justify-center gap-1"
+                                                className="mx-auto flex items-center justify-center gap-1"
                                             >
                                                 Valor Unit.
                                                 <span className="text-neutral-400">
                                                     {mensalSort.column === "valor_unit" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
                                                 </span>
                                             </button>
+                                            <div
+                                                role="separator"
+                                                aria-orientation="vertical"
+                                                onMouseDown={(event) => startMensalColumnResize(event, "valor_unit")}
+                                                className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                title="Arraste para redimensionar"
+                                            />
                                         </th>
-                                        <th className="px-2 py-2 text-center font-semibold">
+                                        <th className="relative px-2 py-2 text-center font-semibold select-none">
                                             <button
                                                 type="button"
                                                 onClick={() => handleMensalSort("frete")}
-                                                className="flex items-center justify-center gap-1"
+                                                className="mx-auto flex items-center justify-center gap-1"
                                             >
                                                 Frete
                                                 <span className="text-neutral-400">
                                                     {mensalSort.column === "frete" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
                                                 </span>
                                             </button>
+                                            <div
+                                                role="separator"
+                                                aria-orientation="vertical"
+                                                onMouseDown={(event) => startMensalColumnResize(event, "frete")}
+                                                className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                title="Arraste para redimensionar"
+                                            />
                                         </th>
-                                        <th className="px-2 py-2 text-center font-semibold">
+                                        <th className="relative px-2 py-2 text-center font-semibold select-none">
                                             <button
                                                 type="button"
                                                 onClick={() => handleMensalSort("valor_total")}
-                                                className="flex items-center justify-center gap-1"
+                                                className="mx-auto flex items-center justify-center gap-1"
                                             >
                                                 Valor Total + Frete
                                                 <span className="text-neutral-400">
                                                     {mensalSort.column === "valor_total" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
                                                 </span>
                                             </button>
+                                            <div
+                                                role="separator"
+                                                aria-orientation="vertical"
+                                                onMouseDown={(event) => startMensalColumnResize(event, "valor_total")}
+                                                className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                title="Arraste para redimensionar"
+                                            />
                                         </th>
-                                        <th className="px-2 py-2 text-center font-semibold">
+                                        <th className="relative px-2 py-2 text-center font-semibold select-none">
                                             <button
                                                 type="button"
                                                 onClick={() => handleMensalSort("diretoria")}
-                                                className="flex items-center justify-center gap-1"
+                                                className="mx-auto flex items-center justify-center gap-1"
                                             >
                                                 Diretoria
                                                 <span className="text-neutral-400">
                                                     {mensalSort.column === "diretoria" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
                                                 </span>
                                             </button>
+                                            <div
+                                                role="separator"
+                                                aria-orientation="vertical"
+                                                onMouseDown={(event) => startMensalColumnResize(event, "diretoria")}
+                                                className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                title="Arraste para redimensionar"
+                                            />
                                         </th>
-                                        <th className="px-2 py-2 text-center font-semibold">Setor</th>
-                                        <th className="px-2 py-2 text-center font-semibold">Previsão</th>
-                                        <th className="px-2 py-2 text-center font-semibold">
+                                        <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                            Setor
+                                            <div
+                                                role="separator"
+                                                aria-orientation="vertical"
+                                                onMouseDown={(event) => startMensalColumnResize(event, "setor")}
+                                                className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                title="Arraste para redimensionar"
+                                            />
+                                        </th>
+                                        <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                            Previsao
+                                            <div
+                                                role="separator"
+                                                aria-orientation="vertical"
+                                                onMouseDown={(event) => startMensalColumnResize(event, "previsao")}
+                                                className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                title="Arraste para redimensionar"
+                                            />
+                                        </th>
+                                        <th className="relative px-2 py-2 text-center font-semibold select-none">
                                             <button
                                                 type="button"
                                                 onClick={() => handleMensalSort("status")}
-                                                className="flex items-center justify-center gap-1"
+                                                className="mx-auto flex items-center justify-center gap-1"
                                             >
                                                 Status
                                                 <span className="text-neutral-400">
                                                     {mensalSort.column === "status" ? (mensalSort.direction === "asc" ? "↑" : "↓") : "↕"}
                                                 </span>
                                             </button>
+                                            <div
+                                                role="separator"
+                                                aria-orientation="vertical"
+                                                onMouseDown={(event) => startMensalColumnResize(event, "status")}
+                                                className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                title="Arraste para redimensionar"
+                                            />
                                         </th>
                                     </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {sortedMensal.map((m) => (
                                     <tr key={m.id} className="bg-neutral-200/5 transition-colors duration-150 hover:bg-neutral-200/10">
-                                        <td className="px-3 py-2 border-b border-white/5 text-left font-semibold">{m.item}</td>
+                                        <td className="px-3 py-2 border-b border-white/5 text-center font-semibold">{m.item}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{Number(m.quantidade || 0)}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(m.valor_unit || 0))}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{currency(getMensalFrete(m))}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(m.valor_total_frete || 0))}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">
                                             <button
+                                                disabled={isFinanceiroUser}
                                                 onClick={() => toggleMensalDiretoria(m)}
-                                                className="inline-flex items-center justify-center rounded-full border border-white/10 p-2 transition hover:border-white/40"
+                                                className={`inline-flex items-center justify-center rounded-full border border-white/10 p-2 transition ${
+                                                    isFinanceiroUser
+                                                        ? "cursor-not-allowed opacity-50"
+                                                        : "hover:border-white/40"
+                                                }`}
+                                                title={isFinanceiroUser ? "Perfil financeiro nao pode alterar Diretoria." : "Alterar Diretoria"}
                                             >
                                                 <Star className={`h-4 w-4 ${m.diretoria ? "text-primary-400" : "text-white/40"}`} />
                                             </button>
                                         </td>
-                                        <td className="px-3 py-2 border-b border-white/5">
+                                        <td className="px-3 py-2 border-b border-white/5 text-center">
                                             <input
                                                 className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
                                                 value={m.setor ?? ""}
@@ -1053,7 +1557,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                 placeholder="Setor"
                                             />
                                         </td>
-                                        <td className="px-3 py-2 border-b border-white/5">
+                                        <td className="px-3 py-2 border-b border-white/5 text-center">
                                             {canEditPrevisao ? (
                                                 <input
                                                     type="date"
@@ -1068,7 +1572,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="px-3 py-2 border-b border-white/5">
+                                        <td className="px-3 py-2 border-b border-white/5 text-center">
                                             <select
                                                 className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
                                                 value={m.status}
@@ -1097,8 +1601,12 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
             {/* ================= PROTOCOLO ================= */}
             {canAccessProtocoloTab && tab === "PROTOCOLO" && (
-                <div className="grid grid-cols-12 gap-6 mt-4">
-                <div className="col-span-12 lg:col-span-4 rounded-2xl border border-neutral-800 bg-neutral-900/70 text-white shadow-xl overflow-hidden">
+                <div
+                    ref={protocoloLayoutRef}
+                    className="grid grid-cols-1 gap-6 mt-4 lg:gap-3 lg:[grid-template-columns:var(--pc-protocolo-cols)]"
+                    style={{ ["--pc-protocolo-cols" as string]: `${protocolosPanelWidth}px 10px minmax(0, 1fr)` }}
+                >
+                <div className="rounded-2xl border border-neutral-800 bg-neutral-900/70 text-white shadow-xl overflow-hidden min-w-0">
                         <div className="px-4 py-3">
                             <h2 className="text-base font-bold text-white">Protocolos</h2>
                             <p className="mt-1 text-xs text-neutral-400">Gerencie títulos e envie itens para o mensal.</p>
@@ -1203,8 +1711,18 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                         )}
                     </div>
 
+                    <div className="hidden lg:flex items-stretch justify-center">
+                        <div
+                            role="separator"
+                            aria-orientation="vertical"
+                            onMouseDown={startProtocolosPanelResize}
+                            className="w-2 cursor-col-resize rounded-full bg-white/10 transition hover:bg-primary-400/50"
+                            title="Arraste para redimensionar os painéis"
+                        />
+                    </div>
+
                     {/* Editor protocolo */}
-                    <div className="col-span-12 lg:col-span-8 rounded-2xl border border-neutral-800 bg-neutral-900/70 text-white shadow-xl px-4 py-3">
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/70 text-white shadow-xl px-4 py-3 min-w-0">
                         <div className="flex items-center justify-between gap-3 text-sm">
                             <div>
                                 <h2 className="text-lg font-bold text-white">Itens do Protocolo</h2>
@@ -1320,37 +1838,146 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
                                 {/* Table */}
                                 <div className="overflow-x-auto p-4 rounded-2xl border border-white/10">
-                                    <table className="min-w-full divide-y divide-white/5 text-[11px] text-white">
+                                    <table className="table-fixed divide-y divide-white/5 text-[11px] text-white" style={{ minWidth: "100%", width: "max-content" }}>
+                                        <colgroup>
+                                            <col style={{ width: `${protocoloColumnWidths.loja}px` }} />
+                                            <col style={{ width: `${protocoloColumnWidths.produto}px` }} />
+                                            <col style={{ width: `${protocoloColumnWidths.prioridade}px` }} />
+                                            <col style={{ width: `${protocoloColumnWidths.quantidade}px` }} />
+                                            <col style={{ width: `${protocoloColumnWidths.valor_unit}px` }} />
+                                            <col style={{ width: `${protocoloColumnWidths.frete}px` }} />
+                                            <col style={{ width: `${protocoloColumnWidths.total_frete}px` }} />
+                                            <col style={{ width: `${protocoloColumnWidths.diretoria}px` }} />
+                                            <col style={{ width: `${protocoloColumnWidths.link}px` }} />
+                                            <col style={{ width: `${protocoloColumnWidths.acoes}px` }} />
+                                        </colgroup>
                                         <thead>
                                             <tr className="text-[10px] uppercase tracking-wider text-neutral-400">
-                                                <th className="px-2 py-2 text-left font-semibold">Loja</th>
-                                                <th className="px-2 py-2 text-left font-semibold w-[32%]">Produto</th>
-                                                <th className="px-2 py-2 text-center font-semibold">Prioridade</th>
-                                                <th className="px-2 py-2 text-right font-semibold">Quant</th>
-                                                <th className="px-2 py-2 text-right font-semibold">Valor Unit.</th>
-                                                <th className="px-2 py-2 text-right font-semibold">Frete</th>
-                                                <th className="px-2 py-2 text-right font-semibold">Total + Frete</th>
-                                                <th className="px-2 py-2 text-center font-semibold">
-                                                    <Star className="h-4 w-4 text-primary-400" aria-hidden="true" />
-                                                    <span className="sr-only">Diretoria</span>
+                                                <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                                    Loja
+                                                    <div
+                                                        role="separator"
+                                                        aria-orientation="vertical"
+                                                        onMouseDown={(event) => startProtocoloColumnResize(event, "loja")}
+                                                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                        title="Arraste para redimensionar"
+                                                    />
                                                 </th>
-                                                <th className="px-2 py-2 text-center font-semibold">Link</th>
-                                                <th className="px-2 py-2 text-center font-semibold">Ações</th>
+                                                <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                                    Produto
+                                                    <div
+                                                        role="separator"
+                                                        aria-orientation="vertical"
+                                                        onMouseDown={(event) => startProtocoloColumnResize(event, "produto")}
+                                                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                        title="Arraste para redimensionar"
+                                                    />
+                                                </th>
+                                                <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                                    Prioridade
+                                                    <div
+                                                        role="separator"
+                                                        aria-orientation="vertical"
+                                                        onMouseDown={(event) => startProtocoloColumnResize(event, "prioridade")}
+                                                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                        title="Arraste para redimensionar"
+                                                    />
+                                                </th>
+                                                <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                                    Quant
+                                                    <div
+                                                        role="separator"
+                                                        aria-orientation="vertical"
+                                                        onMouseDown={(event) => startProtocoloColumnResize(event, "quantidade")}
+                                                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                        title="Arraste para redimensionar"
+                                                    />
+                                                </th>
+                                                <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                                    Valor Unit.
+                                                    <div
+                                                        role="separator"
+                                                        aria-orientation="vertical"
+                                                        onMouseDown={(event) => startProtocoloColumnResize(event, "valor_unit")}
+                                                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                        title="Arraste para redimensionar"
+                                                    />
+                                                </th>
+                                                <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                                    Frete
+                                                    <div
+                                                        role="separator"
+                                                        aria-orientation="vertical"
+                                                        onMouseDown={(event) => startProtocoloColumnResize(event, "frete")}
+                                                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                        title="Arraste para redimensionar"
+                                                    />
+                                                </th>
+                                                <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                                    Total + Frete
+                                                    <div
+                                                        role="separator"
+                                                        aria-orientation="vertical"
+                                                        onMouseDown={(event) => startProtocoloColumnResize(event, "total_frete")}
+                                                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                        title="Arraste para redimensionar"
+                                                    />
+                                                </th>
+                                                <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                                    <Star className="mx-auto h-4 w-4 text-primary-400" aria-hidden="true" />
+                                                    <span className="sr-only">Diretoria</span>
+                                                    <div
+                                                        role="separator"
+                                                        aria-orientation="vertical"
+                                                        onMouseDown={(event) => startProtocoloColumnResize(event, "diretoria")}
+                                                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                        title="Arraste para redimensionar"
+                                                    />
+                                                </th>
+                                                <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                                    Link
+                                                    <div
+                                                        role="separator"
+                                                        aria-orientation="vertical"
+                                                        onMouseDown={(event) => startProtocoloColumnResize(event, "link")}
+                                                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                        title="Arraste para redimensionar"
+                                                    />
+                                                </th>
+                                                <th className="relative px-2 py-2 text-center font-semibold select-none">
+                                                    Acoes
+                                                    <div
+                                                        role="separator"
+                                                        aria-orientation="vertical"
+                                                        onMouseDown={(event) => startProtocoloColumnResize(event, "acoes")}
+                                                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none hover:bg-white/10"
+                                                        title="Arraste para redimensionar"
+                                                    />
+                                                </th>
                                             </tr>
                                         </thead>
 
                                         <tbody className="divide-y divide-white/5">
                                             {itens.map((i) => (
                                                 <tr key={i.id} className="bg-neutral-200/5 transition-colors duration-150 hover:bg-neutral-200/10">
-                                                    <td className="px-3 py-2 border-b border-white/5 text-left font-semibold">{i.loja}</td>
-                                                    <td className="px-3 py-2 border-b border-white/5 text-left text-sm" title={i.produto}>{i.produto}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-center font-semibold">{i.loja}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-center text-sm" title={i.produto}>
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <span>{i.produto}</span>
+                                                            {i.composto && (
+                                                                <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-semibold tracking-wide text-cyan-300">
+                                                                    COMPOSTO
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
                                                     <td className="px-3 py-2 border-b border-white/5 text-center">
                                                         <span className={prioridadeBadge(i.prioridade)}>{i.prioridade}</span>
                                                     </td>
-                                                    <td className="px-3 py-2 border-b border-white/5 text-right">{Number(i.quantidade || 0)}</td>
-                                                    <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(i.valor_unit || 0))}</td>
-                                                    <td className="px-3 py-2 border-b border-white/5 text-right">{currency(Number(i.frete || 0))}</td>
-                                                    <td className="px-3 py-2 border-b border-white/5 text-right">{currency(getProtocoloItemTotal(i))}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-center">{Number(i.quantidade || 0)}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(i.valor_unit || 0))}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(i.frete || 0))}</td>
+                                                    <td className="px-3 py-2 border-b border-white/5 text-center">{currency(getProtocoloItemTotal(i))}</td>
                                                     <td className="px-2 py-2 text-center">
                                                         <input
                                                             type="checkbox"
@@ -1488,6 +2115,78 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                         </button>
                                                         <span className="text-xs text-neutral-400">Itens marcados como ⭐ não serão contabilizados orçamento.</span>
                                                     </div>
+                                                </div>
+
+                                                <div className="mt-4 space-y-3">
+                                                    <label className="flex items-center gap-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-xs uppercase tracking-wide text-neutral-200">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(editDraft.composto)}
+                                                            onChange={(e) =>
+                                                                setEditDraft((prev) => ({
+                                                                    ...prev,
+                                                                    composto: e.target.checked,
+                                                                    filhos:
+                                                                        e.target.checked && prev.filhos.length === 0
+                                                                            ? [createCompostoFilho()]
+                                                                            : prev.filhos,
+                                                                }))
+                                                            }
+                                                            className="h-4 w-4 rounded border-neutral-600 bg-neutral-950/40 text-primary-500 focus:ring-primary-500"
+                                                        />
+                                                        Composto
+                                                    </label>
+
+                                                    {editDraft.composto && (
+                                                        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-3">
+                                                            <div className="mb-2 flex items-center justify-between">
+                                                                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-300">
+                                                                    Itens unitarios (mensal/custos)
+                                                                </p>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={addEditFilho}
+                                                                    className="rounded-xl border border-neutral-700 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/80 hover:bg-neutral-200/10"
+                                                                >
+                                                                    Adicionar unitario
+                                                                </button>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                {editDraft.filhos.map((filho) => (
+                                                                    <div key={filho.id} className="grid grid-cols-12 gap-2">
+                                                                        <input
+                                                                            className="col-span-12 md:col-span-6 rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
+                                                                            value={filho.nome}
+                                                                            onChange={(e) => changeEditFilho(filho.id, "nome", e.target.value)}
+                                                                            placeholder="Item unitario"
+                                                                        />
+                                                                        <input
+                                                                            type="number"
+                                                                            min={0}
+                                                                            className="col-span-6 md:col-span-2 rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-2 text-right text-sm text-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                                            value={filho.quantidade}
+                                                                            onChange={(e) => changeEditFilho(filho.id, "quantidade", e.target.value)}
+                                                                            placeholder="Qtd"
+                                                                        />
+                                                                        <MoneyInputBRL
+                                                                            value={filho.valor_unit}
+                                                                            onChange={(val) => changeEditFilho(filho.id, "valor_unit", val)}
+                                                                            placeholder="Valor (R$)"
+                                                                            showPlaceholderWhenZero
+                                                                            className="col-span-6 md:col-span-3 rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => removeEditFilho(filho.id)}
+                                                                            className="col-span-12 md:col-span-1 rounded-xl border border-red-900/40 px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-red-300 hover:bg-red-900/20"
+                                                                        >
+                                                                            X
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -1704,3 +2403,8 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         </>
     );
 }
+
+
+
+
+

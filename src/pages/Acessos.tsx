@@ -127,7 +127,7 @@ const Acessos: React.FC = () => {
       setPendingPasswordReveal(id);
       setShowPasswordModal(true);
     }
-  }, []);
+  }, [visiblePasswords]);
 
   const copyText = useCallback(async (value?: string, key?: string) => {
     if (!value) return;
@@ -157,14 +157,15 @@ const Acessos: React.FC = () => {
     }, 800);
   }, []);
 
-  const handlePasswordVerified = () => {
-    if (pendingPasswordReveal) {
-      const newVisible = new Set(visiblePasswords);
-      newVisible.add(pendingPasswordReveal);
-      setVisiblePasswords(newVisible);
-      setPendingPasswordReveal(null);
-    }
-  };
+  const handlePasswordVerified = useCallback((passwordId: string | null) => {
+    if (!passwordId) return;
+    setVisiblePasswords((prev) => {
+      const next = new Set(prev);
+      next.add(passwordId);
+      return next;
+    });
+    setPendingPasswordReveal(null);
+  }, []);
 
   const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', acesso: Access) => {
     setPendingAction(action);
@@ -513,7 +514,8 @@ const Acessos: React.FC = () => {
                             <Copy className="h-3 w-3 sm:h-4 sm:w-4" />
                           </button>
                         )}
-                        <button 
+                        <button
+                          type="button"
                           onClick={() => togglePasswordVisibility(acesso.id)} 
                           className="text-neutral-400 hover:text-neutral-600"
                         >
@@ -648,7 +650,7 @@ const Acessos: React.FC = () => {
           setShowPasswordModal(false);
           setPendingPasswordReveal(null);
         }}
-        onSuccess={handlePasswordVerified}
+        onSuccess={() => handlePasswordVerified(pendingPasswordReveal)}
         title="Verificação de Senha"
         message="Digite sua senha para visualizar a senha do acesso:"
       />
@@ -682,7 +684,3 @@ const Acessos: React.FC = () => {
 };
 
 export default Acessos;
-
-
-
-

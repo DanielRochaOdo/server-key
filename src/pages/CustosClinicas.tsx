@@ -35,12 +35,29 @@ type InventoryMovement = {
   createdAt: string;
 };
 
+type InventoryHistoryMovement = {
+  id: string;
+  competencia: string;
+  clinic: string;
+  product: string;
+  store: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  createdAt: string;
+};
+
 type MovementStore = Record<string, InventoryMovement[]>;
 type UnifyStore = Record<string, string>;
 type CarryoverStore = Record<string, Record<string, { quantity: number; totalCost: number }>>;
 
 type MonthData = {
   uber: ControleUberRow[];
+  compras: MensalItem[];
+  protocoloMap: Record<string, ProtocoloItemLite>;
+};
+
+type PurchaseHistoryData = {
   compras: MensalItem[];
   protocoloMap: Record<string, ProtocoloItemLite>;
 };
@@ -85,10 +102,32 @@ const normalizeKey = (value?: string | null) => {
   const cleaned = normalizeWhitespace(value || '');
   return (cleaned || 'SEM PRODUTO').toUpperCase();
 };
+const normalizeAliasKey = (value?: string | null) =>
+  normalizeKey(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 const normalizeSearch = (value?: string | null) => normalizeWhitespace(value || '').toUpperCase();
 const normalizeStore = (value?: string | null) => {
   const cleaned = normalizeWhitespace(value || '');
   return (cleaned || 'SEM LOJA').toUpperCase();
+};
+const BUILTIN_PRODUCT_ALIASES: Record<string, string> = {
+  [normalizeAliasKey('MEMORIA RAM 8GB DDR3')]: 'MEMORIA 8GB',
+  [normalizeAliasKey('PLACA MAE SOCKET 1155')]: 'PLACA MAE 1155',
+};
+const resolveUnifiedTarget = (value: string, unifyMap: UnifyStore) => {
+  let current = normalizeKey(value);
+  const visited = new Set<string>();
+
+  while (!visited.has(current)) {
+    visited.add(current);
+    const mappedByAlias = BUILTIN_PRODUCT_ALIASES[normalizeAliasKey(current)];
+    const next = normalizeKey(unifyMap[current] || mappedByAlias || current);
+    if (!next || next === current) break;
+    current = next;
+  }
+
+  return current;
 };
 const productStoreKey = (product: string, store: string) => `${product}__${store}`;
 const UI_STATE_KEY = 'serverkey:custos_clinicas_ui';
@@ -217,6 +256,15 @@ const fetchUnifyStore = async (): Promise<UnifyStore> => {
   return map;
 };
 
+const formatQuantity = (value?: number | string | null) => {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return '0';
+  return numeric.toLocaleString('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+};
+
 const fetchMovementsByMonth = async (monthKey: string): Promise<InventoryMovement[]> => {
   const competencia = monthKeyToCompetencia(monthKey);
   const { data, error } = await supabase
@@ -279,7 +327,8 @@ const fetchMonthData = async (monthKey: string): Promise<MonthData> => {
       .from('pc_mensal_itens')
       .select('id, ano, mes, item, quantidade, valor_unit, valor_total_frete, protocolo_item_id')
       .eq('ano', year)
-      .eq('mes', month),
+      .eq('mes', month)
+      .eq('status', 'ENTREGUE'),
   ]);
 
   if (comprasRes.error) {
@@ -342,6 +391,11 @@ const CustosClinicas: React.FC = () => {
   const [unifyStore, setUnifyStore] = useState<UnifyStore>({});
   const [movementStore, setMovementStore] = useState<MovementStore>({});
   const [carryoverStore, setCarryoverStore] = useState<CarryoverStore>({});
+  const [purchaseHistory, setPurchaseHistory] = useState<PurchaseHistoryData>({
+    compras: [],
+    protocoloMap: {},
+  });
+  const [movementHistory, setMovementHistory] = useState<InventoryMovement[]>([]);
   const [showMovementModal, setShowMovementModal] = useState(() => {
     const saved = loadUiState();
     return Boolean(saved?.showMovementModal);
@@ -387,6 +441,11 @@ const CustosClinicas: React.FC = () => {
   });
   const [selectedItemsClinic, setSelectedItemsClinic] = useState<ClinicKey | null>(null);
   const [selectedUberClinic, setSelectedUberClinic] = useState<ClinicKey | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyProduct, setHistoryProduct] = useState('');
+  const [historyRows, setHistoryRows] = useState<InventoryHistoryMovement[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   const prevMonthKey = useMemo(() => getPrevMonthKey(monthKey), [monthKey]);
 
@@ -394,7 +453,17 @@ const CustosClinicas: React.FC = () => {
     setLoading(true);
     try {
       const prevPrevMonthKey = getPrevMonthKey(prevMonthKey);
-      const [current, previous, unifyMap, movementCurrent, movementPrev, carryPrev, carryPrevPrev] =
+      const [
+        current,
+        previous,
+        unifyMap,
+        movementCurrent,
+        movementPrev,
+        carryPrev,
+        carryPrevPrev,
+        historyPurchases,
+        historyMovements,
+      ] =
         await Promise.all([
         fetchMonthData(monthKey),
         fetchMonthData(prevMonthKey),
@@ -403,6 +472,8 @@ const CustosClinicas: React.FC = () => {
         fetchMovementsByMonth(prevMonthKey),
         fetchCarryoverByMonth(prevMonthKey),
         fetchCarryoverByMonth(prevPrevMonthKey),
+        fetchPurchasesUpToMonth(monthKey),
+        fetchMovementsUpToMonth(monthKey),
       ]);
       setCurrentData(current);
       setPreviousData(previous);
@@ -416,6 +487,8 @@ const CustosClinicas: React.FC = () => {
         [prevMonthKey]: carryPrev,
         [prevPrevMonthKey]: carryPrevPrev,
       }));
+      setPurchaseHistory(historyPurchases);
+      setMovementHistory(historyMovements);
     } finally {
       setLoading(false);
     }
@@ -463,6 +536,18 @@ const CustosClinicas: React.FC = () => {
     () => CLINICAS.filter((clinic) => movementByClinic[clinic.key].length > 0),
     [movementByClinic]
   );
+  const historyByClinic = useMemo(() => {
+    const map: Record<string, number> = {};
+    historyRows.forEach((row) => {
+      const clinic = normalizeKey(row.clinic);
+      map[clinic] = (map[clinic] || 0) + Number(row.quantity || 0);
+    });
+    return map;
+  }, [historyRows]);
+  const historyTotalQuantity = useMemo(
+    () => historyRows.reduce((acc, row) => acc + Number(row.quantity || 0), 0),
+    [historyRows]
+  );
 
   const prevMovements = useMemo(
     () => movementStore[prevMonthKey] || [],
@@ -478,6 +563,7 @@ const CustosClinicas: React.FC = () => {
       const current = prev[monthKey] || [];
       return { ...prev, [monthKey]: [...current, movement] };
     });
+    setMovementHistory((prev) => [...prev, movement]);
   };
 
   const removeMovementLocal = (id: string) => {
@@ -485,6 +571,7 @@ const CustosClinicas: React.FC = () => {
       const current = prev[monthKey] || [];
       return { ...prev, [monthKey]: current.filter((item) => item.id !== id) };
     });
+    setMovementHistory((prev) => prev.filter((item) => item.id !== id));
   };
 
   const uberTotals = useMemo(() => {
@@ -526,9 +613,9 @@ const CustosClinicas: React.FC = () => {
       const protocolo = item.protocolo_item_id
         ? currentData.protocoloMap[item.protocolo_item_id]
         : undefined;
-      const sourceName = normalizeKey(protocolo?.produto || item.item);
+      const sourceName = normalizeKey(item.item || protocolo?.produto);
       const storeName = normalizeStore(protocolo?.loja);
-      const unifiedName = normalizeKey(unifyStore[sourceName] || sourceName);
+      const unifiedName = resolveUnifiedTarget(sourceName, unifyStore);
       const quantity = parseNumberValue(item.quantidade);
       const totalCost = parseNumberValue(item.valor_total_frete);
       const unitCost = quantity > 0 ? totalCost / quantity : 0;
@@ -549,9 +636,9 @@ const CustosClinicas: React.FC = () => {
       const protocolo = item.protocolo_item_id
         ? previousData.protocoloMap[item.protocolo_item_id]
         : undefined;
-      const sourceName = normalizeKey(protocolo?.produto || item.item);
+      const sourceName = normalizeKey(item.item || protocolo?.produto);
       const storeName = normalizeStore(protocolo?.loja);
-      const unifiedName = normalizeKey(unifyStore[sourceName] || sourceName);
+      const unifiedName = resolveUnifiedTarget(sourceName, unifyStore);
       const quantity = parseNumberValue(item.quantidade);
       const totalCost = parseNumberValue(item.valor_total_frete);
       const unitCost = quantity > 0 ? totalCost / quantity : 0;
@@ -698,7 +785,7 @@ const CustosClinicas: React.FC = () => {
 
       Object.entries(base || {}).forEach(([key, value]) => {
         const [rawProduct, rawStore] = key.split('__');
-        const normalizedProduct = normalizeKey(unifyStore[normalizeKey(rawProduct)] || rawProduct);
+        const normalizedProduct = resolveUnifiedTarget(rawProduct, unifyStore);
         const normalizedStore = normalizeStore(rawStore);
         const normalizedKey = productStoreKey(normalizedProduct, normalizedStore);
         snapshot[normalizedKey] = {
@@ -709,7 +796,7 @@ const CustosClinicas: React.FC = () => {
 
       sources.forEach((item) => {
         if (!item.quantity) return;
-        const key = productStoreKey(item.unifiedName, item.storeName);
+        const key = productStoreKey(resolveUnifiedTarget(item.unifiedName, unifyStore), item.storeName);
         snapshot[key] = {
           quantity: (snapshot[key]?.quantity || 0) + item.quantity,
           totalCost: (snapshot[key]?.totalCost || 0) + item.totalCost,
@@ -717,7 +804,7 @@ const CustosClinicas: React.FC = () => {
       });
 
       movementList.forEach((movement) => {
-        const key = productStoreKey(movement.product, movement.store);
+        const key = productStoreKey(resolveUnifiedTarget(movement.product, unifyStore), movement.store);
         const current = snapshot[key] || { quantity: 0, totalCost: 0 };
         snapshot[key] = {
           quantity: Math.max(0, current.quantity - Number(movement.quantity || 0)),
@@ -730,19 +817,32 @@ const CustosClinicas: React.FC = () => {
     [unifyStore]
   );
 
-  const carryoverPrev = useMemo(() => {
-    const stored = carryoverStore[prevMonthKey];
-    if (stored && Object.keys(stored).length > 0) return stored;
-    const prevPrev = carryoverStore[getPrevMonthKey(prevMonthKey)] || {};
-    return computeInventorySnapshot(prevPrev, prevPurchaseSources, prevMovements);
-  }, [carryoverStore, prevMonthKey, prevPurchaseSources, prevMovements, computeInventorySnapshot]);
+  const historyPurchaseSources = useMemo(() => {
+    return purchaseHistory.compras.map((item) => {
+      const protocolo = item.protocolo_item_id
+        ? purchaseHistory.protocoloMap[item.protocolo_item_id]
+        : undefined;
+      const sourceName = normalizeKey(item.item || protocolo?.produto);
+      const storeName = normalizeStore(protocolo?.loja);
+      const unifiedName = resolveUnifiedTarget(sourceName, unifyStore);
+      const quantity = parseNumberValue(item.quantidade);
+      const totalCost = parseNumberValue(item.valor_total_frete);
+      const unitCost = quantity > 0 ? totalCost / quantity : 0;
+      return {
+        id: item.id,
+        sourceName,
+        unifiedName,
+        storeName,
+        quantity,
+        totalCost,
+        unitCost,
+      };
+    });
+  }, [purchaseHistory, unifyStore]);
 
   const inventoryMap = useMemo(() => {
-    const next: Record<string, { quantity: number; totalCost: number }> = {};
-
-    Object.assign(next, computeInventorySnapshot(carryoverPrev, purchaseSources, movements));
-    return next;
-  }, [carryoverPrev, purchaseSources, movements, computeInventorySnapshot]);
+    return computeInventorySnapshot({}, historyPurchaseSources, movementHistory);
+  }, [historyPurchaseSources, movementHistory, computeInventorySnapshot]);
 
   const inventoryRows = useMemo(() => {
     return Object.entries(inventoryMap)
@@ -790,11 +890,41 @@ const CustosClinicas: React.FC = () => {
     [inventoryByProduct]
   );
 
+  const inventoryAuditByProduct = useMemo(() => {
+    const map: Record<
+      string,
+      { purchasedQty: number; directedQty: number; purchasedCost: number; directedCost: number }
+    > = {};
+
+    const ensure = (product: string) => {
+      if (!map[product]) {
+        map[product] = { purchasedQty: 0, directedQty: 0, purchasedCost: 0, directedCost: 0 };
+      }
+      return map[product];
+    };
+
+    historyPurchaseSources.forEach((item) => {
+      const product = resolveUnifiedTarget(item.unifiedName, unifyStore);
+      const bucket = ensure(product);
+      bucket.purchasedQty += Number(item.quantity || 0);
+      bucket.purchasedCost += Number(item.totalCost || 0);
+    });
+
+    movementHistory.forEach((movement) => {
+      const product = resolveUnifiedTarget(movement.product, unifyStore);
+      const bucket = ensure(product);
+      bucket.directedQty += Number(movement.quantity || 0);
+      bucket.directedCost += Number(movement.totalCost || 0);
+    });
+
+    return map;
+  }, [historyPurchaseSources, movementHistory, unifyStore]);
+
   const unifiedProducts = useMemo(() => {
     const map: Record<string, { sources: Set<string>; hasRename: boolean }> = {};
-    Object.entries(unifyStore).forEach(([source, unified]) => {
+    Object.entries(unifyStore).forEach(([source]) => {
       const normalizedSource = normalizeKey(source);
-      const normalizedUnified = normalizeKey(unified || source);
+      const normalizedUnified = resolveUnifiedTarget(normalizedSource, unifyStore);
       if (!map[normalizedUnified]) {
         map[normalizedUnified] = { sources: new Set(), hasRename: false };
       }
@@ -1057,6 +1187,60 @@ const CustosClinicas: React.FC = () => {
     removeMovementLocal(id);
   };
 
+  const handleOpenHistoryModal = async (product: string) => {
+    const normalizedProduct = normalizeKey(product);
+    setHistoryProduct(normalizedProduct);
+    setHistoryRows([]);
+    setHistoryError('');
+    setShowHistoryModal(true);
+    setHistoryLoading(true);
+
+    const targetProduct = resolveUnifiedTarget(normalizedProduct, unifyStore);
+    const aliases = new Set<string>([normalizedProduct, targetProduct]);
+    Object.entries(unifyStore).forEach(([source, unified]) => {
+      const normalizedSource = normalizeKey(source);
+      const normalizedUnified = normalizeKey(unified || source);
+      const resolved = resolveUnifiedTarget(normalizedSource, unifyStore);
+      if (
+        normalizedSource === normalizedProduct ||
+        normalizedUnified === normalizedProduct ||
+        resolved === targetProduct
+      ) {
+        aliases.add(normalizedSource);
+        aliases.add(normalizedUnified);
+      }
+    });
+
+    const { data, error } = await supabase
+      .from('custos_clinicas_movements')
+      .select('id, competencia, clinic, product, store, quantity, unit_cost, total_cost, created_at')
+      .in('product', Array.from(aliases))
+      .order('competencia', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao carregar historico do item:', error);
+      setHistoryError('Erro ao carregar historico do item.');
+      setHistoryLoading(false);
+      return;
+    }
+
+    const rows: InventoryHistoryMovement[] = (data || []).map((row: any) => ({
+      id: row.id,
+      competencia: String(row.competencia || ''),
+      clinic: normalizeKey(row.clinic),
+      product: normalizeKey(row.product),
+      store: normalizeStore(row.store),
+      quantity: Number(row.quantity || 0),
+      unitCost: Number(row.unit_cost || 0),
+      totalCost: Number(row.total_cost || 0),
+      createdAt: String(row.created_at || ''),
+    }));
+
+    setHistoryRows(rows);
+    setHistoryLoading(false);
+  };
+
   const handleUnifyToggle = (name: string) => {
     setUnifyError('');
     setUnifySelected((prev) => {
@@ -1083,7 +1267,7 @@ const CustosClinicas: React.FC = () => {
       return;
     }
     const unifiedSet = new Set(
-      unifySelected.map((name) => normalizeKey(unifyStore[name] || name))
+      unifySelected.map((name) => resolveUnifiedTarget(name, unifyStore))
     );
     if (unifiedSet.size === 1) {
       setUnifyName(Array.from(unifiedSet)[0]);
@@ -1131,15 +1315,54 @@ const CustosClinicas: React.FC = () => {
 
     const normalizedUnified = normalizeKey(unifyName);
     const next: UnifyStore = { ...unifyStore };
-    const rows: { source_name: string; unified_name: string }[] = unifySelected.map((source) => {
-      const normalizedSource = normalizeKey(source);
-      next[normalizedSource] = normalizedUnified;
-      return { source_name: normalizedSource, unified_name: normalizedUnified };
+    const selectedTargets = new Set<string>(
+      unifySelected.map((source) => resolveUnifiedTarget(source, unifyStore))
+    );
+
+    Object.keys(next).forEach((source) => {
+      if (selectedTargets.has(resolveUnifiedTarget(source, unifyStore))) {
+        if (source === normalizedUnified) {
+          delete next[source];
+        } else {
+          next[source] = normalizedUnified;
+        }
+      }
     });
 
-    const { error } = await supabase
-      .from('custos_clinicas_unify')
-      .upsert(rows, { onConflict: 'source_name' });
+    unifySelected.forEach((source) => {
+      const normalizedSource = normalizeKey(source);
+      if (normalizedSource === normalizedUnified) {
+        delete next[normalizedSource];
+        return;
+      }
+      next[normalizedSource] = normalizedUnified;
+    });
+
+    const rows: { source_name: string; unified_name: string }[] = Object.entries(next).map(
+      ([source_name, unified_name]) => ({ source_name, unified_name })
+    );
+
+    const removedSources = Object.keys(unifyStore).filter((source) => !next[source]);
+    if (removedSources.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('custos_clinicas_unify')
+        .delete()
+        .in('source_name', removedSources);
+      if (deleteError) {
+        console.error('Erro ao remover unificacao antiga:', deleteError);
+        setUnifyError('Erro ao salvar unificacao.');
+        setUnifySaving(false);
+        return;
+      }
+    }
+
+    let error: any = null;
+    if (rows.length > 0) {
+      const result = await supabase
+        .from('custos_clinicas_unify')
+        .upsert(rows, { onConflict: 'source_name' });
+      error = result.error;
+    }
 
     if (error) {
       console.error('Erro ao salvar unificacao:', error);
@@ -1151,6 +1374,11 @@ const CustosClinicas: React.FC = () => {
     updateUnifyStore(next);
     setUnifySaving(false);
     setShowUnifyModal(false);
+  };
+
+  const resolveClinicName = (clinicValue: string) => {
+    const clinic = CLINICAS.find((item) => item.key === clinicValue);
+    return clinic?.label || clinicValue;
   };
 
   return (
@@ -1348,6 +1576,14 @@ const CustosClinicas: React.FC = () => {
                       const totalQuantity = stores.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
                       const totalCost = stores.reduce((acc, item) => acc + Number(item.totalCost || 0), 0);
                       const unitCost = totalQuantity > 0 ? totalCost / totalQuantity : 0;
+                      const audit = inventoryAuditByProduct[product] || {
+                        purchasedQty: 0,
+                        directedQty: 0,
+                        purchasedCost: 0,
+                        directedCost: 0,
+                      };
+                      const auditBalanceQty = audit.purchasedQty - audit.directedQty;
+                      if (auditBalanceQty <= 0) return null;
                       const isUnified = unifiedProducts.has(product);
                       const expanded = Boolean(expandedProducts[product]);
 
@@ -1356,7 +1592,22 @@ const CustosClinicas: React.FC = () => {
                           const storeRow = stores[0];
                           return (
                             <tr key={product} className="border-b border-neutral-100 dark:border-neutral-800">
-                              <td className="py-2 px-2 text-neutral-800 dark:text-neutral-100">{product}</td>
+                              <td className="py-2 px-2 text-neutral-800 dark:text-neutral-100">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenHistoryModal(product)}
+                                    aria-label={`Ver historico de ${product}`}
+                                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-neutral-300 text-[10px] font-bold text-neutral-600 dark:border-neutral-600 dark:text-neutral-300"
+                                  >
+                                    ?
+                                  </button>
+                                  <span>{product}</span>
+                                </div>
+                                <div className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">
+                                  Comprado: {formatQuantity(audit.purchasedQty)} | Direcionado: {formatQuantity(audit.directedQty)} | Saldo: {formatQuantity(auditBalanceQty)}
+                                </div>
+                              </td>
                               <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">{storeRow.store}</td>
                               <td className="py-2 px-2 text-center font-semibold text-neutral-800 dark:text-neutral-100">
                                 {storeRow.quantity}
@@ -1373,12 +1624,29 @@ const CustosClinicas: React.FC = () => {
 
                         return (
                           <React.Fragment key={product}>
-                            {stores.map((storeRow) => (
+                            {stores.map((storeRow, idx) => (
                               <tr
                                 key={`${product}-${storeRow.store}`}
                                 className="border-b border-neutral-100 dark:border-neutral-800"
                               >
-                                <td className="py-2 px-2 text-neutral-800 dark:text-neutral-100">{product}</td>
+                                <td className="py-2 px-2 text-neutral-800 dark:text-neutral-100">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenHistoryModal(product)}
+                                      aria-label={`Ver historico de ${product}`}
+                                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-neutral-300 text-[10px] font-bold text-neutral-600 dark:border-neutral-600 dark:text-neutral-300"
+                                    >
+                                      ?
+                                    </button>
+                                    <span>{product}</span>
+                                  </div>
+                                  {idx === 0 && (
+                                    <div className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">
+                                      Comprado: {formatQuantity(audit.purchasedQty)} | Direcionado: {formatQuantity(audit.directedQty)} | Saldo: {formatQuantity(auditBalanceQty)}
+                                    </div>
+                                  )}
+                                </td>
                                 <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">{storeRow.store}</td>
                                 <td className="py-2 px-2 text-center font-semibold text-neutral-800 dark:text-neutral-100">
                                   {storeRow.quantity}
@@ -1409,6 +1677,25 @@ const CustosClinicas: React.FC = () => {
                                 }
                                 className="flex items-center gap-2 text-left font-semibold text-neutral-900 hover:text-primary-600 dark:text-neutral-100"
                               >
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleOpenHistoryModal(product);
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      handleOpenHistoryModal(product);
+                                    }
+                                  }}
+                                  aria-label={`Ver historico de ${product}`}
+                                  className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-neutral-300 text-[10px] font-bold text-neutral-600 dark:border-neutral-600 dark:text-neutral-300"
+                                >
+                                  ?
+                                </span>
                                 <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-neutral-200 text-[10px] dark:border-neutral-700">
                                   {expanded ? '-' : '+'}
                                 </span>
@@ -1416,6 +1703,9 @@ const CustosClinicas: React.FC = () => {
                               </button>
                               <div className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">
                                 {stores.length} loja(s)
+                              </div>
+                              <div className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">
+                                Comprado: {formatQuantity(audit.purchasedQty)} | Direcionado: {formatQuantity(audit.directedQty)} | Saldo: {formatQuantity(auditBalanceQty)}
                               </div>
                             </td>
                             <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">UNIFICADO</td>
@@ -1837,6 +2127,85 @@ const CustosClinicas: React.FC = () => {
         </div>
       )}
 
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 backdrop-blur-sm p-4">
+          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col dark:bg-neutral-900/95 dark:border-neutral-800">
+            <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-neutral-800 dark:text-neutral-100">
+                Historico do item
+              </h3>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                {historyProduct || '-'}
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {historyLoading ? (
+                <div className="text-sm text-neutral-500 dark:text-neutral-400">Carregando historico...</div>
+              ) : historyError ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700 dark:border-red-900/50 dark:bg-red-900/30 dark:text-red-200">
+                  {historyError}
+                </div>
+              ) : historyRows.length === 0 ? (
+                <div className="text-sm text-neutral-500 dark:text-neutral-400">Nenhum direcionamento encontrado.</div>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-neutral-200 bg-neutral-200 px-4 py-3 text-xs text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+                    <div className="flex items-center justify-between">
+                      <span>Total direcionado</span>
+                      <span className="font-semibold">{historyTotalQuantity}</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                      {CLINICAS.map((clinic) => {
+                        const qty = Number(historyByClinic[clinic.key] || 0);
+                        if (qty <= 0) return null;
+                        return (
+                          <div key={clinic.key} className="flex items-center justify-between">
+                            <span>{clinic.label}</span>
+                            <span className="font-semibold">{qty}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-[10px] uppercase text-neutral-700 dark:text-neutral-200">
+                      <thead className="text-neutral-500 border-b border-neutral-200 dark:text-neutral-400 dark:border-neutral-800">
+                        <tr>
+                          <th className="py-2 px-2 text-left">Competencia</th>
+                          <th className="py-2 px-2 text-left">Clinica</th>
+                          <th className="py-2 px-2 text-left">Loja</th>
+                          <th className="py-2 px-2 text-center">Qtd</th>
+                          <th className="py-2 px-2 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historyRows.map((row) => (
+                          <tr key={row.id} className="border-b border-neutral-100 dark:border-neutral-800">
+                            <td className="py-2 px-2">{row.competencia ? String(row.competencia).slice(0, 7) : '-'}</td>
+                            <td className="py-2 px-2">{resolveClinicName(row.clinic)}</td>
+                            <td className="py-2 px-2">{row.store}</td>
+                            <td className="py-2 px-2 text-center">{row.quantity}</td>
+                            <td className="py-2 px-2 text-right">{formatCurrency(row.totalCost)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-200/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 flex justify-end">
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="rounded-full border border-neutral-300 bg-neutral-200 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showUnifyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 backdrop-blur-sm p-4">
           <div className="bg-neutral-200 rounded-2xl border border-neutral-200 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col dark:bg-neutral-900/95 dark:border-neutral-800">
@@ -1888,7 +2257,7 @@ const CustosClinicas: React.FC = () => {
                       </thead>
                       <tbody>
                         {filteredUnifyNames.map((name) => {
-                          const unified = normalizeKey(unifyStore[name] || name);
+                          const unified = resolveUnifiedTarget(name, unifyStore);
                           const checked = unifySelected.includes(name);
                           const stores = Array.from(unifyStoresByName[name] || []).sort((a, b) =>
                             a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
@@ -1987,6 +2356,90 @@ const CustosClinicas: React.FC = () => {
       )}
     </div>
   );
+};
+
+const fetchPurchasesUpToMonth = async (monthKey: string): Promise<PurchaseHistoryData> => {
+  const { year, month } = monthKeyToRange(monthKey);
+  const { data, error } = await supabase
+    .from('pc_mensal_itens')
+    .select('id, ano, mes, item, quantidade, valor_unit, valor_total_frete, protocolo_item_id')
+    .eq('status', 'ENTREGUE')
+    .order('ano', { ascending: true })
+    .order('mes', { ascending: true })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Erro ao carregar historico de compras:', error);
+    return { compras: [], protocoloMap: {} };
+  }
+
+  const comprasData = ((data || []) as MensalItem[]).filter((item) => {
+    const itemYear = Number(item.ano || 0);
+    const itemMonth = Number(item.mes || 0);
+    if (!Number.isFinite(itemYear) || !Number.isFinite(itemMonth)) return false;
+    return itemYear < year || (itemYear === year && itemMonth <= month);
+  });
+
+  const protocoloIds = Array.from(
+    new Set(
+      comprasData
+        .map((item) => item.protocolo_item_id)
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  let protocoloMap: Record<string, ProtocoloItemLite> = {};
+  if (protocoloIds.length > 0) {
+    const { data: protocoloData, error: protocoloError } = await supabase
+      .from('pc_protocolo_itens')
+      .select('id, loja, produto')
+      .in('id', protocoloIds);
+
+    if (protocoloError) {
+      console.error('Erro ao carregar itens de protocolo (historico):', protocoloError);
+    } else {
+      (protocoloData || []).forEach((row: any) => {
+        if (!row?.id) return;
+        protocoloMap[row.id] = {
+          id: row.id,
+          loja: row.loja ?? null,
+          produto: row.produto ?? null,
+        };
+      });
+    }
+  }
+
+  return {
+    compras: comprasData,
+    protocoloMap,
+  };
+};
+
+const fetchMovementsUpToMonth = async (monthKey: string): Promise<InventoryMovement[]> => {
+  const competencia = monthKeyToCompetencia(monthKey);
+  const { data, error } = await supabase
+    .from('custos_clinicas_movements')
+    .select('id, competencia, clinic, product, store, quantity, unit_cost, total_cost, created_at')
+    .lte('competencia', competencia)
+    .order('competencia', { ascending: true })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Erro ao carregar historico de movimentacoes:', error);
+    return [];
+  }
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    monthKey: String(row.competencia || '').slice(0, 7),
+    clinic: row.clinic as ClinicKey,
+    product: normalizeKey(row.product),
+    store: normalizeStore(row.store),
+    quantity: parseNumberValue(row.quantity),
+    unitCost: parseNumberValue(row.unit_cost),
+    totalCost: parseNumberValue(row.total_cost),
+    createdAt: row.created_at,
+  }));
 };
 
 export default CustosClinicas;

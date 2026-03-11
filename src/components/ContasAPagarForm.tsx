@@ -18,6 +18,11 @@ interface ContaAPagar {
   cotacao_atualizada_em?: string | null;
   vencimento?: number | null;
   observacoes?: string | null;
+  banco?: string | null;
+  agencia?: string | null;
+  conta?: string | null;
+  tipo_de_conta?: string | null;
+  cpf_cnpj?: string | null;
   tipo_conta?: 'fixa' | 'avulsa' | 'ressarcimento' | null;
 }
 type ContaTipo = 'fixa' | 'avulsa' | 'ressarcimento';
@@ -51,6 +56,11 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
     status_documento: STATUS_OPTIONS[0],
     fornecedor: '',
     tipo_pagto: PAGTO_OPTIONS[0],
+    banco: '',
+    agencia: '',
+    conta: '',
+    tipo_de_conta: '',
+    cpf_cnpj: '',
     link: '',
     descricao: '',
     valor: '',
@@ -134,6 +144,11 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         status_documento: conta.status_documento || STATUS_OPTIONS[0],
         fornecedor: conta.fornecedor || '',
         tipo_pagto: normalizedTipoPagto,
+        banco: conta.banco || '',
+        agencia: conta.agencia || '',
+        conta: conta.conta || '',
+        tipo_de_conta: conta.tipo_de_conta || '',
+        cpf_cnpj: conta.cpf_cnpj || '',
         link: conta.link || '',
         descricao: conta.descricao || '',
         valor: Number.isFinite(parsedValor) ? formatCurrency(parsedValor, moedaConta) : '',
@@ -147,6 +162,11 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         status_documento: STATUS_OPTIONS[0],
         fornecedor: '',
         tipo_pagto: PAGTO_OPTIONS[0],
+        banco: '',
+        agencia: '',
+        conta: '',
+        tipo_de_conta: '',
+        cpf_cnpj: '',
         link: '',
         descricao: '',
         valor: '',
@@ -196,6 +216,8 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
     });
   };
 
+  const showTransferFields = (formData.tipo_pagto || '').toUpperCase() === 'TRANSFERENCIA';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -229,6 +251,21 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         return;
       }
 
+      if (tipoPagto === 'TRANSFERENCIA') {
+        const requiredTransferFields = [
+          formData.banco,
+          formData.agencia,
+          formData.conta,
+          formData.tipo_de_conta,
+          formData.cpf_cnpj,
+        ].map((value) => (value || '').trim());
+
+        if (requiredTransferFields.some((value) => !value)) {
+          setError('Preencha Nome do Banco, Agencia, Conta, Tipo de Conta e CPF/CNPJ/Chave PIX para Transferencia.');
+          return;
+        }
+      }
+
       let valorFinal = parsedValor;
       let cotacaoUsd: number | null = null;
       let cotacaoDate: string | null = null;
@@ -258,6 +295,11 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         vencimento: normalizedVencimento,
         link: normalizedLink ? normalizedLink : null,
         observacoes: formData.observacoes || null,
+        banco: formData.banco.trim() || null,
+        agencia: formData.agencia.trim() || null,
+        conta: formData.conta.trim() || null,
+        tipo_de_conta: formData.tipo_de_conta.trim() || null,
+        cpf_cnpj: formData.cpf_cnpj.trim() || null,
         tipo_conta: formData.tipo_conta,
         user_id: user.id,
         updated_at: new Date().toISOString()
@@ -357,6 +399,85 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   ))}
                 </select>
               </div>
+              {showTransferFields && (
+                <>
+                  <div>
+                    <label htmlFor="banco" className="block text-sm font-medium text-neutral-700 mb-2">
+                      Nome do Banco *
+                    </label>
+                    <input
+                      type="text"
+                      id="banco"
+                      name="banco"
+                      value={formData.banco}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                      disabled={loading}
+                      required={showTransferFields}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="agencia" className="block text-sm font-medium text-neutral-700 mb-2">
+                      Agencia *
+                    </label>
+                    <input
+                      type="text"
+                      id="agencia"
+                      name="agencia"
+                      value={formData.agencia}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                      disabled={loading}
+                      required={showTransferFields}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="conta" className="block text-sm font-medium text-neutral-700 mb-2">
+                      Conta *
+                    </label>
+                    <input
+                      type="text"
+                      id="conta"
+                      name="conta"
+                      value={formData.conta}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                      disabled={loading}
+                      required={showTransferFields}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="tipo_de_conta" className="block text-sm font-medium text-neutral-700 mb-2">
+                      Tipo de Conta *
+                    </label>
+                    <input
+                      type="text"
+                      id="tipo_de_conta"
+                      name="tipo_de_conta"
+                      value={formData.tipo_de_conta}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                      disabled={loading}
+                      required={showTransferFields}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label htmlFor="cpf_cnpj" className="block text-sm font-medium text-neutral-700 mb-2">
+                      CPF/CNPJ/Chave PIX *
+                    </label>
+                    <input
+                      type="text"
+                      id="cpf_cnpj"
+                      name="cpf_cnpj"
+                      value={formData.cpf_cnpj}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                      disabled={loading}
+                      required={showTransferFields}
+                    />
+                  </div>
+                </>
+              )}
               <div className="md:col-span-2">
                 <label htmlFor="status_documento" className="block text-sm font-medium text-neutral-700 mb-2">
                   Status da Conta *

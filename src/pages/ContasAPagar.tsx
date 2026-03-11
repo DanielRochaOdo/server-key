@@ -44,6 +44,7 @@ const resolveXlsx = async () => {
 type ContaTipo = 'fixa' | 'avulsa' | 'ressarcimento';
 type LoteOrigem = ContaTipo | 'misto';
 type ActiveTab = ContaTipo | 'lotes' | 'lotes_fechados';
+type LoteCreationMode = 'novo' | 'existente';
 
 type LoteRowDetalhado = {
   id: string;
@@ -106,6 +107,11 @@ interface ContaAPagar {
   cotacao_atualizada_em?: string | null;
   vencimento?: number | null;
   observacoes?: string | null;
+  banco?: string | null;
+  agencia?: string | null;
+  conta?: string | null;
+  tipo_de_conta?: string | null;
+  cpf_cnpj?: string | null;
   tipo_conta?: ContaTipo | null;
   created_at: string;
 }
@@ -122,6 +128,9 @@ const PAGTO_OPTIONS = [
   'PIX',
   'TRANSFERENCIA',
 ];
+
+const normalizeTipoPagto = (value?: string | null) => (value || '').trim().toUpperCase();
+const isTransferencia = (value?: string | null) => normalizeTipoPagto(value) === 'TRANSFERENCIA';
 
 const XLSX_EXPORT_HEADERS = [
   'FORNECEDOR',
@@ -256,6 +265,7 @@ type ExportEntryField =
   | 'anexos';
 
 type ExportEntry = Partial<Record<ExportEntryField, string>>;
+type LoteSortKey = ExportEntryField | 'valor';
 
 const EXPORT_ENTRY_FIELDS: ExportEntryField[] = [
   'fornecedor',
@@ -636,6 +646,10 @@ const ContasAPagar: React.FC = () => {
     key: 'fornecedor' | 'status_documento' | 'valor' | 'vencimento' | null;
     direction: 'asc' | 'desc';
   }>({ key: 'vencimento', direction: 'asc' });
+  const [loteSortConfig, setLoteSortConfig] = useState<{
+    key: LoteSortKey | null;
+    direction: 'asc' | 'desc';
+  }>({ key: null, direction: 'asc' });
   const [viewingConta, setViewingConta] = useState<ContaAPagar | null>(() => getState('contasAPagar_viewingConta') || null);
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
@@ -665,6 +679,10 @@ const ContasAPagar: React.FC = () => {
   const [consolidateError, setConsolidateError] = useState<string | null>(null);
   const [lotes, setLotes] = useState<LoteRegistro[]>(() => loadLotes());
   const [lotesLoaded, setLotesLoaded] = useState(false);
+  const [showLoteCreationModeModal, setShowLoteCreationModeModal] = useState(false);
+  const [loteCreationMode, setLoteCreationMode] = useState<LoteCreationMode>('novo');
+  const [selectedExistingLoteId, setSelectedExistingLoteId] = useState('');
+  const [loteCreationModeError, setLoteCreationModeError] = useState<string | null>(null);
   const [loteNome, setLoteNome] = useState('');
   const [loteNomeError, setLoteNomeError] = useState<string | null>(null);
   const [currentLoteId, setCurrentLoteId] = useState<string | null>(null);
@@ -1455,19 +1473,21 @@ const ContasAPagar: React.FC = () => {
     const now = new Date();
     const day = getDayValue(conta.vencimento ?? null);
     const vencDate = day ? getNextDueDate(day, now) : null;
+    const pagamento = normalizeTipoPagto(conta.tipo_pagto) || 'BOLETO';
+    const transferencia = isTransferencia(pagamento);
     return {
       fornecedor: decodeLatin1IfNeeded(conta.fornecedor) ?? '',
       vencimento: vencDate ? vencDate.toISOString().slice(0, 10) : '',
-      pagamento: (conta.tipo_pagto || 'BOLETO').toUpperCase(),
+      pagamento,
       empresa: 'ODONTOART',
       descricao: decodeLatin1IfNeeded(conta.descricao) ?? '',
       notaFiscal: '*',
       setorResponsavel: 'T.I',
-      banco: '*',
-      agencia: '*',
-      conta: '*',
-      tipoConta: '*',
-      cpfCnpj: '*',
+      banco: transferencia ? (decodeLatin1IfNeeded(conta.banco) ?? '') : '*',
+      agencia: transferencia ? (decodeLatin1IfNeeded(conta.agencia) ?? '') : '*',
+      conta: transferencia ? (decodeLatin1IfNeeded(conta.conta) ?? '') : '*',
+      tipoConta: transferencia ? (decodeLatin1IfNeeded(conta.tipo_de_conta) ?? '') : '*',
+      cpfCnpj: transferencia ? (decodeLatin1IfNeeded(conta.cpf_cnpj) ?? '') : '*',
       anexos: 'Não',
     };
   };
@@ -1489,8 +1509,54 @@ const ContasAPagar: React.FC = () => {
     return merged;
   };
 
+  const sortedLoteContas = useMemo(() => {
+    if (!loteSortConfig.key) return filteredContasSorted;
+
+    const list = [...filteredContasSorted];
+    const getComparableValue = (conta: ContaAPagar) => {
+      const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
+      if (loteSortConfig.key === 'valor') {
+        return parseExportValor(conta.valor) ?? Number.NEGATIVE_INFINITY;
+      }
+      if (loteSortConfig.key === 'vencimento') {
+        const parsed = parseExportDate(entry.vencimento);
+        return parsed ? parsed.getTime() : Number.NEGATIVE_INFINITY;
+      }
+      const value = entry[loteSortConfig.key];
+      return (value || '').toString().toUpperCase();
+    };
+
+    list.sort((a, b) => {
+      const aValue = getComparableValue(a);
+      const bValue = getComparableValue(b);
+      let result = 0;
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        result = aValue - bValue;
+      } else {
+        result = String(aValue).localeCompare(String(bValue), 'pt-BR', { sensitivity: 'base' });
+      }
+
+      return loteSortConfig.direction === 'asc' ? result : -result;
+    });
+
+    return list;
+  }, [exportEntries, filteredContasSorted, loteSortConfig, mergeExportEntryWithDefaults]);
+
+  const handleLoteSortToggle = useCallback((key: LoteSortKey) => {
+    setLoteSortConfig((prev) => {
+      if (prev.key === key) {
+        return {
+          key,
+          direction: prev.direction === 'asc' ? 'desc' : 'asc',
+        };
+      }
+      return { key, direction: 'asc' };
+    });
+  }, []);
+
   const buildDetalhadoRows = useCallback((): LoteRowDetalhado[] => {
-    return filteredContasSorted.map((conta) => {
+    return sortedLoteContas.map((conta) => {
       const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
       return {
         id: conta.id,
@@ -1512,10 +1578,10 @@ const ContasAPagar: React.FC = () => {
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       };
     });
-  }, [exportEntries, filteredContasSorted, mergeExportEntryWithDefaults, normalizeContaTipo]);
+  }, [exportEntries, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
 
   const buildResumidoRows = useCallback((): LoteRowResumido[] => {
-    return filteredContasSorted.map((conta) => {
+    return sortedLoteContas.map((conta) => {
       const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
       return {
         id: conta.id,
@@ -1528,7 +1594,7 @@ const ContasAPagar: React.FC = () => {
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       };
     });
-  }, [exportEntries, filteredContasSorted, mergeExportEntryWithDefaults, normalizeContaTipo]);
+  }, [exportEntries, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
 
   const buildDetalhadoEmailRows = useCallback((rows: LoteRowDetalhado[]) => {
     return rows.map((row) => {
@@ -1933,9 +1999,28 @@ const ContasAPagar: React.FC = () => {
   const handleExportEntryChange = (conta: ContaAPagar, field: ExportEntryField, value: string) => {
     setExportEntries((prev) => {
       const next = { ...prev };
-      const updated = mergeExportEntryWithDefaults(conta, {
+      const current = mergeExportEntryWithDefaults(conta, prev[conta.id]);
+      const patch: ExportEntry = {
         ...prev[conta.id],
         [field]: value,
+      };
+
+      if (field === 'pagamento' && isTransferencia(value)) {
+        const banco = decodeLatin1IfNeeded(conta.banco) ?? '';
+        const agencia = decodeLatin1IfNeeded(conta.agencia) ?? '';
+        const numeroConta = decodeLatin1IfNeeded(conta.conta) ?? '';
+        const tipoConta = decodeLatin1IfNeeded(conta.tipo_de_conta) ?? '';
+        const cpfCnpj = decodeLatin1IfNeeded(conta.cpf_cnpj) ?? '';
+
+        if (!current.banco || current.banco === '*') patch.banco = banco;
+        if (!current.agencia || current.agencia === '*') patch.agencia = agencia;
+        if (!current.conta || current.conta === '*') patch.conta = numeroConta;
+        if (!current.tipoConta || current.tipoConta === '*') patch.tipoConta = tipoConta;
+        if (!current.cpfCnpj || current.cpfCnpj === '*') patch.cpfCnpj = cpfCnpj;
+      }
+
+      const updated = mergeExportEntryWithDefaults(conta, {
+        ...patch,
       });
       next[conta.id] = updated;
       return next;
@@ -2088,16 +2173,17 @@ const ContasAPagar: React.FC = () => {
     tipo: 'resumido' | 'detalhado',
     nome: string,
     rows: LoteRowDetalhado[] | LoteRowResumido[],
-    options?: { silentToast?: boolean }
+    options?: { silentToast?: boolean; loteId?: string; origemOverride?: LoteOrigem }
   ) => {
     const trimmed = nome.trim();
     if (!trimmed) return false;
-    const origem: ContaTipo = activeTab === 'avulsa'
+    const origemFromTab: ContaTipo = activeTab === 'avulsa'
       ? 'avulsa'
       : activeTab === 'ressarcimento'
         ? 'ressarcimento'
         : 'fixa';
-    const loteId = ensureUuid(currentLoteId ?? createId());
+    const origem: LoteOrigem = options?.origemOverride ?? origemFromTab;
+    const loteId = ensureUuid(options?.loteId ?? currentLoteId ?? createId());
     const totalRows = rows.length;
     const counts = getRowsCounts(rows);
     setCurrentLoteId(loteId);
@@ -2156,10 +2242,7 @@ const ContasAPagar: React.FC = () => {
     return true;
   }, [activeTab, currentLoteId, getRowsCounts, persistLoteToDb]);
 
-  const handleOpenNovoLoteModal = useCallback(() => {
-    setLoteNome(buildDefaultLoteNome());
-    setLoteNomeError(null);
-    setCurrentLoteId(createId());
+  const prepareLoteDraftEntries = useCallback(() => {
     setExportEntries((prev) => {
       const next = { ...prev };
       filteredContasSorted.forEach((conta) => {
@@ -2167,8 +2250,42 @@ const ContasAPagar: React.FC = () => {
       });
       return next;
     });
+  }, [filteredContasSorted, mergeExportEntryWithDefaults]);
+
+  const handleOpenNovoLoteModal = useCallback(() => {
+    setLoteCreationMode('novo');
+    setSelectedExistingLoteId(lotesAbertos[0]?.id ?? '');
+    setLoteCreationModeError(null);
+    setShowLoteCreationModeModal(true);
+  }, [lotesAbertos]);
+
+  const handleConfirmLoteCreationMode = useCallback(() => {
+    const mode = loteCreationMode;
+    if (mode === 'existente') {
+      const targetLote = lotesAbertos.find((lote) => lote.id === selectedExistingLoteId);
+      if (!targetLote) {
+        setLoteCreationModeError('Selecione um lote em aberto para adicionar as contas.');
+        return;
+      }
+      setCurrentLoteId(targetLote.id);
+      setLoteNome(targetLote.nome);
+    } else {
+      setCurrentLoteId(createId());
+      setLoteNome(buildDefaultLoteNome());
+    }
+
+    setLoteNomeError(null);
+    setLoteSortConfig({ key: null, direction: 'asc' });
+    prepareLoteDraftEntries();
+    setShowLoteCreationModeModal(false);
     setShowExportNfModal(true);
-  }, [buildDefaultLoteNome, filteredContasSorted, mergeExportEntryWithDefaults]);
+  }, [
+    buildDefaultLoteNome,
+    loteCreationMode,
+    lotesAbertos,
+    prepareLoteDraftEntries,
+    selectedExistingLoteId,
+  ]);
 
   const handleSaveLoteDetalhado = useCallback(() => {
     const trimmed = loteNome.trim();
@@ -2176,21 +2293,65 @@ const ContasAPagar: React.FC = () => {
       setLoteNomeError('Informe o nome do lote.');
       return;
     }
-    const detalhadoRows = buildDetalhadoRows();
-    const resumidoRows = buildResumidoRows();
-    const saved = upsertLote('detalhado', trimmed, detalhadoRows, { silentToast: true });
+    const loteId = ensureUuid(currentLoteId ?? createId());
+    const incomingDetalhadoRows = buildDetalhadoRows();
+    const incomingResumidoRows = buildResumidoRows();
+    const existingLote = loteCreationMode === 'existente'
+      ? lotes.find((lote) => lote.id === loteId)
+      : null;
+
+    if (loteCreationMode === 'existente' && !existingLote) {
+      setLoteNomeError('Lote destino nao encontrado. Selecione novamente.');
+      return;
+    }
+
+    function mergeRowsByKey<T extends { id: string; contaId?: string }>(
+      currentRows: T[] | undefined,
+      nextRows: T[]
+    ): T[] {
+      const byKey = new Map<string, T>();
+      (currentRows ?? []).forEach((row) => {
+        byKey.set(row.contaId || row.id, row);
+      });
+      nextRows.forEach((row) => {
+        byKey.set(row.contaId || row.id, row);
+      });
+      return Array.from(byKey.values());
+    }
+
+    const detalhadoRows = existingLote
+      ? mergeRowsByKey(existingLote.detalhadoRows, incomingDetalhadoRows)
+      : incomingDetalhadoRows;
+    const resumidoRows = existingLote
+      ? mergeRowsByKey(existingLote.resumidoRows, incomingResumidoRows)
+      : incomingResumidoRows;
+
+    const incomingOrigem: ContaTipo = activeTab === 'avulsa'
+      ? 'avulsa'
+      : activeTab === 'ressarcimento'
+        ? 'ressarcimento'
+        : 'fixa';
+    const origemOverride: LoteOrigem | undefined = existingLote
+      ? (existingLote.origem === incomingOrigem ? existingLote.origem : 'misto')
+      : undefined;
+    const targetNome = existingLote ? existingLote.nome : trimmed;
+
+    const saved = upsertLote('detalhado', targetNome, detalhadoRows, { silentToast: true, loteId, origemOverride });
     if (!saved) return;
-    upsertLote('resumido', trimmed, resumidoRows, { silentToast: true });
+    upsertLote('resumido', targetNome, resumidoRows, { silentToast: true, loteId, origemOverride });
     setToast({
       type: 'success',
-      message: 'Lote detalhado e resumido registrados',
+      message: existingLote
+        ? 'Contas adicionadas ao lote existente'
+        : 'Lote detalhado e resumido registrados',
     });
     if (saved) {
       setShowExportNfModal(false);
       setLoteNomeError(null);
       setCurrentLoteId(null);
+      setLoteCreationMode('novo');
     }
-  }, [buildDetalhadoRows, buildResumidoRows, loteNome, upsertLote]);
+  }, [activeTab, buildDetalhadoRows, buildResumidoRows, currentLoteId, loteCreationMode, loteNome, lotes, upsertLote]);
 
   const handleStartEditLote = useCallback((lote: LoteRegistro, tipo: 'resumido' | 'detalhado', readOnly = false) => {
     setEditingLoteId(lote.id);
@@ -3460,6 +3621,15 @@ const ContasAPagar: React.FC = () => {
             <div>
               <strong>Pagamento:</strong> {viewingConta.tipo_pagto ? viewingConta.tipo_pagto.toUpperCase() : '-'}
             </div>
+              {isTransferencia(viewingConta.tipo_pagto) && (
+                <>
+                  <div><strong>Nome do Banco:</strong> {viewingConta.banco || '-'}</div>
+                  <div><strong>Agencia:</strong> {viewingConta.agencia || '-'}</div>
+                  <div><strong>Conta:</strong> {viewingConta.conta || '-'}</div>
+                  <div><strong>Tipo de Conta:</strong> {viewingConta.tipo_de_conta || '-'}</div>
+                  <div><strong>CPF/CNPJ/Chave PIX:</strong> {viewingConta.cpf_cnpj || '-'}</div>
+                </>
+              )}
               <div><strong>Fornecedor:</strong> {viewingConta.fornecedor || '-'}</div>
               <div>
                 <strong>Link:</strong>{' '}
@@ -3519,20 +3689,113 @@ const ContasAPagar: React.FC = () => {
         />
       )}
 
+      {showLoteCreationModeModal && (
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 p-5 sm:p-6 w-full max-w-lg shadow-2xl">
+            <h3 className="text-lg font-semibold text-neutral-900">Gerar Lote</h3>
+            <p className="mt-2 text-sm text-neutral-600">
+              Escolha se deseja criar um novo lote ou adicionar as contas a um lote em aberto.
+            </p>
+
+            <div className="mt-4 grid gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setLoteCreationMode('novo');
+                  setLoteCreationModeError(null);
+                }}
+                className={`w-full rounded-xl border px-4 py-2 text-left text-sm font-semibold transition-colors ${
+                  loteCreationMode === 'novo'
+                    ? 'border-primary-300 bg-primary-50 text-primary-700'
+                    : 'border-neutral-300 text-neutral-700 hover:bg-neutral-200'
+                }`}
+              >
+                Novo Lote
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoteCreationMode('existente');
+                  setLoteCreationModeError(null);
+                }}
+                disabled={lotesAbertos.length === 0}
+                className={`w-full rounded-xl border px-4 py-2 text-left text-sm font-semibold transition-colors ${
+                  loteCreationMode === 'existente'
+                    ? 'border-primary-300 bg-primary-50 text-primary-700'
+                    : 'border-neutral-300 text-neutral-700 hover:bg-neutral-200'
+                } ${lotesAbertos.length === 0 ? 'cursor-not-allowed opacity-50' : ''}`}
+              >
+                Adicionar a Lote Existente
+              </button>
+            </div>
+
+            {loteCreationMode === 'existente' && (
+              <div className="mt-4">
+                <label htmlFor="lote_destino" className="block text-sm font-medium text-neutral-700 mb-2">
+                  Lote em Aberto
+                </label>
+                <select
+                  id="lote_destino"
+                  value={selectedExistingLoteId}
+                  onChange={(event) => {
+                    setSelectedExistingLoteId(event.target.value);
+                    if (loteCreationModeError) setLoteCreationModeError(null);
+                  }}
+                  className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                >
+                  <option value="">Selecione um lote</option>
+                  {lotesAbertos.map((lote) => (
+                    <option key={lote.id} value={lote.id}>
+                      {lote.nome} ({lote.total} itens)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {loteCreationModeError && (
+              <div className="mt-3 text-xs text-red-600">{loteCreationModeError}</div>
+            )}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowLoteCreationModeModal(false);
+                  setLoteCreationModeError(null);
+                }}
+                className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-200"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmLoteCreationMode}
+                className="px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showExportNfModal && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-neutral-200 rounded-2xl p-5 md:p-6 w-full max-w-[calc(100vw-2rem)] shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-neutral-200 rounded-2xl p-5 md:p-6 w-full max-w-[calc(100vw-2rem)] lg:max-w-[calc(100vw-18rem)] shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-neutral-900">Novo Lote</h3>
+                <h3 className="text-lg font-semibold text-neutral-900">
+                  {loteCreationMode === 'existente' ? 'Adicionar ao Lote Existente' : 'Novo Lote'}
+                </h3>
                 <span className="text-xs text-neutral-500">{filteredContasSorted.length} itens</span>
               </div>
               <p className="text-sm text-neutral-600">
-                Defina o nome do lote detalhado e revise os dados antes de salvar.
+                {loteCreationMode === 'existente'
+                  ? 'Revise os dados e adicione as contas ao lote selecionado.'
+                  : 'Defina o nome do lote detalhado e revise os dados antes de salvar.'}
               </p>
               <div className="mt-3">
                 <label htmlFor="lote_nome" className="block text-sm font-medium text-neutral-700 mb-2">
-                  Nome do Lote *
+                  {loteCreationMode === 'existente' ? 'Lote Destino' : 'Nome do Lote *'}
                 </label>
                 <input
                   id="lote_nome"
@@ -3542,7 +3805,10 @@ const ContasAPagar: React.FC = () => {
                     setLoteNome(event.target.value);
                     if (loteNomeError) setLoteNomeError(null);
                   }}
-                  className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+                  readOnly={loteCreationMode === 'existente'}
+                  className={`w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500 ${
+                    loteCreationMode === 'existente' ? 'cursor-not-allowed text-neutral-500' : ''
+                  }`}
                   placeholder="Ex: Lote Detalhado Fevereiro"
                 />
                 {loteNomeError && (
@@ -3565,17 +3831,28 @@ const ContasAPagar: React.FC = () => {
               </button>
             </div>
             <div className="mt-4 border-t border-dashed border-neutral-200 pt-4 flex-1 min-h-0">
-              <div className="h-full overflow-y-auto overflow-x-hidden pr-2">
-                {filteredContasSorted.length === 0 ? (
+              <div className="h-full max-h-[55vh] overflow-auto pr-2 pb-2">
+                {sortedLoteContas.length === 0 ? (
                   <div className="text-xs text-neutral-500 text-center py-6 border border-dashed rounded-lg uppercase">
                     Nenhum registro selecionado.
                   </div>
                 ) : (
-                  <div className="overflow-x-hidden">
-                    <table className="w-full table-fixed border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-neutral-200 uppercase">
+                    <table className="min-w-[1800px] w-max border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-neutral-200 uppercase">
                       <thead className="bg-neutral-200 text-[9px] sm:text-[10px] lg:text-[11px] uppercase tracking-wide text-neutral-500">
                         <tr>
                           {EXPORT_TABLE_COLUMNS.map((column) => {
+                            const sortField: LoteSortKey | null = column.field
+                              ? (column.field as LoteSortKey)
+                              : column.readonly
+                                ? 'valor'
+                                : null;
+                            const sortIndicator = sortField && loteSortConfig.key === sortField
+                              ? loteSortConfig.direction === 'asc'
+                                ? '↑'
+                                : '↓'
+                              : sortField
+                                ? '↕'
+                                : '';
                             const headerAlignClass =
                               column.align === 'center'
                                 ? 'text-center'
@@ -3587,14 +3864,25 @@ const ContasAPagar: React.FC = () => {
                                 key={column.label}
                                 className={`px-3 py-2 lg:px-4 lg:py-3 font-semibold break-words whitespace-normal leading-tight ${headerAlignClass}`}
                               >
-                                {column.label}
+                                {sortField ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleLoteSortToggle(sortField)}
+                                    className={`inline-flex w-full items-center gap-1 ${headerAlignClass === 'text-right' ? 'justify-end' : headerAlignClass === 'text-center' ? 'justify-center' : 'justify-start'}`}
+                                  >
+                                    <span>{column.label}</span>
+                                    <span>{sortIndicator}</span>
+                                  </button>
+                                ) : (
+                                  column.label
+                                )}
                               </th>
                             );
                           })}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-200 bg-neutral-200">
-                        {filteredContasSorted.map((conta) => {
+                        {sortedLoteContas.map((conta) => {
                           const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
                           return (
                             <tr key={conta.id} className="even:bg-neutral-200">
@@ -3651,16 +3939,16 @@ const ContasAPagar: React.FC = () => {
                         })}
                       </tbody>
                     </table>
-                  </div>
                 )}
               </div>
             </div>
-            <div className="mt-4 flex flex-wrap justify-end gap-2 pt-3 border-t border-neutral-200 bg-neutral-200/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
+            <div className="mt-4 shrink-0 flex flex-wrap justify-end gap-2 pt-3 border-t border-neutral-200 bg-neutral-200">
               <button
                 onClick={() => {
                   setShowExportNfModal(false);
                   setLoteNomeError(null);
                   setCurrentLoteId(null);
+                  setLoteCreationMode('novo');
                 }}
                 className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-200"
               >
@@ -3670,7 +3958,7 @@ const ContasAPagar: React.FC = () => {
                 onClick={handleSaveLoteDetalhado}
                 className="px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
               >
-                Salvar Lote
+                {loteCreationMode === 'existente' ? 'Adicionar Contas' : 'Salvar Lote'}
               </button>
             </div>
           </div>
@@ -3912,7 +4200,7 @@ const ContasAPagar: React.FC = () => {
 
       {editingLoteId && editingLoteType && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-neutral-200 rounded-2xl p-5 w-full max-w-[calc(100vw-2rem)] shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-neutral-200 rounded-2xl p-5 w-full max-w-[calc(100vw-2rem)] lg:max-w-[calc(100vw-18rem)] shadow-2xl border border-neutral-200 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-neutral-900 uppercase">
@@ -3977,7 +4265,7 @@ const ContasAPagar: React.FC = () => {
                 })()}
               </div>
             )}
-            <div className="mt-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-2">
+            <div className="mt-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-2 pb-2">
               {(() => {
                 const rowsToRender = editingLoteReadOnly
                   ? editingLoteRows.filter((row) => {
@@ -3997,7 +4285,8 @@ const ContasAPagar: React.FC = () => {
                   );
                 }
                 return (
-                <table className="w-full table-fixed border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-neutral-200 uppercase">
+                <div className="overflow-x-auto pb-2">
+                <table className="min-w-[1800px] border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-neutral-200 uppercase">
                   <thead className="bg-neutral-200 text-[9px] sm:text-[10px] lg:text-[11px] uppercase tracking-wide text-neutral-500">
                     {editingLoteReadOnly && (
                       <tr className="bg-neutral-200">
@@ -4087,10 +4376,11 @@ const ContasAPagar: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 );
               })()}
             </div>
-            <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-neutral-200/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
+            <div className="mt-4 shrink-0 flex flex-wrap justify-end gap-2 pt-3 border-t border-neutral-200 bg-neutral-200">
               <button
                 onClick={handleCancelEditLote}
                 className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-200"
