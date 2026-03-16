@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { X, Eye, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 
 interface PasswordVerificationModalProps {
   isOpen: boolean;
@@ -15,8 +14,8 @@ const PasswordVerificationModal: React.FC<PasswordVerificationModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  title = "Verificação de Senha",
-  message = "Digite sua senha para visualizar esta informação:"
+  title = 'Verificacao de Senha',
+  message = 'Digite sua senha para visualizar esta informacao:'
 }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,22 +30,51 @@ const PasswordVerificationModal: React.FC<PasswordVerificationModalProps> = ({
     setError('');
 
     try {
-      // Verify password using current client session
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: user.email!,
-        password: password
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseAnonKey || !user.email) {
+        setError('Nao foi possivel validar a senha agora');
+        return;
+      }
+
+      // Validate credentials against Auth API without changing current client session.
+      const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+        },
+        body: JSON.stringify({
+          email: user.email,
+          password,
+        }),
       });
 
-      if (error) {
-        console.error('Password verification failed:', error);
-        setError('Senha incorreta');
-      } else if (data.user) {
-        // Password is correct, call success callback
-        onSuccess();
-        handleClose();
-      } else {
-        setError('Erro na verificação da senha');
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = String(
+          payload?.error_description || payload?.error || payload?.message || ''
+        ).toLowerCase();
+
+        if (message.includes('invalid login credentials')) {
+          setError('Senha incorreta');
+        } else {
+          setError('Erro na verificacao da senha');
+        }
+
+        return;
       }
+
+      if (!payload?.access_token) {
+        console.error('Unexpected password verification response:', payload);
+        setError('Erro na verificacao da senha');
+        return;
+      }
+
+      onSuccess();
+      handleClose();
     } catch (err) {
       console.error('Error during password verification:', err);
       setError('Erro ao verificar senha');
@@ -136,4 +164,3 @@ const PasswordVerificationModal: React.FC<PasswordVerificationModalProps> = ({
 };
 
 export default PasswordVerificationModal;
-

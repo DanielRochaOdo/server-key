@@ -24,6 +24,7 @@ import {
   HiOutlineCog6Tooth,
   HiOutlineComputerDesktop,
   HiOutlineDocumentText,
+  HiOutlineLightBulb,
   HiOutlineEnvelope,
   HiOutlineExclamationCircle,
   HiOutlineExclamationTriangle,
@@ -85,6 +86,7 @@ export const EyeOff = HiOutlineEyeSlash;
 export const FileText = HiOutlineDocumentText;
 export const Globe = HiOutlineGlobeAlt;
 export const Key = HiOutlineKey;
+export const Lightbulb = HiOutlineLightBulb;
 export const Loader2 = HiOutlineArrowPath;
 export const Lock = HiOutlineLockClosed;
 export const LogOut = HiOutlineArrowLeftStartOnRectangle;
