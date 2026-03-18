@@ -5,6 +5,7 @@ import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
+import EditPermissionModal from '../components/EditPermissionModal';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
@@ -631,7 +632,8 @@ const loadExportModalState = (): ExportModalState => {
 const ContasAPagar: React.FC = () => {
   const [contas, setContas] = useState<ContaAPagar[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, hasModuleEditAccess } = useAuth();
+  const canEditContasAPagar = hasModuleEditAccess('contas_a_pagar');
   const { getState, setState, clearState } = usePersistence();
   const USD_UPDATE_DATE_KEY = 'serverkey:contas_apagar_usd_update_date';
 
@@ -692,6 +694,13 @@ const ContasAPagar: React.FC = () => {
   const [editingLoteRows, setEditingLoteRows] = useState<Array<LoteRowDetalhado | LoteRowResumido>>([]);
   const [editingLoteReadOnly, setEditingLoteReadOnly] = useState(false);
   const [editingLoteTab, setEditingLoteTab] = useState<ContaTipo>('fixa');
+  const [showEditDeniedModal, setShowEditDeniedModal] = useState(false);
+
+  const requireEditPermission = useCallback(() => {
+    if (canEditContasAPagar) return true;
+    setShowEditDeniedModal(true);
+    return false;
+  }, [canEditContasAPagar]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -773,7 +782,7 @@ const ContasAPagar: React.FC = () => {
   }, []);
 
   const refreshUsdContasIfNeeded = useCallback(async () => {
-    if (!user?.id || typeof window === 'undefined') return;
+    if (!canEditContasAPagar || !user?.id || typeof window === 'undefined') return;
     const today = getLocalDateKey();
     const lastUpdate = localStorage.getItem(USD_UPDATE_DATE_KEY);
     if (lastUpdate === today) return;
@@ -820,7 +829,7 @@ const ContasAPagar: React.FC = () => {
     } catch (error) {
       console.error('Erro ao atualizar cotacao USD/BRL:', error);
     }
-  }, [USD_UPDATE_DATE_KEY, contas, fetchContas, user?.id]);
+  }, [USD_UPDATE_DATE_KEY, canEditContasAPagar, contas, fetchContas, user?.id]);
 
   useEffect(() => {
     fetchContas();
@@ -846,6 +855,24 @@ const ContasAPagar: React.FC = () => {
   useEffect(() => {
     setState('contasAPagar_showUpload', showUpload);
   }, [showUpload, setState]);
+
+  useEffect(() => {
+    if (canEditContasAPagar) return;
+    if (showForm) setShowForm(false);
+    if (showUpload) setShowUpload(false);
+    if (showContaTipoModal) setShowContaTipoModal(false);
+    if (showLoteCreationModeModal) setShowLoteCreationModeModal(false);
+    if (showExportNfModal) setShowExportNfModal(false);
+    if (showConsolidateLoteModal) setShowConsolidateLoteModal(false);
+  }, [
+    canEditContasAPagar,
+    showConsolidateLoteModal,
+    showContaTipoModal,
+    showExportNfModal,
+    showForm,
+    showLoteCreationModeModal,
+    showUpload,
+  ]);
 
   useEffect(() => {
     setState('contasAPagar_editingConta', editingConta);
@@ -1009,6 +1036,7 @@ const ContasAPagar: React.FC = () => {
   }, [getRowContaId, getRowTipoRegistro, parseValorToNumber, user]);
 
   const persistLoteToDb = useCallback(async (lote: LoteRegistro, options?: { silent?: boolean }) => {
+    if (!canEditContasAPagar) return;
     if (!user?.id) return;
     const loteId = ensureUuid(lote.id);
     const payload = {
@@ -1061,9 +1089,10 @@ const ContasAPagar: React.FC = () => {
         }
       }
     }
-  }, [buildLoteItensPayload, user]);
+  }, [buildLoteItensPayload, canEditContasAPagar, user]);
 
   const deleteLotesFromDb = useCallback(async (ids: string[]) => {
+    if (!canEditContasAPagar) return;
     if (!user?.id) return;
     if (ids.length === 0) return;
     const validIds = ids.filter((id) => isUuid(id));
@@ -1076,7 +1105,7 @@ const ContasAPagar: React.FC = () => {
       console.error('Erro ao remover lotes do Supabase:', error);
       setToast({ type: 'error', message: 'Falha ao remover lote no banco.' });
     }
-  }, [user]);
+  }, [canEditContasAPagar, user]);
 
   const fetchLotesFromDb = useCallback(async () => {
     if (!user?.id) return;
@@ -1178,8 +1207,10 @@ const ContasAPagar: React.FC = () => {
             id: ensureUuid(lote.id),
           }));
           setLotes(normalizedLocal);
-          for (const lote of normalizedLocal) {
-            await persistLoteToDb(lote, { silent: true });
+          if (canEditContasAPagar) {
+            for (const lote of normalizedLocal) {
+              await persistLoteToDb(lote, { silent: true });
+            }
           }
         }
       }
@@ -1188,7 +1219,7 @@ const ContasAPagar: React.FC = () => {
     } finally {
       setLotesLoaded(true);
     }
-  }, [lotesLoaded, normalizeContaTipoOptional, normalizeLoteOrigem, persistLoteToDb, user]);
+  }, [canEditContasAPagar, lotesLoaded, normalizeContaTipoOptional, normalizeLoteOrigem, persistLoteToDb, user]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1313,6 +1344,7 @@ const ContasAPagar: React.FC = () => {
   }, []);
 
   const handleDelete = useCallback(async (id: string) => {
+    if (!requireEditPermission()) return;
     if (!confirm('Tem certeza que deseja excluir esta conta?')) return;
 
     try {
@@ -1323,9 +1355,10 @@ const ContasAPagar: React.FC = () => {
       console.error('Error deleting conta a pagar:', error);
       alert('Erro ao excluir conta');
     }
-  }, []);
+  }, [requireEditPermission]);
 
   const handleStatusChange = useCallback(async (contaId: string, value: string) => {
+    if (!requireEditPermission()) return;
     const statusValue = value.trim() === '' ? null : value.trim();
     setUpdatingStatusIds(prev => new Set(prev).add(contaId));
     setContas(prev => prev.map((conta) => (
@@ -1354,7 +1387,7 @@ const ContasAPagar: React.FC = () => {
         return next;
       });
     }
-  }, [fetchContas]);
+  }, [fetchContas, requireEditPermission]);
 
   const nextWeekEntries = useMemo(() => {
     if (!contasByTab.length) return [];
@@ -1386,10 +1419,11 @@ const ContasAPagar: React.FC = () => {
   }, [nextWeekEntries]);
 
   const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', conta: ContaAPagar) => {
+    if ((action === 'edit' || action === 'delete') && !requireEditPermission()) return;
     setPendingAction(action);
     setPendingActionConta(conta);
     setShowActionPasswordModal(true);
-  }, []);
+  }, [requireEditPermission]);
 
   const handleActionPasswordVerified = useCallback(async () => {
     if (!pendingAction || !pendingActionConta) return;
@@ -1406,13 +1440,15 @@ const ContasAPagar: React.FC = () => {
     }
 
     if (action === 'edit') {
+      if (!requireEditPermission()) return;
       setEditingConta(conta);
       setShowForm(true);
       return;
     }
 
+    if (!requireEditPermission()) return;
     await handleDelete(conta.id);
-  }, [pendingAction, pendingActionConta, handleDelete]);
+  }, [pendingAction, pendingActionConta, handleDelete, requireEditPermission]);
 
   const filteredContasSorted = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -2253,11 +2289,12 @@ const ContasAPagar: React.FC = () => {
   }, [filteredContasSorted, mergeExportEntryWithDefaults]);
 
   const handleOpenNovoLoteModal = useCallback(() => {
+    if (!requireEditPermission()) return;
     setLoteCreationMode('novo');
     setSelectedExistingLoteId(lotesAbertos[0]?.id ?? '');
     setLoteCreationModeError(null);
     setShowLoteCreationModeModal(true);
-  }, [lotesAbertos]);
+  }, [lotesAbertos, requireEditPermission]);
 
   const handleConfirmLoteCreationMode = useCallback(() => {
     const mode = loteCreationMode;
@@ -2288,6 +2325,7 @@ const ContasAPagar: React.FC = () => {
   ]);
 
   const handleSaveLoteDetalhado = useCallback(() => {
+    if (!requireEditPermission()) return;
     const trimmed = loteNome.trim();
     if (!trimmed) {
       setLoteNomeError('Informe o nome do lote.');
@@ -2351,9 +2389,10 @@ const ContasAPagar: React.FC = () => {
       setCurrentLoteId(null);
       setLoteCreationMode('novo');
     }
-  }, [activeTab, buildDetalhadoRows, buildResumidoRows, currentLoteId, loteCreationMode, loteNome, lotes, upsertLote]);
+  }, [activeTab, buildDetalhadoRows, buildResumidoRows, currentLoteId, loteCreationMode, loteNome, lotes, requireEditPermission, upsertLote]);
 
   const handleStartEditLote = useCallback((lote: LoteRegistro, tipo: 'resumido' | 'detalhado', readOnly = false) => {
+    if (!readOnly && !requireEditPermission()) return;
     setEditingLoteId(lote.id);
     setEditingLoteNome(lote.nome);
     setEditingLoteType(tipo);
@@ -2374,7 +2413,7 @@ const ContasAPagar: React.FC = () => {
     } else {
       setEditingLoteTab('fixa');
     }
-  }, [getRowsCounts]);
+  }, [getRowsCounts, requireEditPermission]);
 
   const handleCancelEditLote = useCallback(() => {
     setEditingLoteId(null);
@@ -2386,6 +2425,7 @@ const ContasAPagar: React.FC = () => {
   }, []);
 
   const handleSaveEditLote = useCallback(() => {
+    if (!requireEditPermission()) return;
     if (!editingLoteId || !editingLoteType) return;
     const existing = lotes.find((lote) => lote.id === editingLoteId);
     if (!existing) return;
@@ -2463,14 +2503,16 @@ const ContasAPagar: React.FC = () => {
     mapDetalhadoToResumido,
     mapResumidoToDetalhado,
     persistLoteToDb,
+    requireEditPermission,
   ]);
 
   const handleDeleteLote = useCallback((id: string) => {
+    if (!requireEditPermission()) return;
     if (!confirm('Deseja excluir este lote?')) return;
     setLotes((prev) => prev.filter((lote) => lote.id !== id));
     deleteLotesFromDb([id]);
     setToast({ type: 'success', message: 'Lote removido' });
-  }, [deleteLotesFromDb]);
+  }, [deleteLotesFromDb, requireEditPermission]);
 
   const buildDetalhadoRowsFromContas = useCallback((items: ContaAPagar[], entryMap: Record<string, ExportEntry>) => {
     return items.map((conta) => {
@@ -2546,10 +2588,11 @@ const ContasAPagar: React.FC = () => {
   };
 
   const handleOpenConsolidateModal = useCallback(() => {
+    if (!requireEditPermission()) return;
     setConsolidateSelection(new Set());
     setConsolidateError(null);
     setShowConsolidateLoteModal(true);
-  }, []);
+  }, [requireEditPermission]);
 
   const handleToggleConsolidateSelection = useCallback((id: string) => {
     setConsolidateSelection((prev) => {
@@ -2564,6 +2607,7 @@ const ContasAPagar: React.FC = () => {
   }, []);
 
   const handleSaveConsolidatedLote = useCallback(async () => {
+    if (!requireEditPermission()) return;
     const selectedIds = Array.from(consolidateSelection);
     if (selectedIds.length === 0) {
       setConsolidateError('Selecione ao menos um lote.');
@@ -2663,12 +2707,14 @@ const ContasAPagar: React.FC = () => {
     mapDetalhadoToResumido,
     mapResumidoToDetalhado,
     persistLoteToDb,
+    requireEditPermission,
     deleteLotesFromDb,
   ]);
 
   const [isMonthClosing, setIsMonthClosing] = useState(false);
 
   const handleMonthlyClose = useCallback(async () => {
+    if (!canEditContasAPagar) return;
     if (typeof window === 'undefined') return;
     if (isMonthClosing) return;
     const now = new Date();
@@ -2750,6 +2796,7 @@ const ContasAPagar: React.FC = () => {
     lotes,
     normalizeContaTipo,
     isMonthClosing,
+    canEditContasAPagar,
     buildUniqueLoteName,
     persistLoteToDb,
   ]);
@@ -2791,16 +2838,18 @@ const ContasAPagar: React.FC = () => {
 
 
   const handleNewContaClick = useCallback(() => {
+    if (!requireEditPermission()) return;
     setShowContaTipoModal(true);
-  }, []);
+  }, [requireEditPermission]);
 
   const handleSelectContaTipo = useCallback((tipo: ContaTipo) => {
+    if (!requireEditPermission()) return;
     setNewContaTipo(tipo);
     setShowContaTipoModal(false);
     setEditingConta(null);
     setShowForm(true);
     clearState('contasAPagar_editingConta');
-  }, [clearState]);
+  }, [clearState, requireEditPermission]);
 
   const currentItems = filteredContasSorted;
 
@@ -2999,7 +3048,10 @@ const ContasAPagar: React.FC = () => {
         actions={(
           <>
             <button
-              onClick={() => setShowUpload(true)}
+              onClick={() => {
+                if (!requireEditPermission()) return;
+                setShowUpload(true);
+              }}
               className="hidden inline-flex items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50"
             >
               <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -3680,6 +3732,12 @@ const ContasAPagar: React.FC = () => {
               ? 'Digite sua senha para excluir esta conta:'
               : 'Digite sua senha para visualizar os detalhes da conta:'
         }
+      />
+
+      <EditPermissionModal
+        isOpen={showEditDeniedModal}
+        onClose={() => setShowEditDeniedModal(false)}
+        moduleLabel="Contas a Pagar"
       />
 
       {showExportMenu && (

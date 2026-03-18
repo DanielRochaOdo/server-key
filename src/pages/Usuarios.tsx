@@ -5,6 +5,8 @@ import UserForm from '../components/UserForm';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { getRoleLabel, normalizeRole } from '../utils/roles';
 import ModuleHeader from '../components/ModuleHeader';
+import { useAuth } from '../contexts/AuthContext';
+import EditPermissionModal from '../components/EditPermissionModal';
 
 interface User {
   id: string;
@@ -12,7 +14,8 @@ interface User {
   name: string;
   role: 'admin' | 'owner' | 'financeiro' | 'usuario';
   is_active: boolean;
-  modules: string[]; // ajustado para módulos como string[]
+  modules: string[];
+  edit_modules?: string[];
   auth_uid?: string | null;
 }
 
@@ -20,11 +23,15 @@ const Usuarios: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const { getState, setState, clearState } = usePersistence();
-  
+  const { hasModuleEditAccess } = useAuth();
+
   const [showForm, setShowForm] = useState(() => getState('usuarios_showForm') || false);
   const [selectedUser, setSelectedUser] = useState<User | null>(() => getState('usuarios_selectedUser') || null);
   const [repairing, setRepairing] = useState(false);
   const [repairStatus, setRepairStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [showEditDeniedModal, setShowEditDeniedModal] = useState(false);
+
+  const canEditUsuarios = hasModuleEditAccess('usuarios');
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -32,9 +39,9 @@ const Usuarios: React.FC = () => {
       .from('users')
       .select('*')
       .order('created_at', { ascending: false });
-      
+
     if (error) {
-      console.error('Erro ao buscar usuários:', error);
+      console.error('Erro ao buscar usuarios:', error);
       setUsers([]);
     } else {
       setUsers(data as User[]);
@@ -46,7 +53,6 @@ const Usuarios: React.FC = () => {
     fetchUsers();
   }, []);
 
-  // Persist form state
   useEffect(() => {
     setState('usuarios_showForm', showForm);
   }, [showForm, setState]);
@@ -54,14 +60,28 @@ const Usuarios: React.FC = () => {
   useEffect(() => {
     setState('usuarios_selectedUser', selectedUser);
   }, [selectedUser, setState]);
+
+  useEffect(() => {
+    if (canEditUsuarios) return;
+    if (showForm) setShowForm(false);
+  }, [canEditUsuarios, showForm]);
+
   const handleNew = () => {
-    setSelectedUser(null); // limpa usuário selecionado
-    setShowForm(true); // abre o formulário
+    if (!canEditUsuarios) {
+      setShowEditDeniedModal(true);
+      return;
+    }
+    setSelectedUser(null);
+    setShowForm(true);
   };
 
   const handleEdit = (user: User) => {
-    setSelectedUser(user); // seta usuário para edição
-    setShowForm(true); // abre o formulário
+    if (!canEditUsuarios) {
+      setShowEditDeniedModal(true);
+      return;
+    }
+    setSelectedUser(user);
+    setShowForm(true);
   };
 
   const handleSuccess = () => {
@@ -69,7 +89,7 @@ const Usuarios: React.FC = () => {
     setSelectedUser(null);
     clearState('usuarios_showForm');
     clearState('usuarios_selectedUser');
-    fetchUsers(); // atualiza a lista
+    fetchUsers();
   };
 
   const handleCancel = () => {
@@ -80,6 +100,11 @@ const Usuarios: React.FC = () => {
   };
 
   const handleRepairUsers = async () => {
+    if (!canEditUsuarios) {
+      setShowEditDeniedModal(true);
+      return;
+    }
+
     setRepairing(true);
     setRepairStatus(null);
 
@@ -96,23 +121,24 @@ const Usuarios: React.FC = () => {
       const responseData = await response.json();
 
       if (!response.ok) {
-        throw new Error(responseData?.error || 'Erro ao reparar usuários');
+        throw new Error(responseData?.error || 'Erro ao reparar usuarios');
       }
 
       const stats = responseData?.stats;
       const message = stats
-        ? `Reparo concluído: ${stats.scanned} verificados, ${stats.linked} vinculados, ${stats.created} criados, ${stats.updated} atualizados, ${stats.skipped} ignorados, ${stats.errors} erros.`
-        : 'Reparo concluído.';
+        ? `Reparo concluido: ${stats.scanned} verificados, ${stats.linked} vinculados, ${stats.created} criados, ${stats.updated} atualizados, ${stats.skipped} ignorados, ${stats.errors} erros.`
+        : 'Reparo concluido.';
 
       setRepairStatus({ type: 'success', message });
       await fetchUsers();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao reparar usuários';
+      const message = err instanceof Error ? err.message : 'Erro ao reparar usuarios';
       setRepairStatus({ type: 'error', message });
     } finally {
       setRepairing(false);
     }
   };
+
   return (
     <div className="space-y-6 sm:space-y-8">
       <ModuleHeader
@@ -213,9 +239,14 @@ const Usuarios: React.FC = () => {
           onCancel={handleCancel}
         />
       )}
+
+      <EditPermissionModal
+        isOpen={showEditDeniedModal}
+        onClose={() => setShowEditDeniedModal(false)}
+        moduleLabel="Usuarios"
+      />
     </div>
   );
 };
 
 export default Usuarios;
-

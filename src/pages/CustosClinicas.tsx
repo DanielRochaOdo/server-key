@@ -70,6 +70,14 @@ const CLINICAS: { key: ClinicKey; label: string }[] = [
   { key: 'SOBRAL', label: 'Sobral' },
 ];
 
+const CLINIC_COMPARISON_COLORS: Record<ClinicKey, string> = {
+  MATRIZ: '#0ea5e9',
+  AGUANAMBI: '#22c55e',
+  BEZERRA: '#f59e0b',
+  PARANGABA: '#8b5cf6',
+  SOBRAL: '#ef4444',
+};
+
 const toMonthKey = (date: Date) => date.toISOString().slice(0, 7);
 
 const getPrevMonthKey = (monthKey: string) => {
@@ -706,9 +714,32 @@ const CustosClinicas: React.FC = () => {
     });
   }, [uberTotals, comprasTotals, prevUberTotals, prevComprasTotals]);
 
-  const maxComparison = useMemo(() => {
-    return Math.max(1, ...comparisonRows.map((row) => row.current));
-  }, [comparisonRows]);
+  const comparisonTotalCurrent = useMemo(
+    () => comparisonRows.reduce((acc, row) => acc + Number(row.current || 0), 0),
+    [comparisonRows]
+  );
+  const comparisonDonutGradient = useMemo(() => {
+    if (comparisonTotalCurrent <= 0) {
+      return 'conic-gradient(#d4d4d8 0 100%)';
+    }
+    let start = 0;
+    const slices: string[] = [];
+    comparisonRows.forEach((row) => {
+      const value = Math.max(0, Number(row.current || 0));
+      if (value <= 0) return;
+      const end = start + (value / comparisonTotalCurrent) * 100;
+      slices.push(`${CLINIC_COMPARISON_COLORS[row.key]} ${start.toFixed(2)}% ${end.toFixed(2)}%`);
+      start = end;
+    });
+    if (start < 100) {
+      slices.push(`#d4d4d8 ${start.toFixed(2)}% 100%`);
+    }
+    return `conic-gradient(${slices.join(', ')})`;
+  }, [comparisonRows, comparisonTotalCurrent]);
+  const selectedComparisonRow = useMemo(() => {
+    if (!selectedItemsClinic) return null;
+    return comparisonRows.find((row) => row.key === selectedItemsClinic) || null;
+  }, [comparisonRows, selectedItemsClinic]);
 
   const movementCount = movements.length;
   const clinicItemsMap = useMemo(() => {
@@ -1446,84 +1477,156 @@ const CustosClinicas: React.FC = () => {
                 Mes atual vs anterior
               </span>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {comparisonRows.map((row) => {
-                const pctLabel =
-                  row.pct === null ? 'Sem base' : `${row.pct >= 0 ? '+' : ''}${row.pct.toFixed(1)}%`;
-                const isActive = selectedItemsClinic === row.key;
-                const clinicItems = clinicItemsMap[row.key] || [];
-                return (
-                  <div
-                    key={row.key}
-                    className={`rounded-xl border px-3 py-3 transition-colors ${
-                      isActive
-                        ? 'border-primary-500 bg-primary-50/40 dark:border-primary-400 dark:bg-primary-950/40'
-                        : 'border-neutral-200 dark:border-neutral-700'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSelectedItemsClinic((prev) => (prev === row.key ? null : row.key))
-                      }
-                      aria-pressed={isActive}
-                      className="w-full text-left"
-                    >
-                      <div className="flex items-center justify-between text-xs text-neutral-500 uppercase dark:text-neutral-400">
-                        <span>{row.label}</span>
-                        <span>{pctLabel}</span>
-                      </div>
-                      <div className="mt-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                        {formatCurrency(row.current)}
-                      </div>
-                      <div className="mt-2 h-2 w-full rounded-full bg-neutral-200 overflow-hidden dark:bg-neutral-800">
-                        <div
-                          className="h-full bg-primary-500"
-                          style={{ width: `${Math.min(100, (row.current / maxComparison) * 100)}%` }}
-                        />
-                      </div>
-                      <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
-                        Mes anterior: {formatCurrency(row.previous)}
-                      </div>
-                    </button>
-                    {isActive && (
-                      <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-200/70 px-2 py-2 text-[10px] uppercase text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
-                        {clinicItems.length === 0 ? (
-                          <div className="text-center text-neutral-500 dark:text-neutral-400">
-                            Nenhum item designado.
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full">
-                              <thead className="text-neutral-500 border-b border-neutral-200 dark:text-neutral-400 dark:border-neutral-800">
-                                <tr>
-                                  <th className="py-2 px-2 text-left">Produto</th>
-                                  <th className="py-2 px-2 text-left">Loja</th>
-                                  <th className="py-2 px-2 text-center">Qtd</th>
-                                  <th className="py-2 px-2 text-right">Custo total</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {clinicItems.map((item) => (
-                                  <tr
-                                    key={`${row.key}-${item.product}-${item.store}`}
-                                    className="border-b border-neutral-100 dark:border-neutral-800"
-                                  >
-                                    <td className="py-2 px-2 text-neutral-800 dark:text-neutral-100">{item.product}</td>
-                                    <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">{item.store}</td>
-                                    <td className="py-2 px-2 text-center">{item.quantity}</td>
-                                    <td className="py-2 px-2 text-right">{formatCurrency(item.totalCost)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    )}
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)] gap-4">
+              <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
+                <div className="flex flex-col items-center justify-center">
+                  <div className="relative h-56 w-56 sm:h-60 sm:w-60">
+                    <div
+                      className="h-full w-full rounded-full"
+                      style={{ background: comparisonDonutGradient }}
+                    />
+                    <div className="absolute inset-[24%] rounded-full border border-neutral-200 bg-neutral-200 flex flex-col items-center justify-center dark:border-neutral-700 dark:bg-neutral-900">
+                      <span className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                        Total gasto
+                      </span>
+                      <span className="mt-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                        {formatCurrency(comparisonTotalCurrent)}
+                      </span>
+                    </div>
                   </div>
-                );
-              })}
+                </div>
+                <div className="mt-3 space-y-2">
+                  {comparisonRows.map((row) => {
+                    const pctLabel =
+                      row.pct === null ? 'Sem base' : `${row.pct >= 0 ? '+' : ''}${row.pct.toFixed(1)}%`;
+                    const isActive = selectedItemsClinic === row.key;
+                    const share = comparisonTotalCurrent > 0 ? (row.current / comparisonTotalCurrent) * 100 : 0;
+                    return (
+                      <button
+                        key={row.key}
+                        type="button"
+                        onClick={() =>
+                          setSelectedItemsClinic((prev) => (prev === row.key ? null : row.key))
+                        }
+                        aria-pressed={isActive}
+                        className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                          isActive
+                            ? 'border-primary-500 bg-primary-50/40 dark:border-primary-400 dark:bg-primary-950/40'
+                            : 'border-neutral-200 hover:bg-neutral-200/80 dark:border-neutral-700 dark:hover:bg-neutral-900'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="flex items-center gap-2 text-neutral-700 uppercase dark:text-neutral-200">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full"
+                              style={{ backgroundColor: CLINIC_COMPARISON_COLORS[row.key] }}
+                            />
+                            {row.label}
+                          </span>
+                          <span className="text-neutral-500 dark:text-neutral-400">{share.toFixed(1)}%</span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-2 text-[11px]">
+                          <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                            {formatCurrency(row.current)}
+                          </span>
+                          <span className="text-neutral-500 dark:text-neutral-400">{pctLabel}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="rounded-xl border border-neutral-200 bg-neutral-200/70 p-3 text-[10px] uppercase text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
+                {!selectedComparisonRow ? (
+                  <div className="flex h-full min-h-40 items-center justify-center text-center text-neutral-500 dark:text-neutral-400">
+                    Clique em uma clinica no grafico para ver os detalhes.
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-lg border border-neutral-200 bg-neutral-200 px-3 py-3 dark:border-neutral-700 dark:bg-neutral-900">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: CLINIC_COMPARISON_COLORS[selectedComparisonRow.key] }}
+                          />
+                          <span>{selectedComparisonRow.label}</span>
+                        </div>
+                        <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                          {comparisonTotalCurrent > 0
+                            ? `${((selectedComparisonRow.current / comparisonTotalCurrent) * 100).toFixed(1)}% do total`
+                            : '0,0% do total'}
+                        </span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                        <div>
+                          <p className="text-neutral-500 dark:text-neutral-400">Mes atual</p>
+                          <p className="font-semibold text-neutral-900 dark:text-neutral-100">
+                            {formatCurrency(selectedComparisonRow.current)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-neutral-500 dark:text-neutral-400">Mes anterior</p>
+                          <p className="font-semibold text-neutral-900 dark:text-neutral-100">
+                            {formatCurrency(selectedComparisonRow.previous)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-neutral-500 dark:text-neutral-400">Variacao</p>
+                          <p
+                            className={`font-semibold ${
+                              selectedComparisonRow.diff > 0
+                                ? 'text-red-600 dark:text-red-300'
+                                : selectedComparisonRow.diff < 0
+                                  ? 'text-emerald-600 dark:text-emerald-300'
+                                  : 'text-neutral-700 dark:text-neutral-200'
+                            }`}
+                          >
+                            {selectedComparisonRow.diff > 0 ? '+' : selectedComparisonRow.diff < 0 ? '-' : ''}
+                            {formatCurrency(Math.abs(selectedComparisonRow.diff))}
+                            {selectedComparisonRow.pct !== null
+                              ? ` (${selectedComparisonRow.pct >= 0 ? '+' : ''}${selectedComparisonRow.pct.toFixed(1)}%)`
+                              : ' (Sem base)'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-200/70 px-2 py-2 dark:border-neutral-700 dark:bg-neutral-900/70">
+                      {(clinicItemsMap[selectedComparisonRow.key] || []).length === 0 ? (
+                        <div className="text-center text-neutral-500 dark:text-neutral-400">
+                          Nenhum item designado.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full">
+                            <thead className="text-neutral-500 border-b border-neutral-200 dark:text-neutral-400 dark:border-neutral-800">
+                              <tr>
+                                <th className="py-2 px-2 text-left">Produto</th>
+                                <th className="py-2 px-2 text-left">Loja</th>
+                                <th className="py-2 px-2 text-center">Qtd</th>
+                                <th className="py-2 px-2 text-right">Custo total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(clinicItemsMap[selectedComparisonRow.key] || []).map((item) => (
+                                <tr
+                                  key={`${selectedComparisonRow.key}-${item.product}-${item.store}`}
+                                  className="border-b border-neutral-100 dark:border-neutral-800"
+                                >
+                                  <td className="py-2 px-2 text-neutral-800 dark:text-neutral-100">{item.product}</td>
+                                  <td className="py-2 px-2 text-neutral-600 dark:text-neutral-300">{item.store}</td>
+                                  <td className="py-2 px-2 text-center">{item.quantity}</td>
+                                  <td className="py-2 px-2 text-right">{formatCurrency(item.totalCost)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

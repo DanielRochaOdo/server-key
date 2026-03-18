@@ -71,7 +71,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { user } = useAuth();
+  const { user, hasModuleEditAccess } = useAuth();
   const [isUsd, setIsUsd] = useState(false);
 
   const persistenceKey = conta ? `contasAPagarForm_edit_${conta.id}` : `contasAPagarForm_new_${defaultTipoConta}`;
@@ -221,6 +221,10 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!hasModuleEditAccess('contas_a_pagar')) {
+      setError('Voce nao tem permissao para editar este modulo.');
+      return;
+    }
 
     setLoading(true);
     setError('');

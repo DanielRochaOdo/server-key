@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Globe, Download, Search, Users } from 'lucide-react';
+import { Globe, Download, Search, Users, Copy } from 'lucide-react';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
@@ -43,6 +43,8 @@ const RateioGoogle: React.FC = () => {
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | null>(null);
   const [pendingActionRateio, setPendingActionRateio] = useState<RateioGoogle | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const itemsPerPage = 10;
 
   const fetchRateios = useCallback(async () => {
@@ -107,6 +109,34 @@ const RateioGoogle: React.FC = () => {
     setPendingAction(action);
     setPendingActionRateio(rateio);
     setShowActionPasswordModal(true);
+  }, []);
+
+  const copyText = useCallback(async (value?: string, key?: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        document.execCommand('copy');
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+    if (!key) return;
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
+    setCopiedKey(key);
+    copyTimeoutRef.current = setTimeout(() => {
+      setCopiedKey((prev) => (prev === key ? null : prev));
+    }, 800);
   }, []);
 
   const handleActionPasswordVerified = useCallback(async () => {
@@ -479,7 +509,23 @@ const RateioGoogle: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4">
                     <div className="text-xs sm:text-sm font-medium text-neutral-900 truncate max-w-[150px] sm:max-w-none">{rateio.nome_completo}</div>
                   </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.email || '-'}</td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="truncate max-w-[120px] sm:max-w-none">{rateio.email || '-'}</span>
+                      {rateio.email && rateio.email !== '-' && (
+                        <button
+                          type="button"
+                          onClick={() => copyText(rateio.email, `rateio-google-email-${rateio.id}`)}
+                          className={`text-neutral-400 hover:text-neutral-600 transition-transform ${
+                            copiedKey === `rateio-google-email-${rateio.id}` ? 'text-emerald-500 scale-110 animate-pulse' : ''
+                          }`}
+                          title="Copiar email"
+                        >
+                          <Copy className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
                     {getStatusBadge(rateio.status) || '-'}
                   </td>

@@ -10,6 +10,7 @@ interface User {
   name: string;
   role: 'admin' | 'owner' | 'financeiro' | 'usuario';
   modules: string[];
+  edit_modules?: string[];
   is_active: boolean;
   auth_uid?: string | null;
 }
@@ -51,6 +52,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     password: '',
     resetPassword: '',
     modules: [] as string[],
+    editModules: [] as string[],
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -76,6 +78,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           'controle_empresas',
           'controle_uber',
           'visitas_clinicas',
+          'pedidos_de_compra',
         ];
       case 'financeiro':
         return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas', 'custos_clinicas', 'contas_a_pagar', 'pedidos_de_compra', 'controle_uber'];
@@ -99,7 +102,11 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       try {
         const parsedData = JSON.parse(savedData);
         if (parsedData && Object.keys(parsedData).length > 0) {
-          setFormData((prev) => ({ ...prev, ...parsedData }));
+          const nextParsed = { ...parsedData };
+          if (!Array.isArray(nextParsed.editModules) && Array.isArray(nextParsed.modules)) {
+            nextParsed.editModules = nextParsed.modules;
+          }
+          setFormData((prev) => ({ ...prev, ...nextParsed }));
         }
         return;
       } catch (err) {
@@ -122,6 +129,10 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           password: '',
           resetPassword: '',
           modules: user.modules?.length ? user.modules : getModulesByRole(resolvedRole),
+          editModules:
+            user.edit_modules?.length
+              ? user.edit_modules.filter((module) => (user.modules || []).includes(module))
+              : (user.modules?.length ? user.modules : getModulesByRole(resolvedRole)),
         };
       }
 
@@ -133,6 +144,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
         password: '',
         resetPassword: '',
         modules: getModulesByRole('usuario'),
+        editModules: getModulesByRole('usuario'),
       };
     });
     setError('');
@@ -155,18 +167,35 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
         ...prev,
         role: value as 'admin' | 'owner' | 'financeiro' | 'usuario',
         modules: isOwner() ? getModulesByRole(value) : prev.modules,
+        editModules: isOwner() ? getModulesByRole(value) : prev.editModules,
       }));
       return;
     }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const toggleModule = (moduleKey: string) => {
+  const toggleModuleAccess = (moduleKey: string) => {
     setFormData((prev) => {
       if (prev.modules.includes(moduleKey)) {
-        return { ...prev, modules: prev.modules.filter((module) => module !== moduleKey) };
+        return {
+          ...prev,
+          modules: prev.modules.filter((module) => module !== moduleKey),
+          editModules: prev.editModules.filter((module) => module !== moduleKey),
+        };
       }
       return { ...prev, modules: [...prev.modules, moduleKey] };
+    });
+  };
+
+  const toggleModuleEdit = (moduleKey: string) => {
+    setFormData((prev) => {
+      if (!prev.modules.includes(moduleKey)) {
+        return prev;
+      }
+      if (prev.editModules.includes(moduleKey)) {
+        return { ...prev, editModules: prev.editModules.filter((module) => module !== moduleKey) };
+      }
+      return { ...prev, editModules: [...prev.editModules, moduleKey] };
     });
   };
 
@@ -180,6 +209,14 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
   const areModulesEqual = (left?: string[] | null, right?: string[] | null) => {
     return JSON.stringify(normalizeModulesValue(left)) === JSON.stringify(normalizeModulesValue(right));
+  };
+
+  const normalizeEditModules = (modules: string[], editModules: string[]) => {
+    const normalizedModules = normalizeModules(modules);
+    const normalizedEdit = normalizeModules(editModules).filter((module) =>
+      normalizedModules.includes(module)
+    );
+    return { normalizedModules, normalizedEdit };
   };
 
   const getAccessToken = async () => {
@@ -204,6 +241,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     name?: string;
     role?: string;
     modules?: string[];
+    edit_modules?: string[];
     is_active?: boolean;
     password?: string;
   }) => {
@@ -238,21 +276,31 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     return responseData?.user as User | undefined;
   };
 
-  const ensureModulesPersisted = async (userId: string, desiredModules: string[]) => {
-    const normalizedDesired = normalizeModules(desiredModules);
+  const ensureModulesPersisted = async (
+    userId: string,
+    desiredModules: string[],
+    desiredEditModules: string[]
+  ) => {
+    const { normalizedModules, normalizedEdit } = normalizeEditModules(desiredModules, desiredEditModules);
     const { data, error } = await supabase
       .from('users')
-      .select('modules')
+      .select('modules, edit_modules')
       .eq('id', userId)
       .single();
 
     if (error) throw error;
 
-    if (!areModulesEqual(data?.modules as string[] | null | undefined, normalizedDesired)) {
+    const currentModules = data?.modules as string[] | null | undefined;
+    const currentEditModules = data?.edit_modules as string[] | null | undefined;
+    if (
+      !areModulesEqual(currentModules, normalizedModules) ||
+      !areModulesEqual(currentEditModules, normalizedEdit)
+    ) {
       const { error: updateError } = await supabase
         .from('users')
         .update({
-          modules: normalizedDesired,
+          modules: normalizedModules,
+          edit_modules: normalizedEdit,
           updated_at: new Date().toISOString(),
         })
         .eq('id', userId);
@@ -266,9 +314,10 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
     setError('');
 
     const normalizedRole = normalizeRole(formData.role);
-    const modulesToSave = isOwner()
-      ? normalizeModules(formData.modules)
-      : getModulesByRole(normalizedRole || 'usuario');
+    const roleDefaultModules = getModulesByRole(normalizedRole || 'usuario');
+    const { normalizedModules: modulesToSave, normalizedEdit: editModulesToSave } = isOwner()
+      ? normalizeEditModules(formData.modules, formData.editModules)
+      : normalizeEditModules(roleDefaultModules, roleDefaultModules);
     const existingRole = user ? normalizeRole(user.role) : '';
     const roleToSend = normalizedRole && normalizedRole !== existingRole ? normalizedRole : undefined;
 
@@ -293,12 +342,16 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             name: formData.name,
             role: roleToSend,
             modules: modulesToSave,
+            edit_modules: editModulesToSave,
             is_active: formData.is_active,
             password: formData.resetPassword?.trim() || undefined,
           });
-          if (!areModulesEqual(updated?.modules, modulesToSave)) {
+          if (
+            !areModulesEqual(updated?.modules, modulesToSave) ||
+            !areModulesEqual(updated?.edit_modules, editModulesToSave)
+          ) {
             try {
-              await ensureModulesPersisted(user.id, modulesToSave);
+              await ensureModulesPersisted(user.id, modulesToSave, editModulesToSave);
             } catch (err) {
               const details = err instanceof Error ? ` ${err.message}` : '';
               throw new Error(`Nao foi possivel persistir os modulos.${details}`);
@@ -311,7 +364,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
               email: formData.email,
               name: formData.name,
               role: normalizedRole || 'usuario',
-              modules: getModulesByRole(normalizedRole || 'usuario'),
+              modules: roleDefaultModules,
+              edit_modules: roleDefaultModules,
               is_active: formData.is_active,
               updated_at: new Date().toISOString(),
             })
@@ -358,14 +412,22 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 
         if (isOwner() && responseData?.user?.id) {
           const defaultModules = normalizeModules(getModulesByRole(normalizedRole || 'usuario'));
-          if (JSON.stringify(modulesToSave) !== JSON.stringify(defaultModules)) {
+          const defaultEditModules = defaultModules;
+          if (
+            JSON.stringify(modulesToSave) !== JSON.stringify(defaultModules) ||
+            JSON.stringify(editModulesToSave) !== JSON.stringify(defaultEditModules)
+          ) {
             const updated = await updateUserAsOwner({
               user_id: responseData.user.id,
               modules: modulesToSave,
+              edit_modules: editModulesToSave,
             });
-            if (!areModulesEqual(updated?.modules, modulesToSave)) {
+            if (
+              !areModulesEqual(updated?.modules, modulesToSave) ||
+              !areModulesEqual(updated?.edit_modules, editModulesToSave)
+            ) {
               try {
-                await ensureModulesPersisted(responseData.user.id, modulesToSave);
+                await ensureModulesPersisted(responseData.user.id, modulesToSave, editModulesToSave);
               } catch (err) {
                 const details = err instanceof Error ? ` ${err.message}` : '';
                 throw new Error(`Nao foi possivel persistir os modulos.${details}`);
@@ -528,24 +590,49 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
             {isOwner() ? (
               <>
                 <h3 className="text-lg font-medium text-neutral-900 mb-2">
-                  Modulos permitidos (personalizado)
+                  Permissoes por modulo (personalizado)
                 </h3>
-                <div className="bg-neutral-200 p-3 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {moduleOptions.map((module) => (
-                    <label key={module.value} className="flex items-center space-x-2 text-sm text-neutral-700">
-                      <input
-                        type="checkbox"
-                        checked={formData.modules.includes(module.value)}
-                        onChange={() => toggleModule(module.value)}
-                        className="h-4 w-4 text-primary-600 border-neutral-300 rounded"
-                        disabled={loading}
-                      />
-                      <span>{module.label}</span>
-                    </label>
-                  ))}
+                <div className="bg-neutral-200 p-3 rounded-lg space-y-2">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                    <span>Modulo</span>
+                    <span>Acesso</span>
+                    <span>Edicao</span>
+                  </div>
+                  {moduleOptions.map((module) => {
+                    const hasAccess = formData.modules.includes(module.value);
+                    const hasEdit = formData.editModules.includes(module.value);
+                    return (
+                      <div
+                        key={module.value}
+                        className="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded-lg border border-neutral-200 px-2 py-2"
+                      >
+                        <span className="text-sm text-neutral-700">{module.label}</span>
+                        <label className="inline-flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={hasAccess}
+                            onChange={() => toggleModuleAccess(module.value)}
+                            className="h-4 w-4 text-primary-600 border-neutral-300 rounded"
+                            disabled={loading}
+                            aria-label={`Permitir acesso ao modulo ${module.label}`}
+                          />
+                        </label>
+                        <label className="inline-flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={hasEdit}
+                            onChange={() => toggleModuleEdit(module.value)}
+                            className="h-4 w-4 text-primary-600 border-neutral-300 rounded disabled:opacity-50"
+                            disabled={loading || !hasAccess}
+                            aria-label={`Permitir edicao no modulo ${module.label}`}
+                          />
+                        </label>
+                      </div>
+                    );
+                  })}
                 </div>
                 <p className="text-xs text-neutral-500 mt-2">
-                  Owner pode definir os modulos independente da funcao.
+                  Se o acesso nao estiver marcado, a edicao fica indisponivel automaticamente.
                 </p>
               </>
             ) : (
@@ -597,5 +684,3 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 };
 
 export default UserForm;
-
-

@@ -63,7 +63,7 @@ const COSTO_UNITARIO = 0.045;
 const calcCusto = (qtd: number) => Number((qtd * COSTO_UNITARIO).toFixed(3));
 
 const RateioMkm: React.FC = () => {
-  const { isAdmin } = useAuth();
+  const { hasModuleEditAccess } = useAuth();
   const [centros, setCentros] = useState<RateioMkmCentroCusto[]>([]);
   const [competencias, setCompetencias] = useState<string[]>([]);
   const [selectedCompetencia, setSelectedCompetencia] = useState<string>('');
@@ -76,6 +76,7 @@ const RateioMkm: React.FC = () => {
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const canEditRateioMkm = hasModuleEditAccess('rateio_mkm');
 
   const loadInitialData = useCallback(async () => {
     try {
@@ -85,7 +86,7 @@ const RateioMkm: React.FC = () => {
         listCompetenciasRateioMkm(),
       ]);
 
-      if (centrosData.length === 0 && isAdmin()) {
+      if (centrosData.length === 0 && canEditRateioMkm) {
         try {
           await seedCentrosCustoMkm();
           const refreshed = await listCentrosCustoMkm();
@@ -107,7 +108,7 @@ const RateioMkm: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, [canEditRateioMkm]);
 
   const loadLayout = useCallback(async (competencia: string) => {
     if (!competencia) {
@@ -299,7 +300,7 @@ const RateioMkm: React.FC = () => {
                 ))}
               </select>
             </div>
-            {isAdmin() && (
+            {canEditRateioMkm && (
               <>
                   {hasData && (
                     <button
@@ -339,7 +340,7 @@ const RateioMkm: React.FC = () => {
         ) : !hasData ? (
           <div className="text-center py-12">
             <p className="text-sm text-neutral-500">Nenhum rateio encontrado para esta competencia.</p>
-            {isAdmin() && (
+            {canEditRateioMkm && (
               <button
                 onClick={() => openForm('create')}
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors"
@@ -496,5 +497,3 @@ const RateioMkm: React.FC = () => {
 };
 
 export default RateioMkm;
-
-

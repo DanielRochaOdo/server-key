@@ -49,7 +49,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<ParsedRow[]>([]);
   const [showPreview, setShowPreview] = useState(false);
-  const { user } = useAuth();
+  const { user, hasModuleEditAccess } = useAuth();
 
   const normalize = (text: string) =>
     text.toLowerCase()
@@ -210,6 +210,10 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
 
   const handleImport = async () => {
     if (!file || !user) return;
+    if (!hasModuleEditAccess('contas_a_pagar')) {
+      setError('Voce nao tem permissao para editar este modulo.');
+      return;
+    }
     setLoading(true);
     setError('');
 

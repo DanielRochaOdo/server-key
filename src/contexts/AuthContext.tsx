@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { MODULE_PERMISSION_CACHE_KEY, supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import { normalizeRole } from '../utils/roles';
 
@@ -9,6 +9,7 @@ interface UserProfile {
   email: string;
   role: 'admin' | 'owner' | 'financeiro' | 'usuario';
   modules: string[];
+  edit_modules: string[];
   is_active: boolean;
   auth_uid: string;
 }
@@ -21,6 +22,7 @@ interface AuthContextData {
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   hasModuleAccess: (module: string) => boolean;
+  hasModuleEditAccess: (module: string) => boolean;
   isAdmin: () => boolean;
   isOwner: () => boolean;
   isFinanceiro: () => boolean;
@@ -28,6 +30,28 @@ interface AuthContextData {
 }
 
 const AuthContext = createContext<AuthContextData | null>(null);
+
+const persistModulePermissionCache = (profile: UserProfile | null) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    if (!profile) {
+      window.localStorage.removeItem(MODULE_PERMISSION_CACHE_KEY);
+      return;
+    }
+
+    const payload = {
+      role: normalizeRole(profile.role) || profile.role,
+      modules: Array.isArray(profile.modules) ? profile.modules : [],
+      edit_modules: Array.isArray(profile.edit_modules) ? profile.edit_modules : [],
+      is_active: profile.is_active === true,
+    };
+
+    window.localStorage.setItem(MODULE_PERMISSION_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore local cache errors
+  }
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -47,14 +71,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('❌ Error getting session:', error);
           // Clear potentially corrupted session
           await supabase.auth.signOut();
+          persistModulePermissionCache(null);
         } else if (mounted) {
           setUser(session?.user ?? null);
+          if (!session?.user) {
+            persistModulePermissionCache(null);
+          }
         }
       } catch (error) {
         console.error('❌ Error initializing auth:', error);
         // Clear potentially corrupted session
         try {
           await supabase.auth.signOut();
+          persistModulePermissionCache(null);
         } catch (signOutError) {
           console.error('❌ Error clearing session:', signOutError);
         }
@@ -77,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!session?.user) {
             setUserProfile(null);
             setLoadingProfile(false);
+            persistModulePermissionCache(null);
           }
         }
       }
@@ -97,6 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (mounted) {
           setUserProfile(null);
           setLoadingProfile(false);
+          persistModulePermissionCache(null);
         }
         return;
       }
@@ -104,11 +135,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setLoadingProfile(true);
 
-        const { data: profile, error } = await supabase
+        let profile: UserProfile | null = null;
+        let error: { code?: string; message?: string } | null = null;
+
+        const withEditModules = await supabase
           .from('users')
-          .select('id, email, name, role, modules, is_active, auth_uid')
+          .select('id, email, name, role, modules, edit_modules, is_active, auth_uid')
           .eq('auth_uid', user.id)
           .single();
+
+        if (
+          withEditModules.error &&
+          (withEditModules.error.code === '42703' ||
+            withEditModules.error.message?.toLowerCase().includes('edit_modules'))
+        ) {
+          const legacyProfile = await supabase
+            .from('users')
+            .select('id, email, name, role, modules, is_active, auth_uid')
+            .eq('auth_uid', user.id)
+            .single();
+
+          error = legacyProfile.error;
+          profile = legacyProfile.data
+            ? {
+                ...legacyProfile.data,
+                edit_modules: legacyProfile.data.modules || [],
+              }
+            : null;
+        } else {
+          error = withEditModules.error;
+          profile = withEditModules.data as UserProfile | null;
+        }
 
         if (error) {
           console.error('Error fetching user profile:', error);
@@ -116,12 +173,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (error.code === 'PGRST116') {
             // User doesn't exist in public.users
             await supabase.auth.signOut();
+            persistModulePermissionCache(null);
             window.location.href = '/login?error=usuario_nao_encontrado';
             return;
           } else {
             // Other database errors
             console.error('❌ Database error:', error);
             await supabase.auth.signOut();
+            persistModulePermissionCache(null);
             window.location.href = '/login';
             return;
           }
@@ -130,14 +189,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const normalizedProfile = {
             ...profile,
             role: normalizedRole || profile.role,
+            edit_modules: Array.isArray(profile.edit_modules) ? profile.edit_modules : profile.modules || [],
           };
 
           setUserProfile(normalizedProfile);
+          persistModulePermissionCache(normalizedProfile);
         }
       } catch (error) {
         console.error('❌ Unexpected error fetching user profile:', error);
         if (mounted) {
           await supabase.auth.signOut();
+          persistModulePermissionCache(null);
           window.location.href = '/login';
         }
       } finally {
@@ -158,6 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // Clear any existing session first
       await supabase.auth.signOut();
+      persistModulePermissionCache(null);
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -195,6 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear profile first
       setUserProfile(null);
       setLoadingProfile(false);
+      persistModulePermissionCache(null);
       
       const { error } = await supabase.auth.signOut();
       if (error) {
@@ -219,10 +283,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
     const role = normalizeRole(userProfile.role);
-    if (role === 'owner' || role === 'admin') {
+    if (role === 'owner') {
       return true;
     }
     return userProfile.modules?.includes(module) || false;
+  };
+
+  const hasModuleEditAccess = (module: string): boolean => {
+    if (!userProfile || !userProfile.is_active) {
+      return false;
+    }
+    const role = normalizeRole(userProfile.role);
+    if (role === 'owner') {
+      return true;
+    }
+    const hasRead = userProfile.modules?.includes(module) || false;
+    const hasEdit = userProfile.edit_modules?.includes(module) || false;
+    return hasRead && hasEdit;
   };
 
   const isAdmin = (): boolean => {
@@ -250,6 +327,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signOut,
     hasModuleAccess,
+    hasModuleEditAccess,
     isAdmin,
     isOwner,
     isFinanceiro,
