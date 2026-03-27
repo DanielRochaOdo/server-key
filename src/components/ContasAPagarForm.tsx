@@ -46,6 +46,11 @@ const PAGTO_OPTIONS = [
   'TRANSFERENCIA',
 ];
 
+const requiresBankDetails = (value?: string | null) => {
+  const normalized = (value || '').trim().toUpperCase();
+  return normalized === 'TRANSFERENCIA' || normalized === 'PIX';
+};
+
 const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, onSuccess, onCancel }) => {
   const defaultTipoConta: ContaTipo = conta?.tipo_conta === 'avulsa'
     ? 'avulsa'
@@ -216,7 +221,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
     });
   };
 
-  const showTransferFields = (formData.tipo_pagto || '').toUpperCase() === 'TRANSFERENCIA';
+  const showTransferFields = requiresBankDetails(formData.tipo_pagto);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,7 +260,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         return;
       }
 
-      if (tipoPagto === 'TRANSFERENCIA') {
+      if (requiresBankDetails(tipoPagto)) {
         const requiredTransferFields = [
           formData.banco,
           formData.agencia,
@@ -265,7 +270,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         ].map((value) => (value || '').trim());
 
         if (requiredTransferFields.some((value) => !value)) {
-          setError('Preencha Nome do Banco, Agencia, Conta, Tipo de Conta e CPF/CNPJ/Chave PIX para Transferencia.');
+          setError('Preencha Nome do Banco, Agencia, Conta, Tipo de Conta e CPF/CNPJ/Chave PIX para PIX ou Transferencia.');
           return;
         }
       }
