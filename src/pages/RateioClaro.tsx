@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Phone, Download, Search, Edit, Trash2, Building, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Phone, Download, Search, Edit, Trash2, Building, RefreshCw, Copy } from 'lucide-react';
 import RateioClaroForm from '../components/RateioClaroForm';
 import RateioClaroFileUpload from '../components/RateioClaroFileUpload';
 import RateioClaroSyncModal from '../components/RateioClaroSyncModal';
@@ -38,7 +38,9 @@ const RateioClaro: React.FC = () => {
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
   const [pendingActionRateio, setPendingActionRateio] = useState<RateioClaro | null>(null);
   const [showSync, setShowSync] = useState(false);
-  const { isAdmin } = useAuth();
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { hasModuleEditAccess } = useAuth();
 
   const itemsPerPage = 10;
 
@@ -117,6 +119,34 @@ const RateioClaro: React.FC = () => {
     setPendingAction(action);
     setPendingActionRateio(rateio);
     setShowActionPasswordModal(true);
+  }, []);
+
+  const copyText = useCallback(async (value?: string, key?: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        document.execCommand('copy');
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+    if (!key) return;
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
+    setCopiedKey(key);
+    copyTimeoutRef.current = setTimeout(() => {
+      setCopiedKey((prev) => (prev === key ? null : prev));
+    }, 800);
   }, []);
 
   const handleActionPasswordVerified = useCallback(async () => {
@@ -263,7 +293,8 @@ const RateioClaro: React.FC = () => {
     }];
   }, [filteredRateiosSorted]);
 
-  const canSync = isAdmin();
+  const canEditRateioClaro = hasModuleEditAccess('rateio_claro');
+  const canSync = canEditRateioClaro;
 
   if (loading) {
     return (
@@ -393,7 +424,7 @@ const RateioClaro: React.FC = () => {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Número da Linha</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Responsável Atual</th>
                 <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Setor</th>
-                {isAdmin() && (
+                {canEditRateioClaro && (
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
                 )}
               </tr>
@@ -404,10 +435,26 @@ const RateioClaro: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4">
                     <div className="text-xs sm:text-sm font-medium text-neutral-900 truncate max-w-[200px] sm:max-w-none">{rateio.nome}</div>
                   </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.numero_linha || '-'}</td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="truncate max-w-[120px] sm:max-w-none">{rateio.numero_linha || '-'}</span>
+                      {rateio.numero_linha && (
+                        <button
+                          type="button"
+                          onClick={() => copyText(rateio.numero_linha, `rateio-claro-linha-${rateio.id}`)}
+                          className={`text-neutral-400 hover:text-neutral-600 transition-transform ${
+                            copiedKey === `rateio-claro-linha-${rateio.id}` ? 'text-emerald-500 scale-110 animate-pulse' : ''
+                          }`}
+                          title="Copiar numero da linha"
+                        >
+                          <Copy className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.responsavel_atual || '-'}</td>
                   <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[150px]">{rateio.setor || '-'}</td>
-                  {isAdmin() && (
+                  {canEditRateioClaro && (
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                       <div className="flex items-center space-x-1 sm:space-x-2">
                         <button 
@@ -557,5 +604,3 @@ const RateioClaro: React.FC = () => {
 };
 
 export default RateioClaro;
-
-

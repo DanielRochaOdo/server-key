@@ -62,6 +62,7 @@ const getModulesByRole = (role: string): string[] => {
         'controle_empresas',
         'controle_uber',
         'visitas_clinicas',
+        'pedidos_de_compra',
       ];
     case 'financeiro':
       return [
@@ -248,6 +249,7 @@ Deno.serve(async (req) => {
           name: normalizedName,
           role: normalizedRole,
           modules,
+          edit_modules: modules,
           is_active: is_active ?? true,
           auth_uid: authUser.id,
           updated_at: new Date().toISOString(),
@@ -279,6 +281,7 @@ Deno.serve(async (req) => {
           name: normalizedName,
           role: normalizedRole,
           modules,
+          edit_modules: modules,
           is_active: is_active ?? true,
           auth_uid: authUser.id,
           created_at: new Date().toISOString(),
@@ -321,6 +324,7 @@ Deno.serve(async (req) => {
           name: publicUserResult.name,
           role: publicUserResult.role,
           modules: publicUserResult.modules,
+          edit_modules: publicUserResult.edit_modules,
           is_active: publicUserResult.is_active,
           auth_uid: publicUserResult.auth_uid,
         },

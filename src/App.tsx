@@ -22,6 +22,7 @@ import ControleEmpresas from './pages/ControleEmpresas';
 import ControleUber from './pages/ControleUber';
 import VisitasClinicas from './pages/VisitasClinicas';
 import CustosClinicas from './pages/CustosClinicas';
+import GlobalEditPermissionModal from './components/GlobalEditPermissionModal';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
             }}
           >
             <TutorialProvider>
+              <GlobalEditPermissionModal />
               <Routes>
                 {/* Public route */}
                 <Route path="/login" element={<Login />} />

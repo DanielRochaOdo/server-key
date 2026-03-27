@@ -51,7 +51,7 @@ interface NavSection {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { user, userProfile, signOut, hasModuleAccess, isUsuario, isAdmin } = useAuth();
+  const { user, userProfile, signOut, hasModuleAccess, isUsuario } = useAuth();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [extendedProfile, setExtendedProfile] = useState<UserProfileExtended | null>(null);
@@ -116,13 +116,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const closeAllSections = () => {
     setOpenSections({ acessos: false, financeiro: false, configuracoes: false });
-  };
-
-  const getSectionForPath = (path: string): NavSection['key'] | null => {
-    if (sectionPaths.acessos.includes(path)) return 'acessos';
-    if (sectionPaths.financeiro.includes(path)) return 'financeiro';
-    if (sectionPaths.configuracoes.includes(path)) return 'configuracoes';
-    return null;
   };
 
   React.useEffect(() => {
@@ -192,7 +185,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (hasModuleAccess('controle_empresas')) {
       financeiroItems.push({ name: 'Controle Empresas', href: '/controle-empresas', icon: Building2 });
     }
-    if (hasModuleAccess('controle_uber') || isAdmin()) {
+    if (hasModuleAccess('controle_uber')) {
       financeiroItems.push({ name: 'Controle Uber', href: '/controle-uber', icon: Car });
     }
     if (hasModuleAccess('visitas_clinicas')) {

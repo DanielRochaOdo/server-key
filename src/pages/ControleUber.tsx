@@ -223,7 +223,7 @@ const mergeCompetencias = (items: string[]) => {
 };
 
 const ControleUber: React.FC = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, hasModuleEditAccess } = useAuth();
   const [competencias, setCompetencias] = useState<string[]>([]);
   const [selectedCompetencia, setSelectedCompetencia] = useState('');
   const [rows, setRows] = useState<ControleUberRow[]>([]);
@@ -237,6 +237,7 @@ const ControleUber: React.FC = () => {
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
+  const canEditControleUber = hasModuleEditAccess('controle_uber');
 
   const loadInitialData = useCallback(async () => {
     try {
@@ -480,7 +481,7 @@ const ControleUber: React.FC = () => {
                 ))}
               </select>
             </div>
-            {isAdmin() && (
+            {canEditControleUber && (
               <button
                 onClick={() => openForm('create')}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
@@ -540,7 +541,7 @@ const ControleUber: React.FC = () => {
                 ? 'Nenhum registro encontrado para este filtro.'
                 : 'Nenhum registro encontrado para esta competencia.'}
             </p>
-            {isAdmin() && (
+            {canEditControleUber && (
               <button
                 onClick={() => openForm('create')}
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors"
@@ -567,7 +568,7 @@ const ControleUber: React.FC = () => {
                   <th className="py-2 pr-2">Pessoa 1</th>
                   <th className="py-2 pr-2">Pessoa 2</th>
                   <th className="py-2">Pessoa 3</th>
-                  {isAdmin() && <th className="py-2">Acoes</th>}
+                  {canEditControleUber && <th className="py-2">Acoes</th>}
                 </tr>
               </thead>
               <tbody>
@@ -585,7 +586,7 @@ const ControleUber: React.FC = () => {
                     <td className="py-2 pr-2 whitespace-normal break-words">{row.pessoa_1 || '-'}</td>
                     <td className="py-2 pr-2 whitespace-normal break-words">{row.pessoa_2 || '-'}</td>
                     <td className="py-2 whitespace-normal break-words">{row.pessoa_3 || '-'}</td>
-                    {isAdmin() && (
+                    {canEditControleUber && (
                       <td className="py-2">
                         <button
                           type="button"

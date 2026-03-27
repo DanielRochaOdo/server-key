@@ -38,8 +38,8 @@ type DiffView = RateioClaroSyncDiff;
 type Summary = { criar: number; atualizar: number; ausentes: number };
 
 const RateioClaroSyncModal: React.FC<RateioClaroSyncModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { isAdmin } = useAuth();
-  const canEdit = isAdmin();
+  const { hasModuleEditAccess } = useAuth();
+  const canEdit = hasModuleEditAccess('rateio_claro');
   const [validation, setValidation] = useState<ValidationState | null>(null);
   const [preview, setPreview] = useState<RateioClaroSyncPreview | null>(null);
   const [diffsView, setDiffsView] = useState<DiffView[]>([]);

@@ -5,6 +5,7 @@ import { exportProtocoloXlsx } from "../utils/exportProtocoloXlsx";
 import MoneyInputBRL from "../components/MoneyInputBRL";
 import ModuleHeader from "../components/ModuleHeader";
 import { useAuth } from "../contexts/AuthContext";
+import EditPermissionModal from "../components/EditPermissionModal";
 
 type PcStatusMensal = "ENTREGUE" | "PEDIDO_FEITO";
 type PcPrioridade = "BAIXA" | "MEDIA" | "ALTA";
@@ -354,12 +355,12 @@ function normalizeCompostoFilhos(raw: unknown): CompostoFilho[] {
 
 export default function PedidosDeCompra() {
     const { ano: anoNow, mes: mesNow } = getNowYM();
-    const { hasModuleAccess, isAdmin, isFinanceiro, loadingProfile } = useAuth();
+    const { hasModuleAccess, hasModuleEditAccess, isFinanceiro, loadingProfile } = useAuth();
     const canViewPedidos = hasModuleAccess("pedidos_de_compra");
+    const canEditPedidos = hasModuleEditAccess("pedidos_de_compra");
     const isFinanceiroUser = isFinanceiro();
-    const isAdminUser = isAdmin();
-    const canEditPrevisao = Boolean(canViewPedidos && (isFinanceiroUser || isAdminUser));
-    const canAccessProtocoloTab = Boolean(canViewPedidos && isAdminUser);
+    const canEditPrevisao = canEditPedidos;
+    const canAccessProtocoloTab = canViewPedidos;
 
     const initialUi = loadPcUiState({
         tab: "MENSAL",
@@ -424,6 +425,7 @@ export default function PedidosDeCompra() {
     const [emailRecipients, setEmailRecipients] = useState<string[]>(() => loadEmailRecipients());
     const [emailRecipientInput, setEmailRecipientInput] = useState("");
     const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+    const [showEditDeniedModal, setShowEditDeniedModal] = useState(false);
     const [observacoesModalOpen, setObservacoesModalOpen] = useState(false);
     const [observacoesDraft, setObservacoesDraft] = useState("");
     const [observacoesModalProtocoloId, setObservacoesModalProtocoloId] = useState<string | null>(null);
@@ -448,6 +450,12 @@ export default function PedidosDeCompra() {
     const [protocoloColumnWidths, setProtocoloColumnWidths] = useState<Record<ProtocoloResizableColumn, number>>(
         () => loadProtocoloColumnWidths()
     );
+
+    const requireEditPermission = useCallback(() => {
+        if (canEditPedidos) return true;
+        setShowEditDeniedModal(true);
+        return false;
+    }, [canEditPedidos]);
 
     const startMensalColumnResize = useCallback(
         (event: React.MouseEvent<HTMLDivElement>, column: MensalResizableColumn) => {
@@ -829,6 +837,7 @@ export default function PedidosDeCompra() {
     // ACTIONS: MENSAL
     // =============================
 async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
+        if (!requireEditPermission()) return;
         const { error } = await supabase.from("pc_mensal_itens").update(patch).eq("id", id);
         if (error) {
             console.error("Erro update mensal:", error.message);
@@ -839,7 +848,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
     const toggleMensalDiretoria = useCallback(
         async (item: MensalItem) => {
-            if (isFinanceiroUser) return;
+            if (!requireEditPermission()) return;
             const nextValue = !item.diretoria;
             try {
                 const { error } = await supabase
@@ -868,7 +877,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                 console.error("Erro atualizando diretoria do mensal:", error);
             }
         },
-        [isFinanceiroUser, loadMensal, loadProtocolos]
+        [requireEditPermission, loadMensal, loadProtocolos]
     );
 
     // =============================
@@ -905,6 +914,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
     async function saveObservacoes() {
         if (!observacoesModalProtocoloId) return;
+        if (!requireEditPermission()) return;
 
         setObservacoesSaving(true);
         setObservacoesError(null);
@@ -928,6 +938,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
     }
     // =============================
     async function criarProtocolo() {
+        if (!requireEditPermission()) return;
         const titulo = novoTitulo.trim();
         if (!titulo) return;
 
@@ -1002,6 +1013,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
     async function saveEdit() {
         if (!editItem) return;
+        if (!requireEditPermission()) return;
 
         const filhosNormalizados = editDraft.composto
             ? editDraft.filhos
@@ -1051,6 +1063,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
     async function salvarProtocolo() {
         if (!protocoloSel) return;
+        if (!requireEditPermission()) return;
 
         // mudar status para SALVO -> trigger joga pro mensal com PEDIDO_FEITO
         const { error } = await supabase
@@ -1070,6 +1083,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
     async function excluirProtocolo() {
         if (!protocoloSel) return;
+        if (!requireEditPermission()) return;
         const { error } = await supabase.from("pc_protocolos").delete().eq("id", protocoloSel.id);
         if (error) {
             console.error("Erro excluir protocolo:", error.message);
@@ -1082,6 +1096,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
     async function addItem() {
         if (!protocoloSel) return;
+        if (!requireEditPermission()) return;
         if (!draft.loja.trim() || !draft.produto.trim()) return;
 
         const payload = {
@@ -1121,6 +1136,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
     }
 
     async function deleteItem(itemId: string) {
+        if (!requireEditPermission()) return;
         const { error } = await supabase.from("pc_protocolo_itens").delete().eq("id", itemId);
         if (error) {
             console.error("Erro delete item:", error.message);
@@ -1134,6 +1150,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
 
     const toggleDiretoria = useCallback(
     async (itemId: string, value: boolean) => {
+            if (!requireEditPermission()) return;
             try {
                 const { error } = await supabase
                     .from("pc_protocolo_itens")
@@ -1160,7 +1177,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                 console.error("Erro ao marcar diretoria:", error);
             }
         },
-        [loadItens, loadProtocolos, loadMensal, protocoloSel?.id]
+        [loadItens, loadProtocolos, loadMensal, protocoloSel?.id, requireEditPermission]
     );
 
     function exportarProtocoloSelecionado() {
@@ -1537,14 +1554,14 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         <td className="px-3 py-2 border-b border-white/5 text-center">{currency(Number(m.valor_total_frete || 0))}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-center">
                                             <button
-                                                disabled={isFinanceiroUser}
+                                                disabled={!canEditPedidos}
                                                 onClick={() => toggleMensalDiretoria(m)}
                                                 className={`inline-flex items-center justify-center rounded-full border border-white/10 p-2 transition ${
-                                                    isFinanceiroUser
+                                                    !canEditPedidos
                                                         ? "cursor-not-allowed opacity-50"
                                                         : "hover:border-white/40"
                                                 }`}
-                                                title={isFinanceiroUser ? "Perfil financeiro nao pode alterar Diretoria." : "Alterar Diretoria"}
+                                                title={!canEditPedidos ? "Voce nao tem permissao para editar este modulo." : "Alterar Diretoria"}
                                             >
                                                 <Star className={`h-4 w-4 ${m.diretoria ? "text-primary-400" : "text-white/40"}`} />
                                             </button>
@@ -2387,6 +2404,12 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                     </div>
                 </div>
             )}
+
+            <EditPermissionModal
+                isOpen={showEditDeniedModal}
+                onClose={() => setShowEditDeniedModal(false)}
+                moduleLabel="Pedidos de Compra"
+            />
 
             {showSaveConfirm && (
                 <div

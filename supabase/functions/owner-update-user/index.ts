@@ -56,6 +56,7 @@ const getModulesByRole = (role: string) => {
         'controle_empresas',
         'controle_uber',
         'visitas_clinicas',
+        'pedidos_de_compra',
       ]
     case 'financeiro':
       return [
@@ -153,7 +154,7 @@ Deno.serve(async (req) => {
 
     const { data: targetUser, error: targetError } = await supabaseAdmin
       .from('users')
-      .select('id, auth_uid, email, name, role, modules, is_active')
+      .select('id, auth_uid, email, name, role, modules, edit_modules, is_active')
       .eq('id', targetUserId)
       .maybeSingle()
 
@@ -177,6 +178,7 @@ Deno.serve(async (req) => {
     const nextIsActive = typeof body?.is_active === 'boolean' ? body.is_active : undefined
     const nextPassword = typeof body?.password === 'string' ? body.password : undefined
     const nextModulesRaw = Array.isArray(body?.modules) ? body.modules : undefined
+    const nextEditModulesRaw = Array.isArray(body?.edit_modules) ? body.edit_modules : undefined
 
     const targetRole = normalizeRole(targetUser.role)
 
@@ -212,6 +214,28 @@ Deno.serve(async (req) => {
       ? Array.from(new Set(nextModulesRaw.filter((item: unknown) => typeof item === 'string')))
           .filter((module: string) => ALLOWED_MODULES.includes(module))
       : undefined
+    const nextEditModulesCandidate = nextEditModulesRaw
+      ? Array.from(new Set(nextEditModulesRaw.filter((item: unknown) => typeof item === 'string')))
+          .filter((module: string) => ALLOWED_MODULES.includes(module))
+      : undefined
+
+    const effectiveModules = nextModules
+      ? nextModules
+      : nextRole
+        ? getModulesByRole(nextRole)
+        : Array.from(new Set((targetUser.modules || []).filter((module: string) => ALLOWED_MODULES.includes(module))))
+
+    const existingEditModules = Array.from(
+      new Set((targetUser.edit_modules || []).filter((module: string) => ALLOWED_MODULES.includes(module)))
+    ).filter((module) => effectiveModules.includes(module))
+
+    const nextEditModules = nextEditModulesCandidate
+      ? nextEditModulesCandidate.filter((module) => effectiveModules.includes(module))
+      : nextModules
+        ? existingEditModules
+        : nextRole
+          ? getModulesByRole(nextRole).filter((module) => effectiveModules.includes(module))
+          : existingEditModules
 
     const authUpdatePayload: Record<string, unknown> = {}
     const metadataRole = nextRole || targetUser.role
@@ -263,16 +287,18 @@ Deno.serve(async (req) => {
     if (nextRole) updatePayload.role = nextRole
     if (nextIsActive !== undefined) updatePayload.is_active = nextIsActive
     if (nextModules) updatePayload.modules = nextModules
+    if (nextEditModules) updatePayload.edit_modules = nextEditModules
 
     if (!nextModules && nextRole) {
       updatePayload.modules = getModulesByRole(nextRole)
+      updatePayload.edit_modules = getModulesByRole(nextRole)
     }
 
     const { data: updatedUser, error: updateError } = await supabaseAdmin
       .from('users')
       .update(updatePayload)
       .eq('id', targetUserId)
-      .select('id, email, name, role, modules, is_active, auth_uid')
+      .select('id, email, name, role, modules, edit_modules, is_active, auth_uid')
       .single()
 
     if (updateError) {
