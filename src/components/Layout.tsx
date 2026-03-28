@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
@@ -22,6 +22,10 @@ import {
   Building2,
   Car,
   Calendar,
+  Database,
+  Table,
+  Package,
+  Container,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -44,7 +48,7 @@ interface NavItem {
 }
 
 interface NavSection {
-  key: 'acessos' | 'financeiro' | 'configuracoes';
+  key: 'acessos' | 'financeiro' | 'parque_tecnologico' | 'configuracoes';
   name: string;
   icon: React.ElementType;
   items: NavItem[];
@@ -70,11 +74,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       '/controle-uber',
       '/visitas-clinicas',
     ],
+    parque_tecnologico: ['/parque-tecnologico/estoque', '/parque-tecnologico/inventario'],
     configuracoes: ['/configuracoes', '/usuarios'],
   };
   const [openSections, setOpenSections] = useState<Record<NavSection['key'], boolean>>(() => ({
     acessos: false,
     financeiro: false,
+    parque_tecnologico: false,
     configuracoes: false,
   }));
 
@@ -115,7 +121,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const closeAllSections = () => {
-    setOpenSections({ acessos: false, financeiro: false, configuracoes: false });
+    setOpenSections({ acessos: false, financeiro: false, parque_tecnologico: false, configuracoes: false });
   };
 
   React.useEffect(() => {
@@ -125,7 +131,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const handleClickOutside = (event: MouseEvent) => {
       if (!navRef.current) return;
       if (navRef.current.contains(event.target as Node)) return;
-      setOpenSections({ acessos: false, financeiro: false, configuracoes: false });
+      setOpenSections({ acessos: false, financeiro: false, parque_tecnologico: false, configuracoes: false });
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -153,7 +159,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const getNavigationItems = () => {
     const topItems: NavItem[] = [];
 
-    // Dashboard - não disponível para usuários nível "usuario"
+    // Dashboard - nÃ£o disponÃ­vel para usuÃ¡rios nÃ­vel "usuario"
     if (!isUsuario()) {
       topItems.push({ name: 'Dashboard', href: '/dashboard', icon: BarChart3 });
     }
@@ -169,7 +175,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       acessosItems.push({ name: 'Contas Teams', href: '/teams', icon: UserCheck });
     }
     if (hasModuleAccess('win_users')) {
-      acessosItems.push({ name: 'Usuários Windows', href: '/win-users', icon: Monitor });
+      acessosItems.push({ name: 'UsuÃ¡rios Windows', href: '/win-users', icon: Monitor });
     }
 
     const financeiroItems: NavItem[] = [];
@@ -201,16 +207,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       financeiroItems.push({ name: 'Pedidos de Compra', href: '/pedidos-de-compra', icon: ShoppingCart });
     }
 
+    const parqueTecnologicoItems: NavItem[] = [];
+    if (hasModuleAccess('parque_tecnologico')) {
+      parqueTecnologicoItems.push({ name: 'Estoque', href: '/parque-tecnologico/estoque', icon: Container });
+      parqueTecnologicoItems.push({ name: 'Inventario', href: '/parque-tecnologico/inventario', icon: Table });
+    }
+
     const configuracoesItems: NavItem[] = [];
-    configuracoesItems.push({ name: 'Configurações', href: '/configuracoes', icon: Settings });
+    configuracoesItems.push({ name: 'ConfiguraÃ§Ãµes', href: '/configuracoes', icon: Settings });
     if (hasModuleAccess('usuarios')) {
-      configuracoesItems.push({ name: 'Usuários', href: '/usuarios', icon: Users });
+      configuracoesItems.push({ name: 'UsuÃ¡rios', href: '/usuarios', icon: Users });
     }
 
     const sections: NavSection[] = [
       { key: 'acessos', name: 'Acessos', icon: Key, items: acessosItems },
       { key: 'financeiro', name: 'Financeiro', icon: FileText, items: financeiroItems },
-      { key: 'configuracoes', name: 'Configurações', icon: Settings, items: configuracoesItems },
+      { key: 'parque_tecnologico', name: 'Parque Tecnologico', icon: Package, items: parqueTecnologicoItems },
+      { key: 'configuracoes', name: 'ConfiguraÃ§Ãµes', icon: Settings, items: configuracoesItems },
     ].filter((section) => section.items.length > 0);
 
     return { topItems, sections };
@@ -319,6 +332,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       return {
                         acessos: false,
                         financeiro: false,
+                        parque_tecnologico: false,
                         configuracoes: false,
                         [section.key]: shouldOpen,
                       };
@@ -449,3 +463,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 };
 
 export default Layout;
+
+
+
+

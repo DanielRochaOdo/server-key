@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BarChart3, Calendar } from 'lucide-react';
+import { AlertCircle, BarChart3, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { listControleUberByCompetencia, ControleUberRow } from '../services/controleUber';
 import ModuleHeader from '../components/ModuleHeader';
@@ -69,6 +69,7 @@ const CLINICAS: { key: ClinicKey; label: string }[] = [
   { key: 'PARANGABA', label: 'Parangaba' },
   { key: 'SOBRAL', label: 'Sobral' },
 ];
+const CUSTOS_CLINICAS_TRANSACOES_ATIVAS = false;
 
 const CLINIC_COMPARISON_COLORS: Record<ClinicKey, string> = {
   MATRIZ: '#0ea5e9',
@@ -139,6 +140,30 @@ const resolveUnifiedTarget = (value: string, unifyMap: UnifyStore) => {
 };
 const productStoreKey = (product: string, store: string) => `${product}__${store}`;
 const UI_STATE_KEY = 'serverkey:custos_clinicas_ui';
+const DESTINOS_SEEN_KEY = 'serverkey:custos_clinicas_destinos_seen';
+
+const loadSeenDestinos = () => {
+  if (typeof window === 'undefined') return [] as string[];
+  try {
+    const raw = localStorage.getItem(DESTINOS_SEEN_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => normalizeStore(String(item || ''))).filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+const saveSeenDestinos = (destinos: string[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const unique = Array.from(new Set(destinos.map((item) => normalizeStore(item)).filter(Boolean)));
+    localStorage.setItem(DESTINOS_SEEN_KEY, JSON.stringify(unique));
+  } catch {
+    // ignore
+  }
+};
 
 const loadUiState = () => {
   if (typeof window === 'undefined') {
@@ -404,10 +429,7 @@ const CustosClinicas: React.FC = () => {
     protocoloMap: {},
   });
   const [movementHistory, setMovementHistory] = useState<InventoryMovement[]>([]);
-  const [showMovementModal, setShowMovementModal] = useState(() => {
-    const saved = loadUiState();
-    return Boolean(saved?.showMovementModal);
-  });
+  const [showMovementModal, setShowMovementModal] = useState(false);
   const [showUnifyModal, setShowUnifyModal] = useState(() => {
     const saved = loadUiState();
     return Boolean(saved?.showUnifyModal);
@@ -454,6 +476,10 @@ const CustosClinicas: React.FC = () => {
   const [historyRows, setHistoryRows] = useState<InventoryHistoryMovement[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [parqueDestinos, setParqueDestinos] = useState<string[]>([]);
+  const [showDestinosModal, setShowDestinosModal] = useState(false);
+  const [novosDestinos, setNovosDestinos] = useState<string[]>([]);
+  const [destinosAvisoErro, setDestinosAvisoErro] = useState('');
 
   const prevMonthKey = useMemo(() => getPrevMonthKey(monthKey), [monthKey]);
 
@@ -471,6 +497,7 @@ const CustosClinicas: React.FC = () => {
         carryPrevPrev,
         historyPurchases,
         historyMovements,
+        destinosBase,
       ] =
         await Promise.all([
         fetchMonthData(monthKey),
@@ -482,6 +509,7 @@ const CustosClinicas: React.FC = () => {
         fetchCarryoverByMonth(prevPrevMonthKey),
         fetchPurchasesUpToMonth(monthKey),
         fetchMovementsUpToMonth(monthKey),
+        fetchParqueDestinosBase(),
       ]);
       setCurrentData(current);
       setPreviousData(previous);
@@ -497,6 +525,18 @@ const CustosClinicas: React.FC = () => {
       }));
       setPurchaseHistory(historyPurchases);
       setMovementHistory(historyMovements);
+      setParqueDestinos(destinosBase);
+
+      const destinosVistos = loadSeenDestinos();
+      const novos = destinosBase.filter((item) => !destinosVistos.includes(item));
+      setNovosDestinos(novos);
+      if (novos.length > 0) {
+        setShowDestinosModal(true);
+      }
+      setDestinosAvisoErro('');
+    } catch (error) {
+      console.error('Erro ao carregar Custos das Clínicas:', error);
+      setDestinosAvisoErro('Não foi possível sincronizar os destinos do módulo Estoque.');
     } finally {
       setLoading(false);
     }
@@ -510,11 +550,17 @@ const CustosClinicas: React.FC = () => {
     saveUiState({
       monthKey,
       expandedProducts,
-      showMovementModal,
+      showMovementModal: false,
       showUnifyModal,
       productSearch,
     });
   }, [monthKey, expandedProducts, showMovementModal, showUnifyModal, productSearch]);
+
+  useEffect(() => {
+    if (!CUSTOS_CLINICAS_TRANSACOES_ATIVAS && showMovementModal) {
+      setShowMovementModal(false);
+    }
+  }, [showMovementModal]);
 
   const movements = useMemo(
     () => movementStore[monthKey] || [],
@@ -598,23 +644,6 @@ const CustosClinicas: React.FC = () => {
     });
     return totals;
   }, [currentData.uber]);
-
-  const prevUberTotals = useMemo(() => {
-    const totals: Record<ClinicKey, number> = {
-      MATRIZ: 0,
-      AGUANAMBI: 0,
-      BEZERRA: 0,
-      PARANGABA: 0,
-      SOBRAL: 0,
-    };
-    previousData.uber.forEach((row) => {
-      const clinic = resolveClinicFromUber(row);
-      if (!clinic) return;
-      const total = Number(row.valor_saida || 0) + Number(row.valor_retorno || 0);
-      totals[clinic] += total;
-    });
-    return totals;
-  }, [previousData.uber]);
 
   const purchaseSources = useMemo(() => {
     return currentData.compras.map((item) => {
@@ -706,13 +735,13 @@ const CustosClinicas: React.FC = () => {
 
   const comparisonRows = useMemo(() => {
     return CLINICAS.map((clinic) => {
-      const current = uberTotals[clinic.key] + comprasTotals[clinic.key];
-      const previous = prevUberTotals[clinic.key] + prevComprasTotals[clinic.key];
+      const current = comprasTotals[clinic.key];
+      const previous = prevComprasTotals[clinic.key];
       const diff = current - previous;
       const pct = previous > 0 ? (diff / previous) * 100 : null;
       return { ...clinic, current, previous, diff, pct };
     });
-  }, [uberTotals, comprasTotals, prevUberTotals, prevComprasTotals]);
+  }, [comprasTotals, prevComprasTotals]);
 
   const comparisonTotalCurrent = useMemo(
     () => comparisonRows.reduce((acc, row) => acc + Number(row.current || 0), 0),
@@ -1126,6 +1155,11 @@ const CustosClinicas: React.FC = () => {
   }, [showMovementModal]);
 
   const handleAddMovement = async () => {
+    if (!CUSTOS_CLINICAS_TRANSACOES_ATIVAS) {
+      setMovementError('Transações no módulo Custos das Clínicas foram descontinuadas. Use o Inventário.');
+      return;
+    }
+
     setMovementError('');
     if (movementSaving) return;
     if (!movementDraft.product) {
@@ -1203,6 +1237,11 @@ const CustosClinicas: React.FC = () => {
   };
 
   const handleRemoveMovement = async (id: string) => {
+    if (!CUSTOS_CLINICAS_TRANSACOES_ATIVAS) {
+      setMovementError('Transações no módulo Custos das Clínicas foram descontinuadas. Use o Inventário.');
+      return;
+    }
+
     setMovementError('');
     const { error } = await supabase
       .from('custos_clinicas_movements')
@@ -1412,6 +1451,16 @@ const CustosClinicas: React.FC = () => {
     return clinic?.label || clinicValue;
   };
 
+  const handleOpenDestinosModal = () => {
+    setShowDestinosModal(true);
+  };
+
+  const handleCloseDestinosModal = () => {
+    setShowDestinosModal(false);
+    saveSeenDestinos(parqueDestinos);
+    setNovosDestinos([]);
+  };
+
   return (
     <div className="space-y-5 sm:space-y-6">
       <ModuleHeader
@@ -1438,6 +1487,20 @@ const CustosClinicas: React.FC = () => {
               <BarChart3 className="h-3.5 w-3.5" />
               Mes atual
             </button>
+            <button
+              type="button"
+              onClick={handleOpenDestinosModal}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-neutral-300 bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-700 transition-colors hover:bg-neutral-200 sm:w-auto dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+              aria-label="Abrir destinos sincronizados do estoque"
+            >
+              <AlertCircle className="h-3.5 w-3.5" />
+              Destinos do estoque
+              {novosDestinos.length > 0 && (
+                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-button px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {novosDestinos.length}
+                </span>
+              )}
+            </button>
           </>
         )}
       />
@@ -1448,7 +1511,7 @@ const CustosClinicas: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
               <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Transporte (Uber)</p>
               <p className="mt-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{formatCurrency(totalUber)}</p>
@@ -1466,12 +1529,23 @@ const CustosClinicas: React.FC = () => {
               <p className="mt-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{formatCurrency(totalGeral)}</p>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Uber + Insumos</p>
             </div>
+            <button
+              type="button"
+              onClick={handleOpenDestinosModal}
+              className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 text-left shadow-sm transition-colors hover:bg-neutral-200/90 dark:border-neutral-800 dark:bg-neutral-900/70 dark:hover:bg-neutral-900"
+            >
+              <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Destinos do estoque</p>
+              <p className="mt-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{parqueDestinos.length}</p>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                {novosDestinos.length > 0 ? `${novosDestinos.length} novo(s) destino(s)` : 'Sincronizado com Estoque'}
+              </p>
+            </button>
           </div>
 
           <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide dark:text-neutral-100">
-                Comparativo por clinica
+                Comparativo por clinica (Insumos)
               </h2>
               <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                 Mes atual vs anterior
@@ -1487,7 +1561,7 @@ const CustosClinicas: React.FC = () => {
                     />
                     <div className="absolute inset-[24%] rounded-full border border-neutral-200 bg-neutral-200 flex flex-col items-center justify-center dark:border-neutral-700 dark:bg-neutral-900">
                       <span className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                        Total gasto
+                        Total insumos
                       </span>
                       <span className="mt-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                         {formatCurrency(comparisonTotalCurrent)}
@@ -1630,14 +1704,14 @@ const CustosClinicas: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
+          <div className="hidden rounded-2xl border border-neutral-200 bg-neutral-200 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
               <div>
                 <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide dark:text-neutral-100">
                   Inventario Parque Tecnologico
                 </h2>
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                  Somente leitura. Estoque disponivel, custo unitario e total por item. Clique no produto para expandir as lojas.
+                  Somente leitura para relatórios. As atribuições de itens para clínicas são feitas no módulo Inventário.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1647,12 +1721,9 @@ const CustosClinicas: React.FC = () => {
                 >
                   Unificar Produtos
                 </button>
-                <button
-                  onClick={() => setShowMovementModal(true)}
-                  className="inline-flex items-center justify-center rounded-full border border-transparent bg-button px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover"
-                >
-                  Gerar movimentacao
-                </button>
+                <span className="inline-flex items-center justify-center rounded-full border border-neutral-300 bg-neutral-100 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+                  Movimentações descontinuadas aqui
+                </span>
               </div>
             </div>
 
@@ -1936,7 +2007,63 @@ const CustosClinicas: React.FC = () => {
         </>
       )}
 
-      {showMovementModal && (
+      {showDestinosModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 backdrop-blur-sm p-4">
+          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col dark:bg-neutral-900/95 dark:border-neutral-800">
+            <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-neutral-800 dark:text-neutral-100">
+                Destinos do Estoque
+              </h3>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                {novosDestinos.length > 0
+                  ? 'Novos destinos cadastrados no Estoque foram sincronizados para visualizacao no módulo Custos das Clínicas.'
+                  : 'Lista de destinos cadastrados no Estoque e disponíveis para visualizacao no módulo Custos das Clínicas.'}
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {destinosAvisoErro && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700 dark:border-red-900/50 dark:bg-red-900/30 dark:text-red-200">
+                  {destinosAvisoErro}
+                </div>
+              )}
+              {parqueDestinos.length === 0 ? (
+                <div className="text-sm text-neutral-500 dark:text-neutral-400">
+                  Nenhum destino ativo cadastrado no Estoque.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {parqueDestinos.map((destino) => {
+                    const isNovo = novosDestinos.includes(destino);
+                    return (
+                      <div
+                        key={destino}
+                        className={`rounded-lg border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide ${
+                          isNovo
+                            ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
+                            : 'border-neutral-200 bg-neutral-200 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200'
+                        }`}
+                      >
+                        {destino}
+                        {isNovo && <span className="ml-2 text-[10px]">NOVO</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-200/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 flex justify-end">
+              <button
+                onClick={handleCloseDestinosModal}
+                className="rounded-full border border-neutral-300 bg-neutral-200 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {CUSTOS_CLINICAS_TRANSACOES_ATIVAS && showMovementModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 backdrop-blur-sm p-4">
           <div className="bg-neutral-200 rounded-2xl border border-neutral-200 w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col dark:bg-neutral-900/95 dark:border-neutral-800">
             <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800">
@@ -2543,6 +2670,22 @@ const fetchMovementsUpToMonth = async (monthKey: string): Promise<InventoryMovem
     totalCost: parseNumberValue(row.total_cost),
     createdAt: row.created_at,
   }));
+};
+
+const fetchParqueDestinosBase = async (): Promise<string[]> => {
+  const { data, error } = await supabase
+    .from('parque_parametros_base')
+    .select('nome, ativo')
+    .eq('categoria', 'destino_descricao')
+    .eq('ativo', true)
+    .order('nome', { ascending: true });
+
+  if (error) {
+    console.error('Erro ao carregar destinos do Estoque:', error);
+    return [];
+  }
+
+  return Array.from(new Set((data || []).map((row: any) => normalizeStore(row.nome)).filter(Boolean)));
 };
 
 export default CustosClinicas;
