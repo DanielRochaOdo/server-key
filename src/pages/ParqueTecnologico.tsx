@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Pencil, Plus, RefreshCw, Save, Settings, Share, Trash2, X } from 'lucide-react';
+import { AlertCircle, Pencil, Plus, RefreshCw, Settings, Share, Trash2 } from 'lucide-react';
 import ModuleHeader from '../components/ModuleHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -25,7 +25,6 @@ import {
   saveParqueParametroLink,
   saveParqueItemParametroLink,
   deleteParqueBaseCadastro,
-  deleteParqueProduto,
   updateParqueProduto,
 } from '../services/parqueTecnologico';
 import type {
@@ -230,43 +229,6 @@ const normalizeClinicKey = (value?: string | null) => {
   if (normalized.includes('SOBRAL')) return 'SOBRAL';
   if (normalized.includes('MATRIZ') || normalized.includes('ADMIN') || normalized.includes('ADM')) return 'MATRIZ';
   return null;
-};
-
-const resolveDestinoFromHistorico = (destino?: string | null) => {
-  const destinoNormalizado = normalizeLookupText(destino);
-  if (!destinoNormalizado) {
-    return {
-      destinoTipo: 'estoque',
-      destinoDescricao: DESTINO_PARQUE_TECNOLOGICO,
-      setorDestino: '',
-    };
-  }
-
-  if (destinoNormalizado.startsWith('MATRIZ -')) {
-    const setor = normalizeLookupText(destinoNormalizado.replace(/^MATRIZ\s*-\s*/i, ''));
-    if (setor) {
-      return {
-        destinoTipo: 'setor',
-        destinoDescricao: `MATRIZ - ${setor}`,
-        setorDestino: setor,
-      };
-    }
-  }
-
-  const clinicKey = normalizeClinicKey(destinoNormalizado);
-  if (clinicKey && clinicKey !== 'MATRIZ') {
-    return {
-      destinoTipo: 'clinica',
-      destinoDescricao: clinicKey,
-      setorDestino: '',
-    };
-  }
-
-  return {
-    destinoTipo: 'estoque',
-    destinoDescricao: DESTINO_PARQUE_TECNOLOGICO,
-    setorDestino: '',
-  };
 };
 
 const isLikelySameItem = (candidate?: string | null, pedidoItem?: string | null) => {
@@ -516,9 +478,6 @@ export default function ParqueTecnologico({ mode }: Props) {
     tipos_destino: { id: '', nome: '', sigla: '', ativo: true, ...(initialUiState?.baseForms?.tipos_destino || {}) },
     descricoes_destino: { id: '', nome: '', sigla: '', ativo: true, ...(initialUiState?.baseForms?.descricoes_destino || {}) },
   }));
-  const [baseInlineEdit, setBaseInlineEdit] = useState<
-    Partial<Record<ParqueBaseCadastroTipo, { id: string; nome: string; sigla: string; ativo: boolean }>>
-  >({});
   const [baseFeedback, setBaseFeedback] = useState<Record<ParqueBaseCadastroTipo, { type: 'info' | 'success' | 'error'; message: string } | null>>({
     itens: null,
     unidades: null,
@@ -606,35 +565,6 @@ export default function ParqueTecnologico({ mode }: Props) {
     }
   };
 
-  const refreshAjustesData = async () => {
-    const [catalogosData, itemLinksRes, parametroLinksRes, cadastroLinksRes, destinoSetorRes] =
-      await Promise.all([
-        listParqueCatalogos(),
-        listParqueItemParametroLinks().catch((error) => {
-          console.warn('Não foi possível recarregar vínculos de item x parâmetros:', error);
-          return [] as ParqueItemParametroLink[];
-        }),
-        listParqueParametrosLinks().catch((error) => {
-          console.warn('Não foi possível recarregar vínculos entre parâmetros:', error);
-          return [] as ParqueParametroLink[];
-        }),
-        listParqueCadastrosLinks().catch((error) => {
-          console.warn('Não foi possível recarregar vínculos gerais entre cadastros:', error);
-          return [] as ParqueCadastroLink[];
-        }),
-        listParqueDestinoSetorLinks().catch((error) => {
-          console.warn('Não foi possível recarregar vínculos de destino x setor:', error);
-          return [] as ParqueDestinoSetorLink[];
-        }),
-      ]);
-
-    setCatalogos(catalogosData);
-    setItemParametroLinks(itemLinksRes);
-    setParametrosLinks(parametroLinksRes);
-    setCadastrosLinks(cadastroLinksRes);
-    setDestinoSetorLinks(destinoSetorRes);
-  };
-
   useEffect(() => {
     loadAll();
   }, []);
@@ -715,24 +645,10 @@ export default function ParqueTecnologico({ mode }: Props) {
   ]);
 
   const filteredProdutos = useMemo(() => {
-    const searchTerm = normalizeComparableText(search);
     return produtos.filter((produto) => {
+      const label = getParqueProdutoLabel(produto).toLowerCase();
       const status = getParqueProdutoStatus(produto);
-      const searchable = normalizeComparableText(
-        [
-          getParqueProdutoLabel(produto),
-          produto.item_base?.nome,
-          produto.categoria,
-          produto.especificacao_valor,
-          produto.marca_base?.nome,
-          produto.unidade_base?.nome,
-          produto.unidade_base?.sigla,
-          status,
-        ]
-          .filter(Boolean)
-          .join(' ')
-      );
-      const matchesSearch = !searchTerm || searchable.includes(searchTerm);
+      const matchesSearch = !search || label.includes(search.toLowerCase()) || produto.categoria.toLowerCase().includes(search.toLowerCase());
       const matchesItem = !itemFilter || produto.item_base_id === itemFilter;
       const matchesCategoria = !categoriaFilter || produto.categoria.toLowerCase().includes(categoriaFilter.toLowerCase());
       const matchesMarca = !marcaFilter || produto.marca_base_id === marcaFilter;
@@ -780,65 +696,8 @@ export default function ParqueTecnologico({ mode }: Props) {
       map.set(movimento.produto_id, loja);
     });
 
-    const pedidosComLoja = pedidosEntregues
-      .map((pedido) => ({
-        ...pedido,
-        loja_resolvida: resolvePedidoLojaOrigem(pedido),
-      }))
-      .filter((pedido) => Boolean(pedido.loja_resolvida));
-
-    if (pedidosComLoja.length > 0) {
-      produtos.forEach((produto) => {
-        if (!produto.id || map.has(produto.id)) return;
-
-        const itemComparable = normalizeComparableText(produto.item_base?.nome);
-        const especificacaoComparable = normalizeComparableText(produto.especificacao_valor);
-        const labelComparable = normalizeComparableText(getParqueProdutoLabel(produto));
-
-        let bestMatch: { loja: string; score: number; ano: number; mes: number } | null = null;
-
-        pedidosComLoja.forEach((pedido) => {
-          const pedidoComparable = normalizeComparableText(pedido.item);
-          if (!pedidoComparable) return;
-
-          let score = 0;
-          if (itemComparable && (pedidoComparable.includes(itemComparable) || itemComparable.includes(pedidoComparable))) {
-            score += 40;
-          }
-          if (especificacaoComparable && pedidoComparable.includes(especificacaoComparable)) {
-            score += 40;
-          }
-          if (labelComparable && (labelComparable.includes(pedidoComparable) || pedidoComparable.includes(labelComparable))) {
-            score += 20;
-          }
-          if (score <= 0) return;
-
-          const candidato = {
-            loja: pedido.loja_resolvida,
-            score,
-            ano: Number(pedido.ano || 0),
-            mes: Number(pedido.mes || 0),
-          };
-
-          if (
-            !bestMatch ||
-            candidato.score > bestMatch.score ||
-            (candidato.score === bestMatch.score &&
-              (candidato.ano > bestMatch.ano ||
-                (candidato.ano === bestMatch.ano && candidato.mes > bestMatch.mes)))
-          ) {
-            bestMatch = candidato;
-          }
-        });
-
-        if (bestMatch?.loja) {
-          map.set(produto.id, bestMatch.loja);
-        }
-      });
-    }
-
     return map;
-  }, [movimentacoes, pedidosEntregues, produtos]);
+  }, [movimentacoes]);
 
   const resolveLojaOrigemCompraProduto = (produtoId?: string | null) => {
     if (!produtoId) return '';
@@ -1246,108 +1105,6 @@ export default function ParqueTecnologico({ mode }: Props) {
     [pedidosEntreguesComDestino, movimentacaoForm.pedido_compra_id]
   );
 
-  const pedidoCompraSugeridoByProdutoId = useMemo(() => {
-    const map = new Map<string, (typeof pedidosEntreguesComDestino)[number]>();
-    const pedidosComSaldo = [...pedidosEntreguesComDestino]
-      .filter((pedido) => Number(pedido.quantidade_disponivel || 0) > 0)
-      .sort((a, b) => {
-        if ((b.ano || 0) !== (a.ano || 0)) return (b.ano || 0) - (a.ano || 0);
-        if ((b.mes || 0) !== (a.mes || 0)) return (b.mes || 0) - (a.mes || 0);
-        return String(b.id).localeCompare(String(a.id));
-      });
-
-    pedidosComSaldo.forEach((pedido) => {
-      const pedidoComparable = normalizeComparableText(pedido.item);
-      if (!pedidoComparable) return;
-
-      let bestProduto: ParqueProduto | null = null;
-      let bestScore = 0;
-
-      produtos.forEach((produto) => {
-        const itemComparable = normalizeComparableText(produto.item_base?.nome);
-        const especificacaoComparable = normalizeComparableText(produto.especificacao_valor);
-        const labelComparable = normalizeComparableText(getParqueProdutoLabel(produto));
-
-        let score = 0;
-        if (itemComparable && (pedidoComparable.includes(itemComparable) || itemComparable.includes(pedidoComparable))) {
-          score += 50;
-        }
-        if (especificacaoComparable && pedidoComparable.includes(especificacaoComparable)) {
-          score += 30;
-        }
-        if (labelComparable && (labelComparable.includes(pedidoComparable) || pedidoComparable.includes(labelComparable))) {
-          score += 20;
-        }
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestProduto = produto;
-        }
-      });
-
-      if (bestProduto?.id && bestScore > 0 && !map.has(bestProduto.id)) {
-        map.set(bestProduto.id, pedido);
-      }
-    });
-
-    return map;
-  }, [pedidosEntreguesComDestino, produtos]);
-
-  const saldoCompraDisponivel = useMemo(() => {
-    if (movimentacaoForm.tipo_movimentacao !== 'entrada_compra') return 0;
-    const pedido =
-      pedidoEntregaSelecionado ||
-      (movimentacaoForm.produto_id ? pedidoCompraSugeridoByProdutoId.get(movimentacaoForm.produto_id) : null);
-    return Number(pedido?.quantidade_disponivel || 0);
-  }, [
-    movimentacaoForm.tipo_movimentacao,
-    movimentacaoForm.produto_id,
-    pedidoEntregaSelecionado,
-    pedidoCompraSugeridoByProdutoId,
-  ]);
-
-  useEffect(() => {
-    if (movimentacaoForm.tipo_movimentacao !== 'entrada_compra') return;
-    if (!movimentacaoForm.produto_id) return;
-    if (movimentacaoForm.pedido_compra_id) return;
-
-    const pedido = pedidoCompraSugeridoByProdutoId.get(movimentacaoForm.produto_id);
-    if (!pedido) return;
-
-    const destinoSugerido = resolveDestinoFromHistorico(pedido.destino_clinica);
-    const lojaOrigem = resolvePedidoLojaOrigem(pedido);
-
-    setMovimentacaoForm((prev) => {
-      if (prev.tipo_movimentacao !== 'entrada_compra') return prev;
-      if (prev.produto_id !== movimentacaoForm.produto_id) return prev;
-      if (prev.pedido_compra_id) return prev;
-      return {
-        ...prev,
-        pedido_compra_id: pedido.id,
-        quantidade: Number(pedido.quantidade_disponivel || 0) > 0 ? Number(pedido.quantidade_disponivel) : prev.quantidade,
-        origem_tipo: 'compra',
-        origem_descricao: lojaOrigem || prev.origem_descricao,
-        valor_unitario: resolvePedidoValorUnitario(pedido),
-        data_movimentacao: resolvePedidoDataMovimentacao(pedido, pedido.destino_atribuido_em),
-        destino_tipo: destinoSugerido.destinoTipo,
-        destino_descricao: destinoSugerido.destinoDescricao,
-        setor_destino: destinoSugerido.setorDestino,
-      };
-    });
-  }, [
-    movimentacaoForm.tipo_movimentacao,
-    movimentacaoForm.produto_id,
-    movimentacaoForm.pedido_compra_id,
-    pedidoCompraSugeridoByProdutoId,
-  ]);
-
-  const lojaOrigemSelecionada = useMemo(() => {
-    if (movimentacaoForm.tipo_movimentacao === 'entrada_compra') {
-      return resolvePedidoLojaOrigem(pedidoEntregaSelecionado) || normalizeLookupText(movimentacaoForm.origem_descricao);
-    }
-    return normalizeLookupText(movimentacaoForm.origem_descricao);
-  }, [movimentacaoForm.tipo_movimentacao, movimentacaoForm.origem_descricao, pedidoEntregaSelecionado]);
-
   useEffect(() => {
     if (movimentacaoForm.tipo_movimentacao !== 'entrada_compra') return;
     if (!pedidoEntregaSelecionado) return;
@@ -1563,6 +1320,22 @@ export default function ParqueTecnologico({ mode }: Props) {
     setShowCadastroLinkModal(true);
   };
 
+  const openDestinoSetorModal = (destinoNome?: string) => {
+    const destinoSelecionado = normalizeLookupText(destinoNome || movimentacaoForm.destino_descricao || '');
+    const destinoBase = catalogos.descricoes_destino.find((item) => normalizeLookupText(item.nome) === destinoSelecionado);
+    const linked = destinoBase
+      ? destinoSetorLinks.find((item) => item.destino_parametro_id === destinoBase.id)
+      : null;
+    setDestinoSetorForm({
+      id: linked?.id || '',
+      destino_parametro_id: destinoBase?.id || linked?.destino_parametro_id || '',
+      setor_parametro_id: linked?.setor_parametro_id || '',
+      ativo: linked?.ativo ?? true,
+    });
+    setFormError('');
+    setShowDestinoSetorModal(true);
+  };
+
   const handleSaveItemLink = async () => {
     setSaving(true);
     setFormError('');
@@ -1579,7 +1352,7 @@ export default function ParqueTecnologico({ mode }: Props) {
       });
       setToast({ type: 'success', message: 'Vínculo de parâmetros salvo.' });
       setShowItemLinkModal(false);
-      await refreshAjustesData();
+      await loadAll();
       if (itemLinkForm.item_base_id) {
         applyLinkedProdutoParams(itemLinkForm.item_base_id, true);
       }
@@ -1620,7 +1393,7 @@ export default function ParqueTecnologico({ mode }: Props) {
       }
       setToast({ type: 'success', message: 'Vínculo de destino x setor salvo.' });
       setShowDestinoSetorModal(false);
-      await refreshAjustesData();
+      await loadAll();
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Erro ao salvar vínculo de destino.');
     } finally {
@@ -1645,7 +1418,7 @@ export default function ParqueTecnologico({ mode }: Props) {
       });
       setToast({ type: 'success', message: 'Vínculo de parâmetro salvo.' });
       setShowParametroLinkModal(false);
-      await refreshAjustesData();
+      await loadAll();
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Erro ao salvar vínculo entre parâmetros.');
     } finally {
@@ -1749,7 +1522,6 @@ export default function ParqueTecnologico({ mode }: Props) {
     const produtoEncontrado = findProdutoByPedidoItem(pedido.item);
     const produtoLabel = produtoEncontrado ? getMovimentacaoProdutoOptionLabel(produtoEncontrado) : '';
     const lojaOrigem = resolvePedidoLojaOrigem(pedido);
-    const destinoSugerido = resolveDestinoFromHistorico(destinoClinica);
 
     setMovimentacaoForm({
       produto_id: produtoEncontrado?.id || '',
@@ -1758,12 +1530,12 @@ export default function ParqueTecnologico({ mode }: Props) {
       valor_unitario: resolvePedidoValorUnitario(pedido),
       origem_tipo: 'compra',
       origem_descricao: lojaOrigem,
-      destino_tipo: destinoSugerido.destinoTipo,
-      destino_descricao: destinoSugerido.destinoDescricao,
+      destino_tipo: 'estoque',
+      destino_descricao: DESTINO_PARQUE_TECNOLOGICO,
       data_movimentacao: resolvePedidoDataMovimentacao(pedido, destinoAtribuidoEm),
       observacao: destinoClinica ? `DESTINO IDENTIFICADO AUTOMATICAMENTE: ${String(destinoClinica).toUpperCase()}` : '',
       pedido_compra_id: pedido.id,
-      setor_destino: destinoSugerido.setorDestino,
+      setor_destino: '',
     });
     setMovimentacaoProdutoBusca(produtoLabel);
     setMovimentacaoProdutoBuscaDirty(false);
@@ -1862,8 +1634,8 @@ export default function ParqueTecnologico({ mode }: Props) {
 
     const destinoUpper = normalizeLookupText(destino);
     if (!destinoUpper) return 'estoque';
-    if (destinoUpper.startsWith('MATRIZ -')) return 'setor';
     if (normalizeClinicKey(destinoUpper)) return 'clinica';
+    if (destinoUpper.startsWith('MATRIZ -')) return 'setor';
     if (destinoUpper.includes('DESCARTE')) return 'descarte';
     if (destinoUpper === DESTINO_PARQUE_TECNOLOGICO || destinoUpper === 'ESTOQUE') return 'estoque';
     return 'setor';
@@ -1915,10 +1687,6 @@ export default function ParqueTecnologico({ mode }: Props) {
         destino_tipo: inferDestinoTipo(movimentacaoForm.tipo_movimentacao, destinoDescricaoNormalizada),
         setor_destino: setorDestinoNormalizado,
       };
-
-      if (payload.tipo_movimentacao !== 'entrada_compra') {
-        payload.pedido_compra_id = '';
-      }
 
       if (payload.tipo_movimentacao === 'entrada_compra') {
         const destinoEntradaCompra = normalizeLookupText(payload.destino_descricao || DESTINO_PARQUE_TECNOLOGICO);
@@ -2018,10 +1786,7 @@ export default function ParqueTecnologico({ mode }: Props) {
       setMovimentacaoProdutoBuscaFocused(false);
       await loadAll();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro ao registrar movimentação.';
-      console.error('Erro ao registrar movimentação (Parque Tecnológico):', message, error);
-      setFormError(message);
-      setToast({ type: 'error', message });
+      setFormError(error instanceof Error ? error.message : 'Erro ao registrar movimentação.');
     } finally {
       setSaving(false);
     }
@@ -2116,81 +1881,6 @@ export default function ParqueTecnologico({ mode }: Props) {
     }
   };
 
-  const startInlineBaseEdit = (tipo: ParqueBaseCadastroTipo, item: { id: string; nome: string; ativo: boolean; sigla?: string | null }) => {
-    setBaseInlineEdit((prev) => ({
-      ...prev,
-      [tipo]: {
-        id: item.id,
-        nome: String(item.nome || '').toUpperCase(),
-        sigla: String(item.sigla || '').toUpperCase(),
-        ativo: Boolean(item.ativo),
-      },
-    }));
-  };
-
-  const cancelInlineBaseEdit = (tipo: ParqueBaseCadastroTipo) => {
-    setBaseInlineEdit((prev) => ({
-      ...prev,
-      [tipo]: undefined,
-    }));
-  };
-
-  const handleSaveInlineBase = async (tipo: ParqueBaseCadastroTipo) => {
-    const editing = baseInlineEdit[tipo];
-    if (!editing?.id) return;
-
-    const previousNome = getBaseListByTipo(tipo).find((item) => item.id === editing.id)?.nome || '';
-    setBaseFeedback((prev) => ({ ...prev, [tipo]: { type: 'info', message: 'SALVANDO...' } }));
-    setSaving(true);
-
-    try {
-      const rawName = String(editing.nome || '')
-        .replace(/\u00A0/g, ' ')
-        .trim();
-      const nomeUpper = rawName.toUpperCase();
-      const nome =
-        tipo === 'tipos_movimentacao' || tipo === 'tipos_origem' || tipo === 'tipos_destino'
-          ? nomeUpper
-              .normalize('NFD')
-              .replace(/[\u0300-\u036f]/g, '')
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_')
-              .replace(/^_+|_+$/g, '')
-          : nomeUpper;
-      if (!nome) throw new Error('Informe o nome do cadastro base.');
-
-      await saveParqueBaseCadastro(
-        tipo,
-        {
-          id: editing.id,
-          nome,
-          sigla: editing.sigla?.trim() || undefined,
-          ativo: editing.ativo,
-        },
-        { previousNome }
-      );
-
-      setBaseInlineEdit((prev) => ({
-        ...prev,
-        [tipo]: undefined,
-      }));
-      setBaseFeedback((prev) => ({ ...prev, [tipo]: { type: 'success', message: 'CADASTRO SALVO COM SUCESSO.' } }));
-      setToast({ type: 'success', message: 'Cadastro base salvo.' });
-      await loadAll();
-    } catch (error) {
-      setBaseFeedback((prev) => ({
-        ...prev,
-        [tipo]: {
-          type: 'error',
-          message: error instanceof Error ? error.message.toUpperCase() : 'ERRO AO SALVAR CADASTRO BASE.',
-        },
-      }));
-      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Erro ao salvar cadastro base.' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDeleteBase = async (tipo: ParqueBaseCadastroTipo, id: string) => {
     if (!window.confirm('EXCLUIR ESTE CADASTRO? ESTA AÇÃO NÃO PODE SER DESFEITA.')) return;
     setSaving(true);
@@ -2216,20 +1906,6 @@ export default function ParqueTecnologico({ mode }: Props) {
       setHistoryRows([]);
     } finally {
       setHistoryLoading(false);
-    }
-  };
-
-  const handleDeleteProduto = async (produto: ParqueProduto) => {
-    if (!window.confirm(`EXCLUIR O PRODUTO ${formatUpperText(getParqueProdutoLabel(produto))}? ESTA AÇÃO NÃO PODE SER DESFEITA.`)) return;
-    setSaving(true);
-    try {
-      await deleteParqueProduto(produto.id);
-      setToast({ type: 'success', message: 'Produto excluído.' });
-      await loadAll();
-    } catch (error) {
-      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Erro ao excluir produto.' });
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -2339,13 +2015,7 @@ export default function ParqueTecnologico({ mode }: Props) {
 
       <div className="rounded-2xl border border-neutral-200 bg-neutral-200/80 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <input
-            data-uppercase="off"
-            className={inputClassName}
-            placeholder="Busca global"
-            value={search}
-            onChange={(event) => setSearch(event.target.value.toUpperCase())}
-          />
+          <input className={inputClassName} placeholder="Busca global" value={search} onChange={(event) => setSearch(event.target.value)} />
           <select className={inputClassName} value={itemFilter} onChange={(event) => setItemFilter(event.target.value)}><option value="">Todos os itens</option>{catalogos.itens.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
           {mode === 'estoque' ? <select className={inputClassName} value={categoriaFilter} onChange={(event) => setCategoriaFilter(event.target.value)}><option value="">Todas as categorias</option>{categoriaOptions.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}</select> : <select className={inputClassName} value={tipoFilter} onChange={(event) => setTipoFilter(event.target.value)}><option value="">Todos os tipos</option>{tipoMovimentacaoOptions.map((tipo) => <option key={tipo} value={tipo}>{getTipoMovimentacaoLabel(tipo)}</option>)}</select>}
           {mode === 'estoque' ? <select className={inputClassName} value={marcaFilter} onChange={(event) => setMarcaFilter(event.target.value)}><option value="">Todas as marcas</option>{catalogos.marcas.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select> : <select className={inputClassName} value={origemFilter} onChange={(event) => setOrigemFilter(event.target.value)}><option value="">Todas as origens</option><option value="compra">Compra</option><option value="pre-cadastro">Pré-cadastro</option></select>}
@@ -2376,58 +2046,7 @@ export default function ParqueTecnologico({ mode }: Props) {
               <table className="min-w-full text-sm">
                 <thead className="border-b border-neutral-200 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400"><tr><th className="px-3 py-3">Item</th><th className="px-3 py-3">Categoria</th><th className="px-3 py-3">Especificação</th><th className="px-3 py-3">Marca</th><th className="px-3 py-3 text-right">Quantidade</th><th className="px-3 py-3">Unidade</th><th className="px-3 py-3 text-right">Mínimo</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Ações</th></tr></thead>
                 <tbody>
-                  {filteredProdutos.map((produto) => {
-                    const status = getParqueProdutoStatus(produto);
-                    return (
-                      <tr key={produto.id} className="border-b border-neutral-100 dark:border-neutral-800">
-                        <td className="px-3 py-3 font-medium text-neutral-900 dark:text-neutral-100">{produto.item_base?.nome}</td>
-                        <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.categoria}</td>
-                        <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.especificacao_valor || '-'}</td>
-                        <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.marca_base?.nome || '-'}</td>
-                        <td className={`px-3 py-3 text-right font-semibold ${status === 'estoque_baixo' ? 'text-amber-600 dark:text-amber-300' : 'text-neutral-900 dark:text-neutral-100'}`}>
-                          {produto.quantidade_atual.toLocaleString('pt-BR')}
-                        </td>
-                        <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.unidade_base?.sigla || produto.unidade_base?.nome || '-'}</td>
-                        <td className="px-3 py-3 text-right text-neutral-600 dark:text-neutral-300">{produto.quantidade_minima ?? '-'}</td>
-                        <td className="px-3 py-3">
-                          <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(status)}`}>
-                            {status.replace(/_/g, ' ')}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          <div className="inline-flex gap-2">
-                            <button
-                              type="button"
-                              title="Editar produto"
-                              onClick={() => resetProdutoForm(produto)}
-                              disabled={!permissoes.editarProduto || saving}
-                              className="rounded-full border border-neutral-300 p-2 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              title="Histórico do item"
-                              onClick={() => handleOpenHistory(produto)}
-                              disabled={saving}
-                              className="rounded-full border border-neutral-300 p-2 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                            >
-                              <RefreshCw className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              title="Excluir produto"
-                              onClick={() => handleDeleteProduto(produto)}
-                              disabled={!permissoes.editarProduto || saving}
-                              className="rounded-full border border-red-200 p-2 text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-900/30"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {filteredProdutos.map((produto) => { const status = getParqueProdutoStatus(produto); return <tr key={produto.id} className="border-b border-neutral-100 dark:border-neutral-800"><td className="px-3 py-3 font-medium text-neutral-900 dark:text-neutral-100">{produto.item_base?.nome}</td><td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.categoria}</td><td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.especificacao_valor || '-'}</td><td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.marca_base?.nome || '-'}</td><td className={`px-3 py-3 text-right font-semibold ${status === 'estoque_baixo' ? 'text-amber-600 dark:text-amber-300' : 'text-neutral-900 dark:text-neutral-100'}`}>{produto.quantidade_atual.toLocaleString('pt-BR')}</td><td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.unidade_base?.sigla || produto.unidade_base?.nome || '-'}</td><td className="px-3 py-3 text-right text-neutral-600 dark:text-neutral-300">{produto.quantidade_minima ?? '-'}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(status)}`}>{status.replace(/_/g, ' ')}</span></td><td className="px-3 py-3 text-right"><div className="inline-flex gap-2"><button type="button" onClick={() => resetProdutoForm(produto)} disabled={!permissoes.editarProduto} className="rounded-full border border-neutral-300 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Editar</button><button type="button" onClick={() => handleOpenHistory(produto)} className="rounded-full border border-neutral-300 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Histórico</button></div></td></tr>; })}
                   {filteredProdutos.length === 0 && <tr><td colSpan={9} className="px-3 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">Nenhum produto encontrado.</td></tr>}
                 </tbody>
               </table>
@@ -2527,159 +2146,70 @@ export default function ParqueTecnologico({ mode }: Props) {
                     )}
                   </div>
                   <div className="mt-4 space-y-2">
-                    {list.map((item) => {
-                      const editing = baseInlineEdit[tipo];
-                      const isInlineEditing = editing?.id === item.id;
-
-                      return (
-                        <div
-                          key={item.id}
-                          className={`rounded-xl border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-800 ${
-                            isInlineEditing ? 'flex flex-col gap-2' : 'flex items-center justify-between gap-3'
-                          }`}
-                        >
-                          <div className={isInlineEditing ? 'w-full' : 'min-w-0 flex-1'}>
-                            {isInlineEditing ? (
-                              <div className="space-y-2">
-                                <input
-                                  className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none transition focus:border-primary-500 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
-                                  value={editing?.nome || ''}
-                                  disabled={!permissoes.gerenciarCadastrosBase || saving}
-                                  onChange={(event) =>
-                                    setBaseInlineEdit((prev) => ({
-                                      ...prev,
-                                      [tipo]: {
-                                        ...(prev[tipo] || { id: item.id, nome: '', sigla: '', ativo: true }),
-                                        nome: event.target.value.toUpperCase(),
-                                      },
-                                    }))
-                                  }
-                                />
-                                {tipo === 'unidades' && (
-                                  <input
-                                    className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none transition focus:border-primary-500 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
-                                    placeholder="SIGLA"
-                                    value={editing?.sigla || ''}
-                                    disabled={!permissoes.gerenciarCadastrosBase || saving}
-                                    onChange={(event) =>
-                                      setBaseInlineEdit((prev) => ({
-                                        ...prev,
-                                        [tipo]: {
-                                          ...(prev[tipo] || { id: item.id, nome: '', sigla: '', ativo: true }),
-                                          sigla: event.target.value.toUpperCase(),
-                                        },
-                                      }))
-                                    }
-                                  />
-                                )}
-                                <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 dark:text-neutral-300">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(editing?.ativo)}
-                                    disabled={!permissoes.gerenciarCadastrosBase || saving}
-                                    onChange={(event) =>
-                                      setBaseInlineEdit((prev) => ({
-                                        ...prev,
-                                        [tipo]: {
-                                          ...(prev[tipo] || { id: item.id, nome: '', sigla: '', ativo: true }),
-                                          ativo: event.target.checked,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  Ativo
-                                </label>
+                    {list.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between rounded-xl border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-800">
+                        <div>
+                          <div className="font-medium text-neutral-900 dark:text-neutral-100">
+                            {def.isCode ? formatMovementTypeLabel(item.nome) : formatUpperText(item.nome)}
+                          </div>
+                          {'sigla' in item && item.sigla ? <div className="text-xs text-neutral-500">{item.sigla}</div> : null}
+                          {(() => {
+                            const links = cadastroLinkByOrigemKey.get(`${tipo}:${item.id}`) || [];
+                            if (links.length === 0) return null;
+                            const destinoNomes = links
+                              .map((link) => cadastroNomeByKey.get(`${link.destino_tipo}:${link.destino_id}`) || '')
+                              .filter(Boolean);
+                            if (destinoNomes.length === 0) return null;
+                            const tipoDestino = links[0]?.destino_tipo || 'descricoes_destino';
+                            return (
+                              <div className="text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
+                                VÍNCULOS ({destinoNomes.length}):{' '}
+                                {`${parametroCategoriaLabel(tipoDestino)} • ${formatUpperText(destinoNomes.join(', '))}`}
                               </div>
-                            ) : (
-                              <>
-                                <div className="font-medium text-neutral-900 dark:text-neutral-100">
-                                  {def.isCode ? formatMovementTypeLabel(item.nome) : formatUpperText(item.nome)}
-                                </div>
-                                {'sigla' in item && item.sigla ? <div className="text-xs text-neutral-500">{item.sigla}</div> : null}
-                                {(() => {
-                                  const links = cadastroLinkByOrigemKey.get(`${tipo}:${item.id}`) || [];
-                                  if (links.length === 0) return null;
-                                  const destinoNomes = links
-                                    .map((link) => cadastroNomeByKey.get(`${link.destino_tipo}:${link.destino_id}`) || '')
-                                    .filter(Boolean);
-                                  if (destinoNomes.length === 0) return null;
-                                  const tipoDestino = links[0]?.destino_tipo || 'descricoes_destino';
-                                  return (
-                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
-                                      VÍNCULOS ({destinoNomes.length}):{' '}
-                                      {`${parametroCategoriaLabel(tipoDestino)} • ${formatUpperText(destinoNomes.join(', '))}`}
-                                    </div>
-                                  );
-                                })()}
-                              </>
-                            )}
-                          </div>
-                          <div
-                            className={`flex items-center gap-2 ${
-                              isInlineEditing ? 'w-full justify-end border-t border-neutral-200 pt-2 dark:border-neutral-800' : ''
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              title="Linkar cadastro"
-                              disabled={!permissoes.gerenciarCadastrosBase || saving}
-                              onClick={() => openCadastroLinkModal(tipo, item.id)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                            >
-                              <Share className="h-3.5 w-3.5" />
-                            </button>
-                            {isInlineEditing ? (
-                              <>
-                                <button
-                                  type="button"
-                                  title="Salvar edição"
-                                  disabled={!permissoes.gerenciarCadastrosBase || saving}
-                                  onClick={() => handleSaveInlineBase(tipo)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
-                                >
-                                  <Save className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  title="Cancelar edição"
-                                  disabled={!permissoes.gerenciarCadastrosBase || saving}
-                                  onClick={() => cancelInlineBaseEdit(tipo)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                title="Editar"
-                                disabled={!permissoes.gerenciarCadastrosBase || saving}
-                                onClick={() =>
-                                  startInlineBaseEdit(tipo, {
-                                    id: item.id,
-                                    nome: def.isCode ? formatMovementTypeLabel(item.nome) : item.nome,
-                                    sigla: 'sigla' in item ? item.sigla || '' : '',
-                                    ativo: item.ativo,
-                                  })
-                                }
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              title="Excluir"
-                              disabled={!permissoes.gerenciarCadastrosBase || saving}
-                              onClick={() => handleDeleteBase(tipo, item.id)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                            );
+                          })()}
                         </div>
-                      );
-                    })}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            title="Linkar cadastro"
+                            disabled={!permissoes.gerenciarCadastrosBase}
+                            onClick={() => openCadastroLinkModal(tipo, item.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                          >
+                            <Share className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Editar"
+                            disabled={!permissoes.gerenciarCadastrosBase}
+                            onClick={() =>
+                              setBaseForms((prev) => ({
+                                ...prev,
+                                [tipo]: {
+                                  id: item.id,
+                                  nome: def.isCode ? formatMovementTypeLabel(item.nome) : item.nome,
+                                  sigla: 'sigla' in item ? item.sigla || '' : '',
+                                  ativo: item.ativo,
+                                },
+                              }))
+                            }
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Excluir"
+                            disabled={!permissoes.gerenciarCadastrosBase}
+                            onClick={() => handleDeleteBase(tipo, item.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                     {list.length === 0 && <div className="text-sm text-neutral-500 dark:text-neutral-400">Nenhum cadastro.</div>}
                   </div>
                 </div>
@@ -3309,7 +2839,7 @@ export default function ParqueTecnologico({ mode }: Props) {
                           }
                           className={`${buttonClassName} bg-button text-white hover:bg-button-hover`}
                         >
-                          Definir destino
+                          Incluir no estoque
                         </button>
                       </div>
                     </div>
@@ -3338,58 +2868,55 @@ export default function ParqueTecnologico({ mode }: Props) {
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Produto</div>
-                  <div className="relative mt-1">
-                    <input
-                      className={inputClassName}
-                      placeholder="Digite para buscar o produto"
-                      value={movimentacaoProdutoBusca}
-                      onFocus={() => setMovimentacaoProdutoBuscaFocused(true)}
-                      onBlur={() => {
-                        window.setTimeout(() => setMovimentacaoProdutoBuscaFocused(false), 120);
-                      }}
-                      onChange={(event) => {
-                        const value = event.target.value.toUpperCase();
-                        setMovimentacaoProdutoBusca(value);
-                        setMovimentacaoProdutoBuscaDirty(true);
+                  <input
+                    list="parque-movimentacao-produtos"
+                    className={inputClassName}
+                    placeholder="Digite para buscar o produto"
+                    value={movimentacaoProdutoBusca}
+                    onFocus={() => setMovimentacaoProdutoBuscaFocused(true)}
+                    onBlur={() => {
+                      window.setTimeout(() => setMovimentacaoProdutoBuscaFocused(false), 120);
+                    }}
+                    onChange={(event) => {
+                      const value = event.target.value.toUpperCase();
+                      setMovimentacaoProdutoBusca(value);
+                      setMovimentacaoProdutoBuscaDirty(true);
 
-                        const exactMatch = findProdutoByComboboxLabel(value);
-                        if (exactMatch) {
-                          setMovimentacaoForm((prev) => ({ ...prev, produto_id: exactMatch.id }));
-                          setMovimentacaoProdutoBuscaDirty(false);
-                          return;
-                        }
+                      const exactMatch = findProdutoByComboboxLabel(value);
+                      if (exactMatch) {
+                        setMovimentacaoForm((prev) => ({ ...prev, produto_id: exactMatch.id }));
+                        setMovimentacaoProdutoBuscaDirty(false);
+                        return;
+                      }
 
-                        setMovimentacaoForm((prev) => ({ ...prev, produto_id: '' }));
-                      }}
-                    />
-                    {movimentacaoProdutoBuscaFocused && (
-                      <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-950">
-                        {produtoBuscaSuggestions.length > 0 ? (
-                          produtoBuscaSuggestions.map((option) => (
-                            <button
-                              key={option.id}
-                              type="button"
-                              title={option.label}
-                              onMouseDown={(event) => {
-                                event.preventDefault();
-                                setMovimentacaoForm((prev) => ({ ...prev, produto_id: option.id }));
-                                setMovimentacaoProdutoBusca(option.label);
-                                setMovimentacaoProdutoBuscaDirty(false);
-                                setMovimentacaoProdutoBuscaFocused(false);
-                              }}
-                              className="block w-full truncate rounded px-2 py-1 text-left text-xs font-medium text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                            >
-                              {option.label}
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                            Nenhum produto encontrado.
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                      setMovimentacaoForm((prev) => ({ ...prev, produto_id: '' }));
+                    }}
+                  />
+                  <datalist id="parque-movimentacao-produtos">
+                    {produtosMovimentacaoComboboxOptions.map((option) => (
+                      <option key={option.id} value={option.label} />
+                    ))}
+                  </datalist>
+                  {movimentacaoProdutoBuscaFocused && produtoBuscaSuggestions.length > 0 && (
+                    <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-950">
+                      {produtoBuscaSuggestions.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            setMovimentacaoForm((prev) => ({ ...prev, produto_id: option.id }));
+                            setMovimentacaoProdutoBusca(option.label);
+                            setMovimentacaoProdutoBuscaDirty(false);
+                            setMovimentacaoProdutoBuscaFocused(false);
+                          }}
+                          className="block w-full rounded px-2 py-1 text-left text-xs font-medium text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {produtosMovimentacaoOptions.length === 0 && (
                     <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
                       Nenhum produto cadastrado no estoque. Cadastre em Estoque &gt; Novo produto.
@@ -3398,11 +2925,6 @@ export default function ParqueTecnologico({ mode }: Props) {
                   {movimentacaoForm.tipo_movimentacao === 'entrada_compra' && !movimentacaoForm.produto_id && (
                     <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
                       Se não houver produto cadastrado, ele será criado automaticamente a partir do tipo de item.
-                    </div>
-                  )}
-                  {movimentacaoForm.tipo_movimentacao === 'entrada_compra' && (
-                    <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
-                      PEDIDO ENTREGUE: DEFINA O DESTINO FINAL DIRETO NESTA ENTRADA (SEM PASSAR POR SAÍDA).
                     </div>
                   )}
                 </div>
@@ -3414,11 +2936,6 @@ export default function ParqueTecnologico({ mode }: Props) {
                     onChange={(event) =>
                       setMovimentacaoForm((prev) => {
                         const nextTipo = event.target.value as ParqueMovimentacaoFormValues['tipo_movimentacao'];
-                        if (prev.pedido_compra_id && nextTipo !== 'entrada_compra') {
-                          setFormError('PARA PEDIDOS ENTREGUES, USE AÇÃO ENTRADA COMPRA E DEFINA O DESTINO FINAL (PARQUE TECNOLÓGICO, CLÍNICA OU MATRIZ - SETOR).');
-                          return prev;
-                        }
-                        setFormError('');
                         if (nextTipo === 'entrada_compra') {
                           return {
                             ...prev,
@@ -3439,7 +2956,6 @@ export default function ParqueTecnologico({ mode }: Props) {
                             origem_descricao: 'PARQUE TECNOLOGICO',
                             destino_tipo: 'clinica',
                             destino_descricao: '',
-                            pedido_compra_id: '',
                             setor_destino: '',
                             observacao: removerSetorMatrizDaObservacao(prev.observacao),
                           };
@@ -3453,7 +2969,6 @@ export default function ParqueTecnologico({ mode }: Props) {
                             origem_descricao: 'PARQUE TECNOLOGICO',
                             destino_tipo: 'setor',
                             destino_descricao: `MATRIZ - ${normalizeLookupText(setorAtual)}`,
-                            pedido_compra_id: '',
                             setor_destino: normalizeLookupText(setorAtual),
                             observacao: removerSetorMatrizDaObservacao(prev.observacao),
                           };
@@ -3466,7 +2981,6 @@ export default function ParqueTecnologico({ mode }: Props) {
                             origem_descricao: 'PARQUE TECNOLOGICO',
                             destino_tipo: 'descarte',
                             destino_descricao: 'DESCARTE',
-                            pedido_compra_id: '',
                             observacao: removerSetorMatrizDaObservacao(prev.observacao),
                             setor_destino: '',
                           };
@@ -3478,7 +2992,6 @@ export default function ParqueTecnologico({ mode }: Props) {
                           origem_descricao: nextTipo === 'entrada_manual' ? 'PRE-CADASTRO' : 'PARQUE TECNOLOGICO',
                           destino_tipo: 'estoque',
                           destino_descricao: DESTINO_PARQUE_TECNOLOGICO,
-                          pedido_compra_id: '',
                           observacao: removerSetorMatrizDaObservacao(prev.observacao),
                           setor_destino: '',
                         };
@@ -3494,30 +3007,7 @@ export default function ParqueTecnologico({ mode }: Props) {
                 </div>
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Quantidade</div>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    max={
-                      movimentacaoForm.tipo_movimentacao === 'entrada_compra' && saldoCompraDisponivel > 0
-                        ? saldoCompraDisponivel
-                        : undefined
-                    }
-                    className={inputClassName}
-                    placeholder="Quantidade"
-                    value={numberValue(movimentacaoForm.quantidade)}
-                    onChange={(event) =>
-                      setMovimentacaoForm((prev) => ({
-                        ...prev,
-                        quantidade: event.target.value === '' ? '' : Number(event.target.value),
-                      }))
-                    }
-                  />
-                  {movimentacaoForm.tipo_movimentacao === 'entrada_compra' && (
-                    <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
-                      SALDO COMPRA DISPONÍVEL: {Number(saldoCompraDisponivel || 0).toLocaleString('pt-BR')}
-                    </div>
-                  )}
+                  <input type="number" min="0.01" step="0.01" className={inputClassName} placeholder="Quantidade" value={numberValue(movimentacaoForm.quantidade)} onChange={(event) => setMovimentacaoForm((prev) => ({ ...prev, quantidade: event.target.value === '' ? '' : Number(event.target.value) }))} />
                 </div>
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Data da movimentação</div>
@@ -3535,7 +3025,6 @@ export default function ParqueTecnologico({ mode }: Props) {
                           const pedido = pedidosEntreguesComDestino.find((row) => row.id === event.target.value);
                           const produtoEncontrado = findProdutoByPedidoItem(pedido?.item);
                           const produtoLabel = produtoEncontrado ? getMovimentacaoProdutoOptionLabel(produtoEncontrado) : '';
-                          const destinoSugerido = resolveDestinoFromHistorico(pedido?.destino_clinica);
                           setMovimentacaoForm((prev) => ({
                             ...prev,
                             produto_id: produtoEncontrado?.id || prev.produto_id,
@@ -3543,11 +3032,10 @@ export default function ParqueTecnologico({ mode }: Props) {
                             quantidade: Number(pedido?.quantidade_disponivel || 0) > 0 ? Number(pedido?.quantidade_disponivel) : prev.quantidade,
                             origem_tipo: 'compra',
                             origem_descricao: resolvePedidoLojaOrigem(pedido),
-                            destino_tipo: destinoSugerido.destinoTipo,
-                            destino_descricao: destinoSugerido.destinoDescricao,
+                            destino_tipo: 'estoque',
                             valor_unitario: resolvePedidoValorUnitario(pedido),
                             data_movimentacao: pedido ? resolvePedidoDataMovimentacao(pedido, pedido.destino_atribuido_em) : prev.data_movimentacao,
-                            setor_destino: destinoSugerido.setorDestino,
+                            setor_destino: '',
                           }));
                           setMovimentacaoProdutoBusca(produtoLabel);
                           setMovimentacaoProdutoBuscaDirty(false);
@@ -3618,15 +3106,24 @@ export default function ParqueTecnologico({ mode }: Props) {
                       </option>
                     ))}
                   </select>
-                  {normalizeLookupText(movimentacaoForm.origem_tipo) === 'COMPRA' && lojaOrigemSelecionada && (
+                  {normalizeLookupText(movimentacaoForm.origem_tipo) === 'COMPRA' && movimentacaoForm.origem_descricao && (
                     <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
-                      LOJA DE ORIGEM: {formatUpperText(lojaOrigemSelecionada)}
+                      LOJA DE ORIGEM: {formatUpperText(movimentacaoForm.origem_descricao)}
                     </div>
                   )}
                 </div>
                 <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                    Destino
+                  <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                    <span>Destino</span>
+                    <button
+                      type="button"
+                      onClick={() => openDestinoSetorModal(movimentacaoForm.destino_descricao)}
+                      disabled={!permissoes.gerenciarCadastrosBase}
+                      className="inline-flex items-center gap-1 rounded-full border border-neutral-300 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800"
+                    >
+                      <Share className="h-3 w-3" />
+                      Linkar
+                    </button>
                   </div>
                   <select
                     className={inputClassName}
@@ -3684,3 +3181,5 @@ export default function ParqueTecnologico({ mode }: Props) {
     </div>
   );
 }
+
+
