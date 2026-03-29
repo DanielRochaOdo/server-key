@@ -113,6 +113,56 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const normalizeErrorText = (value: unknown) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+const toFriendlyMovimentacaoError = (error: { message?: unknown; details?: unknown; hint?: unknown }) => {
+  const message = String(error?.message || '');
+  const details = String(error?.details || '');
+  const hint = String(error?.hint || '');
+  const combined = [message, details, hint].filter(Boolean).join(' | ');
+  const normalized = normalizeErrorText(combined);
+
+  if (normalized.includes('saldo insuficiente')) {
+    return 'Saldo insuficiente para esta saida. Reduza a quantidade ou registre uma entrada no estoque.';
+  }
+  if (normalized.includes('produto nao encontrado')) {
+    return 'Produto nao encontrado. Selecione um item valido e tente novamente.';
+  }
+  if (normalized.includes('tipo de movimentacao invalido')) {
+    return 'Acao invalida para movimentacao. Revise os campos e tente novamente.';
+  }
+  if (normalized.includes('quantidade deve ser maior que zero')) {
+    return 'Informe uma quantidade maior que zero.';
+  }
+  if (normalized.includes('selecione um pedido entregue para entrada por compra')) {
+    return 'Selecione um pedido entregue para registrar entrada por compra.';
+  }
+  if (normalized.includes('somente pedidos entregues podem gerar entrada no parque')) {
+    return 'Somente pedidos com status ENTREGUE podem ser adicionados ao estoque.';
+  }
+  if (normalized.includes('pedido entregue ja foi totalmente incluido no estoque')) {
+    return 'Esse pedido ja foi totalmente incluido no estoque.';
+  }
+  if (normalized.includes('quantidade informada excede saldo disponivel do pedido')) {
+    return 'A quantidade informada excede o saldo disponivel desse pedido.';
+  }
+  if (normalized.includes('sem permiss')) {
+    return 'Voce nao possui permissao para registrar movimentacoes.';
+  }
+
+  const cleaned = String(combined)
+    .replace(/falha ao registrar movimenta[\w\W]?o:\s*/i, '')
+    .replace(/\(sqlstate [^)]+\)\.?/i, '')
+    .replace(/dados:\s*.*$/i, '')
+    .trim();
+
+  return cleaned || 'Nao foi possivel registrar a movimentacao. Revise os dados e tente novamente.';
+};
+
 const normalizeBaseItem = (row: any): ParqueBaseItem => ({
   id: row.id,
   nome: row.nome,
@@ -531,6 +581,40 @@ export const saveParqueDestinoSetorLink = async (payload: {
   if (error) throw error;
 };
 
+export const saveParqueDestinoParametro = async (payload: {
+  id?: string;
+  nome: string;
+  tipo_movimentacao_parametro_id: string;
+  ativo?: boolean;
+}) => {
+  const nomeNormalizado = String(payload.nome || '')
+    .trim()
+    .toUpperCase();
+
+  if (!nomeNormalizado) {
+    throw new Error('Informe o destino.');
+  }
+  if (!payload.tipo_movimentacao_parametro_id) {
+    throw new Error('Selecione a ação.');
+  }
+
+  const { data, error } = await supabase.rpc('parque_save_destino_parametro', {
+    p_destino_id: payload.id || null,
+    p_destino_nome: nomeNormalizado,
+    p_tipo_movimentacao_id: payload.tipo_movimentacao_parametro_id,
+    p_ativo: payload.ativo ?? true,
+  });
+
+  if (error) {
+    const message = [error.message, (error as any).details, (error as any).hint]
+      .filter(Boolean)
+      .join(' | ');
+    throw new Error(message || 'Erro ao salvar destino.');
+  }
+
+  return data as string;
+};
+
 export const listParqueParametrosLinks = async (): Promise<ParqueParametroLink[]> => {
   const { data, error } = await supabase
     .from('parque_parametros_link')
@@ -679,20 +763,58 @@ export const listParqueProdutos = async (
 };
 
 export const createParqueProduto = async (values: ParqueProdutoFormValues) => {
+  const quantidadeInicial = values.quantidade_inicial === '' ? 0 : Number(values.quantidade_inicial);
+  const valorUnitarioInicial = values.valor_unitario_inicial === '' ? null : Number(values.valor_unitario_inicial);
+
   const { data, error } = await supabase.rpc('parque_create_produto', {
     p_item_base_id: values.item_base_id,
     p_categoria: values.categoria,
     p_especificacao_valor: values.especificacao_valor || null,
     p_unidade_base_id: values.unidade_base_id || null,
     p_marca_base_id: values.marca_base_id || null,
-    p_quantidade_inicial: values.quantidade_inicial === '' ? 0 : Number(values.quantidade_inicial),
+    p_quantidade_inicial: quantidadeInicial,
     p_quantidade_minima: values.quantidade_minima === '' ? null : Number(values.quantidade_minima),
     p_ativo: values.ativo,
-    p_observacao: values.observacao_inicial || null,
+    p_observacao: null,
   });
 
-  if (error) throw error;
-  return data as string;
+  if (error) {
+    const code = String((error as any)?.code || '');
+    const message = String((error as any)?.message || '').toLowerCase();
+    const details = String((error as any)?.details || '').toLowerCase();
+    const isDuplicate =
+      code === '23505' ||
+      message.includes('duplicate key') ||
+      details.includes('duplicate key') ||
+      message.includes('parque_produtos_unique_key') ||
+      details.includes('parque_produtos_unique_key');
+
+    if (isDuplicate) {
+      throw new Error('Já existe um produto com o mesmo item, especificação, unidade e marca.');
+    }
+
+    throw error;
+  }
+
+  const produtoId = data as string;
+  if (
+    quantidadeInicial > 0 &&
+    valorUnitarioInicial !== null &&
+    Number.isFinite(valorUnitarioInicial) &&
+    valorUnitarioInicial > 0
+  ) {
+    const { error: updateError } = await supabase
+      .from('parque_movimentacoes')
+      .update({
+        custo_unitario: valorUnitarioInicial,
+      })
+      .eq('produto_id', produtoId)
+      .eq('tipo_movimentacao', 'entrada_manual');
+
+    if (updateError) throw updateError;
+  }
+
+  return produtoId;
 };
 
 export const updateParqueProduto = async (
@@ -838,10 +960,13 @@ export const registerParqueMovimentacao = async (values: ParqueMovimentacaoFormV
   });
 
   if (error) {
-    const message = [error.message, (error as any).details, (error as any).hint]
-      .filter(Boolean)
-      .join(' | ');
-    throw new Error(message || 'Erro ao registrar movimentação.');
+    throw new Error(
+      toFriendlyMovimentacaoError({
+        message: error.message,
+        details: (error as any).details,
+        hint: (error as any).hint,
+      })
+    );
   }
   return data as string;
 };
@@ -902,3 +1027,4 @@ export const listParquePedidosEntregues = async (): Promise<ParquePedidoCompraEn
     origem_label: row.origem_label || row.item || '',
   }));
 };
+

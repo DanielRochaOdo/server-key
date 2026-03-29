@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Pencil, Plus, RefreshCw, Settings, Share, Trash2 } from 'lucide-react';
+import { AlertCircle, Pencil, Plus, RefreshCw, Settings, Trash2 } from 'lucide-react';
 import ModuleHeader from '../components/ModuleHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -21,10 +21,12 @@ import {
   registerParqueMovimentacao,
   replaceParqueCadastroLinks,
   saveParqueDestinoSetorLink,
+  saveParqueDestinoParametro,
   saveParqueBaseCadastro,
   saveParqueParametroLink,
   saveParqueItemParametroLink,
   deleteParqueBaseCadastro,
+  deleteParqueProduto,
   updateParqueProduto,
 } from '../services/parqueTecnologico';
 import type {
@@ -72,9 +74,9 @@ const emptyProdutoForm: ParqueProdutoFormValues = {
   unidade_base_id: '',
   marca_base_id: '',
   quantidade_inicial: '',
+  valor_unitario_inicial: '',
   quantidade_minima: '',
   ativo: true,
-  observacao_inicial: '',
 };
 
 const emptyMovimentacaoForm: ParqueMovimentacaoFormValues = {
@@ -82,8 +84,8 @@ const emptyMovimentacaoForm: ParqueMovimentacaoFormValues = {
   tipo_movimentacao: 'entrada_manual',
   quantidade: '',
   valor_unitario: '',
-  origem_tipo: 'pre-cadastro',
-  origem_descricao: 'PRE-CADASTRO',
+  origem_tipo: 'estoque',
+  origem_descricao: 'PARQUE TECNOLOGICO',
   destino_tipo: 'estoque',
   destino_descricao: 'PARQUE TECNOLÓGICO',
   data_movimentacao: new Date().toISOString().slice(0, 16),
@@ -181,6 +183,22 @@ const statusBadgeClass = (status: string) => {
 
 const numberValue = (value: number | '') => (value === '' ? '' : String(value));
 
+const formatCurrencyInputBrl = (value: number | '') => {
+  if (value === '') return '';
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '';
+  return `R$ ${numeric.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+const parseCurrencyInputBrl = (value: string): number | '' => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  return Number((Number(digits) / 100).toFixed(2));
+};
+
 const resolvePedidoValorUnitario = (pedido?: ParquePedidoCompraEntregue | null) => {
   if (!pedido) return '';
   if (Number(pedido.valor_unit || 0) > 0) return Number(pedido.valor_unit);
@@ -220,6 +238,18 @@ const normalizeComparableText = (value?: string | null) =>
     .replace(/[^A-Z0-9]+/g, ' ')
     .trim();
 
+const normalizeOrigemTipoForUi = (value?: string | null): 'compra' | 'estoque' => {
+  const normalized = normalizeLookupText(value).replace(/\s+/g, '-');
+  return normalized === 'COMPRA' || normalized === 'COMPRAS' ? 'compra' : 'estoque';
+};
+
+const getOrigemDescricaoForUi = (origemTipo?: string | null, origemDescricao?: string | null) => {
+  if (normalizeOrigemTipoForUi(origemTipo) === 'compra') {
+    return formatUpperText(origemDescricao || 'COMPRA');
+  }
+  return 'PARQUE TECNOLOGICO';
+};
+
 const normalizeClinicKey = (value?: string | null) => {
   const normalized = normalizeLookupText(value);
   if (!normalized) return null;
@@ -257,6 +287,16 @@ const formatDateTime = (value?: string | null) => {
   return date.toLocaleString('pt-BR');
 };
 
+const formatDateTimeMinutes = (value?: string | null) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return `${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+};
+
 const toDateTimeLocalInput = (value?: string | null) => {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 16);
@@ -289,7 +329,7 @@ const formatUpperText = (value?: string | null) => {
 const formatMovementTypeLabel = (tipo: string) => tipo.replace(/_/g, ' ').toUpperCase();
 
 const getMovimentacaoProdutoOptionLabel = (produto: ParqueProduto) =>
-  `${formatUpperText(getParqueProdutoLabel(produto))} • SALDO ${Number(produto.quantidade_atual || 0).toLocaleString('pt-BR')}`;
+  formatUpperText(getParqueProdutoLabel(produto));
 
 const parametroCategoriaLabel = (categoria: ParqueBaseCadastroTipo) => {
   if (categoria === 'itens') return 'TIPO DE ITEM';
@@ -306,7 +346,7 @@ const parametroCategoriaLabel = (categoria: ParqueBaseCadastroTipo) => {
 };
 
 const DESTINO_PARQUE_TECNOLOGICO = 'PARQUE TECNOLÓGICO';
-const ORIGENS_FIXAS = ['compra', 'pre-cadastro', 'estoque'] as const;
+const ORIGENS_FIXAS = ['compra', 'estoque'] as const;
 const CLINICAS_FALLBACK = ['AGUANAMBI', 'BEZERRA', 'PARANGABA', 'SOBRAL'] as const;
 const SETORES_MATRIZ_FIXOS = ['TI', 'ADM', 'CALL CENTER', 'CREDENCIAMENTO', 'FINANCEIRO', 'DP', 'RH'] as const;
 const TIPOS_MOVIMENTACAO_FIXOS: Array<ParqueMovimentacaoFormValues['tipo_movimentacao']> = [
@@ -374,7 +414,10 @@ export default function ParqueTecnologico({ mode }: Props) {
   const [statusFilter, setStatusFilter] = useState(() => initialUiState?.statusFilter ?? '');
   const [estoqueBaixoOnly, setEstoqueBaixoOnly] = useState(() => initialUiState?.estoqueBaixoOnly ?? false);
   const [tipoFilter, setTipoFilter] = useState(() => initialUiState?.tipoFilter ?? '');
-  const [origemFilter, setOrigemFilter] = useState(() => initialUiState?.origemFilter ?? '');
+  const [origemFilter, setOrigemFilter] = useState(() => {
+    const savedValue = initialUiState?.origemFilter ?? '';
+    return savedValue ? normalizeOrigemTipoForUi(savedValue) : '';
+  });
   const [destinoFilter, setDestinoFilter] = useState(() => initialUiState?.destinoFilter ?? '');
   const [clinicaFilter, setClinicaFilter] = useState(() => initialUiState?.clinicaFilter ?? '');
   const [setorFilter, setSetorFilter] = useState(() => initialUiState?.setorFilter ?? '');
@@ -448,14 +491,35 @@ export default function ParqueTecnologico({ mode }: Props) {
     destino_tipo: 'itens',
     destino_ids: [],
   });
+  const [destinoParametroForm, setDestinoParametroForm] = useState<{
+    id: string;
+    nome: string;
+    tipo_movimentacao_parametro_id: string;
+    ativo: boolean;
+  }>({
+    id: '',
+    nome: '',
+    tipo_movimentacao_parametro_id: '',
+    ativo: true,
+  });
+  const [destinoParametroFeedback, setDestinoParametroFeedback] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   const [produtoForm, setProdutoForm] = useState<ParqueProdutoFormValues>(() => ({
     ...emptyProdutoForm,
     ...(initialUiState?.produtoForm || {}),
   }));
-  const [movimentacaoForm, setMovimentacaoForm] = useState<ParqueMovimentacaoFormValues>(() => ({
-    ...emptyMovimentacaoForm,
-    ...(initialUiState?.movimentacaoForm || {}),
-  }));
+  const [movimentacaoForm, setMovimentacaoForm] = useState<ParqueMovimentacaoFormValues>(() => {
+    const savedForm = initialUiState?.movimentacaoForm || {};
+    const origemTipoNormalizado = normalizeOrigemTipoForUi(savedForm.origem_tipo || emptyMovimentacaoForm.origem_tipo);
+    return {
+      ...emptyMovimentacaoForm,
+      ...savedForm,
+      origem_tipo: origemTipoNormalizado,
+      origem_descricao:
+        origemTipoNormalizado === 'compra'
+          ? normalizeLookupText(savedForm.origem_descricao || emptyMovimentacaoForm.origem_descricao || 'COMPRA')
+          : 'PARQUE TECNOLOGICO',
+    };
+  });
   const [movimentacaoProdutoBusca, setMovimentacaoProdutoBusca] = useState(
     () => initialUiState?.movimentacaoProdutoBusca ?? ''
   );
@@ -490,6 +554,19 @@ export default function ParqueTecnologico({ mode }: Props) {
     tipos_destino: null,
     descricoes_destino: null,
   });
+  const [baseSearch, setBaseSearch] = useState<Record<ParqueBaseCadastroTipo, string>>({
+    itens: '',
+    unidades: '',
+    marcas: '',
+    categorias_produto: '',
+    especificacoes_produto: '',
+    setores: '',
+    tipos_movimentacao: '',
+    tipos_origem: '',
+    tipos_destino: '',
+    descricoes_destino: '',
+  });
+  const [destinoParametroSearch, setDestinoParametroSearch] = useState('');
   const baseNameInputRefs = React.useRef<Record<ParqueBaseCadastroTipo, HTMLInputElement | null>>({
     itens: null,
     unidades: null,
@@ -503,8 +580,11 @@ export default function ParqueTecnologico({ mode }: Props) {
     descricoes_destino: null,
   });
 
-  const loadAll = async () => {
-    setLoading(true);
+  const loadAll = async (options?: { withPageLoading?: boolean }) => {
+    const withPageLoading = options?.withPageLoading ?? false;
+    if (withPageLoading) {
+      setLoading(true);
+    }
     try {
       const [catalogosData, produtosData, movimentosData, pedidosData, custosHistoryRes] = await Promise.all([
         listParqueCatalogos(),
@@ -561,12 +641,14 @@ export default function ParqueTecnologico({ mode }: Props) {
       console.error('Erro ao carregar Parque Tecnológico:', error);
       setToast({ type: 'error', message: error instanceof Error ? error.message : 'Erro ao carregar módulo.' });
     } finally {
-      setLoading(false);
+      if (withPageLoading) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    loadAll();
+    loadAll({ withPageLoading: true });
   }, []);
 
   useEffect(() => {
@@ -665,7 +747,8 @@ export default function ParqueTecnologico({ mode }: Props) {
       const matchesSearch = !search || label.includes(search.toLowerCase()) || String(movimento.observacao || '').toLowerCase().includes(search.toLowerCase());
       const matchesItem = !itemFilter || movimento.produto?.item_base_id === itemFilter;
       const matchesTipo = !tipoFilter || movimento.tipo_movimentacao === tipoFilter;
-      const matchesOrigem = !origemFilter || movimento.origem_tipo === origemFilter;
+      const origemMovimentoNormalizada = normalizeOrigemTipoForUi(movimento.origem_tipo);
+      const matchesOrigem = !origemFilter || origemMovimentoNormalizada === origemFilter;
       const matchesDestino = !destinoFilter || movimento.destino_tipo === destinoFilter;
       const matchesClinica = !clinicaFilter || (movimento.destino_tipo === 'clinica' && String(movimento.destino_descricao || '').toLowerCase().includes(clinicaFilter.toLowerCase()));
       const matchesSetor =
@@ -720,10 +803,16 @@ export default function ParqueTecnologico({ mode }: Props) {
         produto,
         label: getMovimentacaoProdutoOptionLabel(produto),
         searchable: normalizeComparableText(
-          `${getParqueProdutoLabel(produto)} ${produto.categoria} ${produto.especificacao_valor || ''}`
+          `${getMovimentacaoProdutoOptionLabel(produto)} ${getParqueProdutoLabel(produto)} ${produto.categoria} ${produto.especificacao_valor || ''} ${produto.marca_base?.nome || ''} ${produto.unidade_base?.nome || ''} ${produto.unidade_base?.sigla || ''}`
         ),
       })),
     [produtosMovimentacaoOptions]
+  );
+
+  const selectedMovimentacaoProduto = useMemo(
+    () =>
+      produtosMovimentacaoOptions.find((produto) => produto.id === movimentacaoForm.produto_id) || null,
+    [produtosMovimentacaoOptions, movimentacaoForm.produto_id]
   );
 
   const produtoBuscaSuggestions = useMemo(() => {
@@ -897,6 +986,39 @@ export default function ParqueTecnologico({ mode }: Props) {
   const getTipoMovimentacaoLabel = (tipo: string) =>
     tipoMovimentacaoLabelMap.get(normalizeLookupText(tipo)) || formatMovementTypeLabel(tipo);
 
+  const tiposMovimentacaoParametroOptions = useMemo(() => {
+    const byNome = new Map<string, (typeof catalogos.tipos_movimentacao)[number]>();
+    catalogos.tipos_movimentacao
+      .filter((item) => item.ativo)
+      .forEach((item) => {
+        byNome.set(normalizeLookupText(item.nome), item);
+      });
+
+    const ordered = TIPOS_MOVIMENTACAO_FIXOS
+      .map((tipo) => byNome.get(normalizeLookupText(tipo)))
+      .filter((item): item is (typeof catalogos.tipos_movimentacao)[number] => Boolean(item));
+
+    return ordered.length > 0 ? ordered : catalogos.tipos_movimentacao.filter((item) => item.ativo);
+  }, [catalogos.tipos_movimentacao]);
+
+  const tipoMovimentacaoById = useMemo(() => {
+    const map = new Map<string, (typeof catalogos.tipos_movimentacao)[number]>();
+    catalogos.tipos_movimentacao.forEach((item) => {
+      map.set(item.id, item);
+    });
+    return map;
+  }, [catalogos.tipos_movimentacao]);
+
+  const destinoParametroOptions = useMemo(
+    () => [...catalogos.descricoes_destino].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+    [catalogos.descricoes_destino]
+  );
+  const filteredDestinoParametroOptions = useMemo(() => {
+    const term = normalizeComparableText(destinoParametroSearch);
+    if (!term) return destinoParametroOptions;
+    return destinoParametroOptions.filter((destino) => normalizeComparableText(destino.nome).includes(term));
+  }, [destinoParametroOptions, destinoParametroSearch]);
+
   const origemTipoOptions = useMemo(() => [...ORIGENS_FIXAS], []);
 
   const setorOptions = useMemo(() => {
@@ -912,15 +1034,111 @@ export default function ParqueTecnologico({ mode }: Props) {
     );
   }, [custosClinicasHistory]);
 
+  const destinoAcaoLinkByDestinoId = useMemo(() => {
+    const map = new Map<string, ParqueCadastroLink>();
+    cadastrosLinks
+      .filter(
+        (link) =>
+          link.ativo &&
+          link.origem_tipo === 'descricoes_destino' &&
+          link.destino_tipo === 'tipos_movimentacao'
+      )
+      .forEach((link) => {
+        if (!map.has(link.origem_id)) {
+          map.set(link.origem_id, link);
+        }
+      });
+    return map;
+  }, [cadastrosLinks]);
+
+  const destinoVinculosPorTipoMovimentacao = useMemo(() => {
+    const map = new Map<string, string[]>();
+    const tipoMovimentacaoNomeById = new Map(
+      catalogos.tipos_movimentacao.map((item) => [item.id, normalizeLookupText(item.nome)])
+    );
+    const destinoNomeById = new Map(
+      catalogos.descricoes_destino.map((item) => [item.id, normalizeLookupText(item.nome)])
+    );
+
+    destinoAcaoLinkByDestinoId.forEach((link, destinoId) => {
+      const tipoMovimentacaoNome = tipoMovimentacaoNomeById.get(link.destino_id);
+      const destinoNome = destinoNomeById.get(destinoId);
+      if (!tipoMovimentacaoNome || !destinoNome) return;
+      const current = map.get(tipoMovimentacaoNome) || [];
+      if (!current.includes(destinoNome)) {
+        current.push(destinoNome);
+      }
+      map.set(tipoMovimentacaoNome, current);
+    });
+
+    map.forEach((list, key) => {
+      map.set(
+        key,
+        list.slice().sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      );
+    });
+
+    return map;
+  }, [catalogos.descricoes_destino, catalogos.tipos_movimentacao, destinoAcaoLinkByDestinoId]);
+
+  const getDestinoDefaultForTipoMovimentacao = (
+    tipoMovimentacao: ParqueMovimentacaoFormValues['tipo_movimentacao']
+  ) => {
+    const vinculado = destinoVinculosPorTipoMovimentacao.get(normalizeLookupText(tipoMovimentacao)) || [];
+
+    if (tipoMovimentacao === 'entrada_manual') return DESTINO_PARQUE_TECNOLOGICO;
+    if (tipoMovimentacao === 'descarte') return 'DESCARTE';
+    if (tipoMovimentacao === 'saida_setor') {
+      const destinoSetorVinculado = vinculado.find((destino) => normalizeLookupText(destino).startsWith('MATRIZ -'));
+      if (destinoSetorVinculado) return destinoSetorVinculado;
+      const setorPadrao = normalizeLookupText(setorOptions[0] || MATRIZ_SETOR_PADRAO);
+      return `MATRIZ - ${setorPadrao}`;
+    }
+    if (tipoMovimentacao === 'saida_clinica') {
+      const destinoClinicaVinculado = vinculado.find((destino) => {
+        const clinic = normalizeClinicKey(destino);
+        return Boolean(clinic) && clinic !== 'MATRIZ';
+      });
+      return destinoClinicaVinculado || '';
+    }
+    if (vinculado.length > 0) return vinculado[0];
+    return DESTINO_PARQUE_TECNOLOGICO;
+  };
+
   const destinoOptions = useMemo(() => {
-    const matrizSetorOptions = setorOptions.map((setor) => `MATRIZ - ${setor}`);
+    if (movimentacaoForm.tipo_movimentacao === 'entrada_manual') return [DESTINO_PARQUE_TECNOLOGICO];
     if (movimentacaoForm.tipo_movimentacao === 'descarte') return ['DESCARTE'];
+
+    const matrizSetorOptions = setorOptions.map((setor) => `MATRIZ - ${setor}`);
+    const vinculados = destinoVinculosPorTipoMovimentacao.get(
+      normalizeLookupText(movimentacaoForm.tipo_movimentacao)
+    ) || [];
+
+    if (vinculados.length > 0) {
+      if (movimentacaoForm.tipo_movimentacao === 'saida_setor') {
+        const setoresVinculados = vinculados.filter((destino) =>
+          normalizeLookupText(destino).startsWith('MATRIZ -')
+        );
+        return setoresVinculados.length > 0 ? setoresVinculados : vinculados;
+      }
+
+      if (movimentacaoForm.tipo_movimentacao === 'saida_clinica') {
+        const clinicasVinculadas = vinculados.filter((destino) => {
+          const clinic = normalizeClinicKey(destino);
+          return Boolean(clinic) && clinic !== 'MATRIZ';
+        });
+        return clinicasVinculadas.length > 0 ? clinicasVinculadas : vinculados;
+      }
+
+      return vinculados;
+    }
+
     if (movimentacaoForm.tipo_movimentacao === 'saida_setor') {
       return matrizSetorOptions;
     }
     if (movimentacaoForm.tipo_movimentacao === 'saida_clinica') return [...clinicaDestinoOptions];
     return [DESTINO_PARQUE_TECNOLOGICO, ...clinicaDestinoOptions, ...matrizSetorOptions];
-  }, [clinicaDestinoOptions, movimentacaoForm.tipo_movimentacao, setorOptions]);
+  }, [clinicaDestinoOptions, destinoVinculosPorTipoMovimentacao, movimentacaoForm.tipo_movimentacao, setorOptions]);
 
   const itemLinkByItemId = useMemo(() => {
     const map = new Map<string, ParqueItemParametroLink>();
@@ -1233,9 +1451,9 @@ export default function ParqueTecnologico({ mode }: Props) {
         unidade_base_id: '',
         marca_base_id: '',
         quantidade_inicial: '',
+        valor_unitario_inicial: '',
         quantidade_minima: '',
         ativo: true,
-        observacao_inicial: `CRIADO AUTOMATICAMENTE A PARTIR DO PEDIDO ${pedido.origem_label || pedido.item || ''}`.trim(),
       });
     } catch (error) {
       const maybeCode = (error as { code?: string } | null)?.code;
@@ -1274,22 +1492,6 @@ export default function ParqueTecnologico({ mode }: Props) {
       marca_base_id: linked.marca_base_id || (keepValues ? prev.marca_base_id : ''),
     }));
     setToast({ type: 'success', message: 'Parâmetros linkados aplicados ao produto.' });
-  };
-
-  const openItemLinkModal = (itemBaseId?: string) => {
-    const selectedItemId = itemBaseId || produtoForm.item_base_id || '';
-    const linked = selectedItemId ? itemParametroLinks.find((item) => item.item_base_id === selectedItemId) : null;
-    setItemLinkForm({
-      id: linked?.id || '',
-      item_base_id: selectedItemId,
-      categoria_parametro_id: linked?.categoria_parametro_id || '',
-      especificacao_parametro_id: linked?.especificacao_parametro_id || '',
-      unidade_base_id: linked?.unidade_base_id || '',
-      marca_base_id: linked?.marca_base_id || '',
-      ativo: linked?.ativo ?? true,
-    });
-    setFormError('');
-    setShowItemLinkModal(true);
   };
 
   const openParametroLinkModal = (origemParametroId: string) => {
@@ -1461,6 +1663,57 @@ export default function ParqueTecnologico({ mode }: Props) {
     }
   };
 
+  const handleEditDestinoParametro = (destinoParametroId: string) => {
+    const destino = destinoParametroOptions.find((item) => item.id === destinoParametroId);
+    if (!destino) return;
+    const linked = destinoAcaoLinkByDestinoId.get(destinoParametroId);
+    setDestinoParametroForm({
+      id: destino.id,
+      nome: normalizeLookupText(destino.nome),
+      tipo_movimentacao_parametro_id: linked?.destino_id || '',
+      ativo: destino.ativo,
+    });
+    setDestinoParametroFeedback(null);
+  };
+
+  const handleSaveDestinoParametro = async () => {
+    setSaving(true);
+    setDestinoParametroFeedback({ type: 'info', message: 'SALVANDO...' });
+
+    try {
+      const nomeDestino = normalizeLookupText(destinoParametroForm.nome);
+      if (!nomeDestino) {
+        throw new Error('Informe o destino.');
+      }
+      if (!destinoParametroForm.tipo_movimentacao_parametro_id) {
+        throw new Error('Selecione a ação.');
+      }
+
+      await saveParqueDestinoParametro({
+        id: destinoParametroForm.id || undefined,
+        nome: nomeDestino,
+        tipo_movimentacao_parametro_id: destinoParametroForm.tipo_movimentacao_parametro_id,
+        ativo: destinoParametroForm.ativo,
+      });
+
+      setDestinoParametroFeedback({ type: 'success', message: 'DESTINO SALVO COM SUCESSO.' });
+      setDestinoParametroForm({
+        id: '',
+        nome: '',
+        tipo_movimentacao_parametro_id: '',
+        ativo: true,
+      });
+      setToast({ type: 'success', message: 'Parâmetro de destino salvo.' });
+      await loadAll();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao salvar parâmetro de destino.';
+      setDestinoParametroFeedback({ type: 'error', message: message.toUpperCase() });
+      setToast({ type: 'error', message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const resetProdutoForm = (produto?: ParqueProduto | null) => {
     setEditingProduto(produto || null);
     setProdutoForm(produto ? {
@@ -1470,9 +1723,9 @@ export default function ParqueTecnologico({ mode }: Props) {
       unidade_base_id: produto.unidade_base_id || '',
       marca_base_id: produto.marca_base_id || '',
       quantidade_inicial: '',
+      valor_unitario_inicial: '',
       quantidade_minima: produto.quantidade_minima ?? '',
       ativo: produto.ativo,
-      observacao_inicial: '',
     } : emptyProdutoForm);
     setFormError('');
     setShowProductModal(true);
@@ -1484,8 +1737,29 @@ export default function ParqueTecnologico({ mode }: Props) {
     try {
       const categoria = normalizeLookupText(produtoForm.categoria);
       const especificacaoValor = normalizeLookupText(produtoForm.especificacao_valor);
+      const quantidadeInicial = produtoForm.quantidade_inicial === '' ? 0 : Number(produtoForm.quantidade_inicial);
+      const valorUnitarioInicial = produtoForm.valor_unitario_inicial === '' ? 0 : Number(produtoForm.valor_unitario_inicial);
       if (!produtoForm.item_base_id) throw new Error('Selecione o item base.');
       if (!categoria) throw new Error('Selecione a categoria.');
+      if (!editingProduto && quantidadeInicial > 0 && (!Number.isFinite(valorUnitarioInicial) || valorUnitarioInicial <= 0)) {
+        throw new Error('Informe o valor unitário da entrada inicial.');
+      }
+
+      if (!editingProduto) {
+        const duplicado = produtos.find((item) =>
+          item.item_base_id === produtoForm.item_base_id &&
+          normalizeLookupText(item.especificacao_valor) === especificacaoValor &&
+          (item.unidade_base_id || '') === (produtoForm.unidade_base_id || '') &&
+          (item.marca_base_id || '') === (produtoForm.marca_base_id || '')
+        );
+
+        if (duplicado) {
+          setToast({ type: 'error', message: 'Produto já cadastrado. Abra para editar o existente.' });
+          resetProdutoForm(duplicado);
+          return;
+        }
+      }
+
       if (editingProduto) {
         await updateParqueProduto(editingProduto.id, {
           item_base_id: produtoForm.item_base_id,
@@ -1651,14 +1925,9 @@ export default function ParqueTecnologico({ mode }: Props) {
       if (movimentacaoForm.tipo_movimentacao === 'saida_clinica' && !movimentacaoForm.destino_descricao) throw new Error('Selecione a clínica de destino.');
       if (movimentacaoForm.tipo_movimentacao === 'saida_setor' && !movimentacaoForm.setor_destino) throw new Error('Selecione o setor da MATRIZ.');
 
-      const isSaidaOuBaixa = ['saida_clinica', 'saida_setor', 'descarte', 'ajuste_negativo', 'transferencia'].includes(
-        movimentacaoForm.tipo_movimentacao
-      );
       const origemSelecionada = movimentacaoForm.tipo_movimentacao === 'entrada_compra'
         ? 'compra'
-        : isSaidaOuBaixa
-          ? 'estoque'
-          : 'pre-cadastro';
+        : 'estoque';
 
       const setorDestinoNormalizado = normalizeLookupText(movimentacaoForm.setor_destino);
       let destinoDescricaoNormalizada = normalizeLookupText(movimentacaoForm.destino_descricao);
@@ -1680,9 +1949,7 @@ export default function ParqueTecnologico({ mode }: Props) {
         origem_descricao:
           movimentacaoForm.tipo_movimentacao === 'entrada_compra'
             ? normalizeLookupText(movimentacaoForm.origem_descricao || 'COMPRA')
-            : isSaidaOuBaixa
-              ? 'PARQUE TECNOLOGICO'
-              : normalizeLookupText(movimentacaoForm.origem_descricao || 'PRE-CADASTRO'),
+            : 'PARQUE TECNOLOGICO',
         destino_descricao: destinoDescricaoNormalizada,
         destino_tipo: inferDestinoTipo(movimentacaoForm.tipo_movimentacao, destinoDescricaoNormalizada),
         setor_destino: setorDestinoNormalizado,
@@ -1749,7 +2016,8 @@ export default function ParqueTecnologico({ mode }: Props) {
         payload.origem_descricao = normalizeLookupText(payload.origem_descricao || '');
       }
       if (payload.tipo_movimentacao === 'entrada_manual') {
-        payload.origem_tipo = 'pre-cadastro';
+        payload.origem_tipo = 'estoque';
+        payload.origem_descricao = 'PARQUE TECNOLOGICO';
         payload.destino_tipo = 'estoque';
         payload.destino_descricao = DESTINO_PARQUE_TECNOLOGICO;
       }
@@ -1895,6 +2163,28 @@ export default function ParqueTecnologico({ mode }: Props) {
     }
   };
 
+  const handleDeleteProduto = async (produto: ParqueProduto) => {
+    if (!window.confirm('EXCLUIR ESTE ITEM DO ESTOQUE E DOS PARÂMETROS?')) return;
+    setSaving(true);
+    try {
+      if (produto.item_base_id) {
+        await deleteParqueBaseCadastro('itens', produto.item_base_id);
+      } else {
+        await deleteParqueProduto(produto.id);
+      }
+
+      setToast({
+        type: 'success',
+        message: 'Item excluído do estoque e dos parâmetros.',
+      });
+      await loadAll();
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Erro ao excluir item.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleOpenHistory = async (produto: ParqueProduto) => {
     setHistoryProduto(produto);
     setHistoryLoading(true);
@@ -1912,6 +2202,11 @@ export default function ParqueTecnologico({ mode }: Props) {
   if (loading) {
     return <div className="flex min-h-64 items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary-600" /></div>;
   }
+
+  const origemTipoMovimentacaoNormalizado = normalizeOrigemTipoForUi(movimentacaoForm.origem_tipo);
+  const exibirCampoValorUnitario =
+    movimentacaoForm.tipo_movimentacao === 'entrada_compra' || origemTipoMovimentacaoNormalizado === 'estoque';
+  const isAjustesOnlyView = mode === 'estoque' && showAjustesPanel;
 
   return (
     <div className="space-y-6">
@@ -1932,16 +2227,10 @@ export default function ParqueTecnologico({ mode }: Props) {
                 className={`${buttonClassName} border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800`}
               >
                 <Settings className="h-4 w-4" />
-                Ajustes
+                {showAjustesPanel ? 'Voltar ao estoque' : 'Ajustes'}
               </button>
             )}
-            {mode === 'estoque' && permissoes.cadastrarProduto && (
-              <button type="button" onClick={() => resetProdutoForm()} className={`${buttonClassName} bg-button text-white hover:bg-button-hover`}>
-                <Plus className="h-4 w-4" />
-                Novo produto
-              </button>
-            )}
-            {mode === 'estoque' && permissoes.registrarMovimentacao && (
+            {mode === 'estoque' && !showAjustesPanel && permissoes.registrarMovimentacao && (
               <button
                 type="button"
                 onClick={() => setShowPedidosPendentesModal(true)}
@@ -2013,16 +2302,45 @@ export default function ParqueTecnologico({ mode }: Props) {
         </div>
       )}
 
+      {!isAjustesOnlyView && (
       <div className="rounded-2xl border border-neutral-200 bg-neutral-200/80 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <input className={inputClassName} placeholder="Busca global" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <select className={inputClassName} value={itemFilter} onChange={(event) => setItemFilter(event.target.value)}><option value="">Todos os itens</option>{catalogos.itens.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
-          {mode === 'estoque' ? <select className={inputClassName} value={categoriaFilter} onChange={(event) => setCategoriaFilter(event.target.value)}><option value="">Todas as categorias</option>{categoriaOptions.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}</select> : <select className={inputClassName} value={tipoFilter} onChange={(event) => setTipoFilter(event.target.value)}><option value="">Todos os tipos</option>{tipoMovimentacaoOptions.map((tipo) => <option key={tipo} value={tipo}>{getTipoMovimentacaoLabel(tipo)}</option>)}</select>}
-          {mode === 'estoque' ? <select className={inputClassName} value={marcaFilter} onChange={(event) => setMarcaFilter(event.target.value)}><option value="">Todas as marcas</option>{catalogos.marcas.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select> : <select className={inputClassName} value={origemFilter} onChange={(event) => setOrigemFilter(event.target.value)}><option value="">Todas as origens</option><option value="compra">Compra</option><option value="pre-cadastro">Pré-cadastro</option></select>}
-          {mode === 'estoque' ? <select className={inputClassName} value={unidadeFilter} onChange={(event) => setUnidadeFilter(event.target.value)}><option value="">Todas as unidades</option>{catalogos.unidades.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select> : <select className={inputClassName} value={destinoFilter} onChange={(event) => setDestinoFilter(event.target.value)}><option value="">Todos os destinos</option><option value="estoque">Estoque</option><option value="clinica">Clínica</option><option value="setor">Setor</option><option value="descarte">Descarte</option></select>}
-          {mode === 'estoque' ? <div className="flex items-center gap-3 rounded-lg border border-neutral-300 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-950"><select className="w-full bg-transparent text-sm outline-none" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">Todos os status</option><option value="ativo">Ativo</option><option value="estoque_baixo">Estoque baixo</option><option value="inativo">Inativo</option></select><label className="inline-flex items-center gap-2 text-xs"><input type="checkbox" checked={estoqueBaixoOnly} onChange={(event) => setEstoqueBaixoOnly(event.target.checked)} />Baixo</label></div> : <><input className={inputClassName} type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /><input className={inputClassName} type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></>}
-        </div>
-        {mode === 'inventario' && <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"><select className={inputClassName} value={clinicaFilter} onChange={(event) => setClinicaFilter(event.target.value)}><option value="">Todas as clínicas</option>{clinicaDestinoOptions.map((clinica) => <option key={clinica} value={clinica}>{clinica}</option>)}</select><select className={inputClassName} value={setorFilter} onChange={(event) => setSetorFilter(event.target.value)}><option value="">Todos os setores</option>{setorOptions.map((setor) => <option key={setor} value={setor}>{setor}</option>)}</select></div>}
+        {mode === 'estoque' ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <input className={inputClassName} placeholder="Busca global" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <select className={inputClassName} value={itemFilter} onChange={(event) => setItemFilter(event.target.value)}><option value="">Todos os itens</option>{catalogos.itens.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
+            <select className={inputClassName} value={categoriaFilter} onChange={(event) => setCategoriaFilter(event.target.value)}><option value="">Todas as categorias</option>{categoriaOptions.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}</select>
+            <select className={inputClassName} value={marcaFilter} onChange={(event) => setMarcaFilter(event.target.value)}><option value="">Todas as marcas</option>{catalogos.marcas.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
+            <select className={inputClassName} value={unidadeFilter} onChange={(event) => setUnidadeFilter(event.target.value)}><option value="">Todas as unidades</option>{catalogos.unidades.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
+            <div className="flex items-center gap-3 rounded-lg border border-neutral-300 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-950">
+              <select className="w-full bg-transparent text-sm outline-none" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option value="">Todos os status</option>
+                <option value="ativo">Ativo</option>
+                <option value="estoque_baixo">Estoque baixo</option>
+                <option value="inativo">Inativo</option>
+              </select>
+              <label className="inline-flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={estoqueBaixoOnly} onChange={(event) => setEstoqueBaixoOnly(event.target.checked)} />
+                Baixo
+              </label>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5">
+              <input className={inputClassName} placeholder="Busca global" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <select className={inputClassName} value={itemFilter} onChange={(event) => setItemFilter(event.target.value)}><option value="">Todos os itens</option>{catalogos.itens.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
+              <select className={inputClassName} value={tipoFilter} onChange={(event) => setTipoFilter(event.target.value)}><option value="">Todos os tipos</option>{tipoMovimentacaoOptions.map((tipo) => <option key={tipo} value={tipo}>{getTipoMovimentacaoLabel(tipo)}</option>)}</select>
+              <select className={inputClassName} value={origemFilter} onChange={(event) => setOrigemFilter(event.target.value)}><option value="">Todas as origens</option><option value="compra">Compra</option><option value="estoque">Estoque</option></select>
+              <select className={inputClassName} value={destinoFilter} onChange={(event) => setDestinoFilter(event.target.value)}><option value="">Todos os destinos</option><option value="estoque">Estoque</option><option value="clinica">Clínica</option><option value="setor">Setor</option><option value="descarte">Descarte</option></select>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <input className={inputClassName} type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+              <input className={inputClassName} type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+              <select className={inputClassName} value={clinicaFilter} onChange={(event) => setClinicaFilter(event.target.value)}><option value="">Todas as clínicas</option>{clinicaDestinoOptions.map((clinica) => <option key={clinica} value={clinica}>{clinica}</option>)}</select>
+              <select className={inputClassName} value={setorFilter} onChange={(event) => setSetorFilter(event.target.value)}><option value="">Todos os setores</option>{setorOptions.map((setor) => <option key={setor} value={setor}>{setor}</option>)}</select>
+            </div>
+          </>
+        )}
         <div className="mt-3 flex justify-end">
           <button
             type="button"
@@ -2033,25 +2351,83 @@ export default function ParqueTecnologico({ mode }: Props) {
           </button>
         </div>
       </div>
+      )}
 
       {mode === 'estoque' ? (
         <>
-          {produtos.length > 0 && filteredProdutos.length === 0 && hasEstoqueFiltersApplied && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
-              Existem registros no estoque, mas os filtros atuais esconderam os resultados.
-            </div>
+          {!showAjustesPanel && (
+            <>
+              {produtos.length > 0 && filteredProdutos.length === 0 && hasEstoqueFiltersApplied && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                  Existem registros no estoque, mas os filtros atuais esconderam os resultados.
+                </div>
+              )}
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-200/80 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="border-b border-neutral-200 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400"><tr><th className="px-3 py-3">Item</th><th className="px-3 py-3">Categoria</th><th className="px-3 py-3">Especificação</th><th className="px-3 py-3">Marca</th><th className="px-3 py-3 text-right">Quantidade</th><th className="px-3 py-3">Unidade</th><th className="px-3 py-3 text-right">Mínimo</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Ações</th></tr></thead>
+                    <tbody>
+                      {filteredProdutos.map((produto) => {
+                        const status = getParqueProdutoStatus(produto);
+                        return (
+                          <tr key={produto.id} className="border-b border-neutral-100 dark:border-neutral-800">
+                            <td className="px-3 py-3 font-medium text-neutral-900 dark:text-neutral-100">{produto.item_base?.nome}</td>
+                            <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.categoria}</td>
+                            <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.especificacao_valor || '-'}</td>
+                            <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.marca_base?.nome || '-'}</td>
+                            <td className={`px-3 py-3 text-right font-semibold ${status === 'estoque_baixo' ? 'text-amber-600 dark:text-amber-300' : 'text-neutral-900 dark:text-neutral-100'}`}>
+                              {produto.quantidade_atual.toLocaleString('pt-BR')}
+                            </td>
+                            <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.unidade_base?.sigla || produto.unidade_base?.nome || '-'}</td>
+                            <td className="px-3 py-3 text-right text-neutral-600 dark:text-neutral-300">{produto.quantidade_minima ?? '-'}</td>
+                            <td className="px-3 py-3">
+                              <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(status)}`}>
+                                {status.replace(/_/g, ' ')}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => resetProdutoForm(produto)}
+                                  disabled={!permissoes.editarProduto}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                  title="Editar"
+                                  aria-label="Editar produto"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenHistory(produto)}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                  title="Histórico"
+                                  aria-label="Abrir histórico do produto"
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProduto(produto)}
+                                  disabled={!permissoes.editarProduto}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-300 text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-900/20"
+                                  title="Excluir"
+                                  aria-label="Excluir produto"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredProdutos.length === 0 && <tr><td colSpan={9} className="px-3 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">Nenhum produto encontrado.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           )}
-          <div className="rounded-2xl border border-neutral-200 bg-neutral-200/80 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="border-b border-neutral-200 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400"><tr><th className="px-3 py-3">Item</th><th className="px-3 py-3">Categoria</th><th className="px-3 py-3">Especificação</th><th className="px-3 py-3">Marca</th><th className="px-3 py-3 text-right">Quantidade</th><th className="px-3 py-3">Unidade</th><th className="px-3 py-3 text-right">Mínimo</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Ações</th></tr></thead>
-                <tbody>
-                  {filteredProdutos.map((produto) => { const status = getParqueProdutoStatus(produto); return <tr key={produto.id} className="border-b border-neutral-100 dark:border-neutral-800"><td className="px-3 py-3 font-medium text-neutral-900 dark:text-neutral-100">{produto.item_base?.nome}</td><td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.categoria}</td><td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.especificacao_valor || '-'}</td><td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.marca_base?.nome || '-'}</td><td className={`px-3 py-3 text-right font-semibold ${status === 'estoque_baixo' ? 'text-amber-600 dark:text-amber-300' : 'text-neutral-900 dark:text-neutral-100'}`}>{produto.quantidade_atual.toLocaleString('pt-BR')}</td><td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{produto.unidade_base?.sigla || produto.unidade_base?.nome || '-'}</td><td className="px-3 py-3 text-right text-neutral-600 dark:text-neutral-300">{produto.quantidade_minima ?? '-'}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(status)}`}>{status.replace(/_/g, ' ')}</span></td><td className="px-3 py-3 text-right"><div className="inline-flex gap-2"><button type="button" onClick={() => resetProdutoForm(produto)} disabled={!permissoes.editarProduto} className="rounded-full border border-neutral-300 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Editar</button><button type="button" onClick={() => handleOpenHistory(produto)} className="rounded-full border border-neutral-300 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Histórico</button></div></td></tr>; })}
-                  {filteredProdutos.length === 0 && <tr><td colSpan={9} className="px-3 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">Nenhum produto encontrado.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </div>
 
           {showAjustesPanel && (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
@@ -2065,6 +2441,13 @@ export default function ParqueTecnologico({ mode }: Props) {
               const tipo = def.tipo;
               const form = baseForms[tipo];
               const list = getBaseListByTipo(tipo);
+              const searchTerm = normalizeComparableText(baseSearch[tipo]);
+              const filteredList = list.filter((item) => {
+                if (!searchTerm) return true;
+                const nome = normalizeComparableText(item.nome);
+                const sigla = 'sigla' in item ? normalizeComparableText(item.sigla || '') : '';
+                return nome.includes(searchTerm) || sigla.includes(searchTerm);
+              });
               const actionLabel = 'Adicionar';
               return (
                 <div key={tipo} className="rounded-2xl border border-neutral-200 bg-neutral-200/80 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
@@ -2146,75 +2529,248 @@ export default function ParqueTecnologico({ mode }: Props) {
                     )}
                   </div>
                   <div className="mt-4 space-y-2">
-                    {list.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between rounded-xl border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-800">
-                        <div>
-                          <div className="font-medium text-neutral-900 dark:text-neutral-100">
-                            {def.isCode ? formatMovementTypeLabel(item.nome) : formatUpperText(item.nome)}
-                          </div>
-                          {'sigla' in item && item.sigla ? <div className="text-xs text-neutral-500">{item.sigla}</div> : null}
-                          {(() => {
-                            const links = cadastroLinkByOrigemKey.get(`${tipo}:${item.id}`) || [];
-                            if (links.length === 0) return null;
-                            const destinoNomes = links
-                              .map((link) => cadastroNomeByKey.get(`${link.destino_tipo}:${link.destino_id}`) || '')
-                              .filter(Boolean);
-                            if (destinoNomes.length === 0) return null;
-                            const tipoDestino = links[0]?.destino_tipo || 'descricoes_destino';
-                            return (
-                              <div className="text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
-                                VÍNCULOS ({destinoNomes.length}):{' '}
-                                {`${parametroCategoriaLabel(tipoDestino)} • ${formatUpperText(destinoNomes.join(', '))}`}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            title="Linkar cadastro"
-                            disabled={!permissoes.gerenciarCadastrosBase}
-                            onClick={() => openCadastroLinkModal(tipo, item.id)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                          >
-                            <Share className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Editar"
-                            disabled={!permissoes.gerenciarCadastrosBase}
-                            onClick={() =>
-                              setBaseForms((prev) => ({
-                                ...prev,
-                                [tipo]: {
-                                  id: item.id,
-                                  nome: def.isCode ? formatMovementTypeLabel(item.nome) : item.nome,
-                                  sigla: 'sigla' in item ? item.sigla || '' : '',
-                                  ativo: item.ativo,
-                                },
-                              }))
-                            }
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Excluir"
-                            disabled={!permissoes.gerenciarCadastrosBase}
-                            onClick={() => handleDeleteBase(tipo, item.id)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        className={`${inputClassName} mt-0`}
+                        placeholder="Buscar cadastro"
+                        value={baseSearch[tipo]}
+                        onChange={(event) =>
+                          setBaseSearch((prev) => ({
+                            ...prev,
+                            [tipo]: event.target.value,
+                          }))
+                        }
+                      />
+                      <div className="min-w-[70px] text-right text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                        {filteredList.length}/{list.length}
                       </div>
-                    ))}
-                    {list.length === 0 && <div className="text-sm text-neutral-500 dark:text-neutral-400">Nenhum cadastro.</div>}
+                    </div>
+                    <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                      {filteredList.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between rounded-xl border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-800">
+                          <div>
+                            <div className="font-medium text-neutral-900 dark:text-neutral-100">
+                              {def.isCode ? formatMovementTypeLabel(item.nome) : formatUpperText(item.nome)}
+                            </div>
+                            {'sigla' in item && item.sigla ? <div className="text-xs text-neutral-500">{item.sigla}</div> : null}
+                            {(() => {
+                              const links = cadastroLinkByOrigemKey.get(`${tipo}:${item.id}`) || [];
+                              if (links.length === 0) return null;
+                              const destinoNomes = links
+                                .map((link) => cadastroNomeByKey.get(`${link.destino_tipo}:${link.destino_id}`) || '')
+                                .filter(Boolean);
+                              if (destinoNomes.length === 0) return null;
+                              const tipoDestino = links[0]?.destino_tipo || 'descricoes_destino';
+                              return (
+                                <div className="text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
+                                  VÍNCULOS ({destinoNomes.length}):{' '}
+                                  {`${parametroCategoriaLabel(tipoDestino)} • ${formatUpperText(destinoNomes.join(', '))}`}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              title="Editar"
+                              disabled={!permissoes.gerenciarCadastrosBase}
+                              onClick={() =>
+                                setBaseForms((prev) => ({
+                                  ...prev,
+                                  [tipo]: {
+                                    id: item.id,
+                                    nome: def.isCode ? formatMovementTypeLabel(item.nome) : item.nome,
+                                    sigla: 'sigla' in item ? item.sigla || '' : '',
+                                    ativo: item.ativo,
+                                  },
+                                }))
+                              }
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Excluir"
+                              disabled={!permissoes.gerenciarCadastrosBase}
+                              onClick={() => handleDeleteBase(tipo, item.id)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {list.length === 0 && <div className="text-sm text-neutral-500 dark:text-neutral-400">Nenhum cadastro.</div>}
+                      {list.length > 0 && filteredList.length === 0 && (
+                        <div className="text-sm text-neutral-500 dark:text-neutral-400">Nenhum resultado para a busca.</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
             })}
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-200/80 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-neutral-800 dark:text-neutral-100">Destino</h3>
+              <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                CADASTRA DESTINOS, DEFINE A AÇÃO E ALIMENTA DIRETAMENTE O CAMPO DE DESTINO DA MOVIMENTAÇÃO.
+              </p>
+              <div className="mt-3 space-y-3">
+                <input
+                  className={inputClassName}
+                  placeholder="Nome do destino"
+                  value={destinoParametroForm.nome}
+                  disabled={!permissoes.gerenciarCadastrosBase}
+                  onChange={(event) =>
+                    {
+                      setDestinoParametroForm((prev) => ({
+                        ...prev,
+                        nome: event.target.value.toUpperCase(),
+                      }));
+                      setDestinoParametroFeedback(null);
+                    }
+                  }
+                />
+                <select
+                  className={inputClassName}
+                  value={destinoParametroForm.tipo_movimentacao_parametro_id}
+                  disabled={!permissoes.gerenciarCadastrosBase}
+                  onChange={(event) => {
+                    setDestinoParametroForm((prev) => ({
+                      ...prev,
+                      tipo_movimentacao_parametro_id: event.target.value,
+                    }));
+                    setDestinoParametroFeedback(null);
+                  }}
+                >
+                  <option value="">Selecione a ação</option>
+                  {tiposMovimentacaoParametroOptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {getTipoMovimentacaoLabel(item.nome)}
+                    </option>
+                  ))}
+                </select>
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={destinoParametroForm.ativo}
+                    disabled={!permissoes.gerenciarCadastrosBase}
+                    onChange={(event) =>
+                      {
+                        setDestinoParametroForm((prev) => ({
+                          ...prev,
+                          ativo: event.target.checked,
+                        }));
+                        setDestinoParametroFeedback(null);
+                      }
+                    }
+                  />
+                  Destino ativo
+                </label>
+                <div className="flex items-center justify-between gap-3">
+                  {!permissoes.gerenciarCadastrosBase && (
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
+                      Você não possui permissão para gerenciar cadastros base.
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      {
+                        setDestinoParametroForm({
+                          id: '',
+                          nome: '',
+                          tipo_movimentacao_parametro_id: '',
+                          ativo: true,
+                        });
+                        setDestinoParametroFeedback(null);
+                      }
+                    }
+                    disabled={!permissoes.gerenciarCadastrosBase || saving}
+                    className={`${buttonClassName} border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800`}
+                  >
+                    Novo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveDestinoParametro}
+                    disabled={!permissoes.gerenciarCadastrosBase || saving}
+                    className={`${buttonClassName} bg-button text-white hover:bg-button-hover disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    {destinoParametroForm.id ? 'Atualizar' : 'Salvar'}
+                  </button>
+                </div>
+                {destinoParametroFeedback && (
+                  <div
+                    className={`text-[10px] font-semibold uppercase tracking-wide ${
+                      destinoParametroFeedback.type === 'error'
+                        ? 'text-red-600 dark:text-red-300'
+                        : destinoParametroFeedback.type === 'success'
+                          ? 'text-emerald-600 dark:text-emerald-300'
+                          : 'text-sky-600 dark:text-sky-300'
+                    }`}
+                  >
+                    {destinoParametroFeedback.message}
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    className={`${inputClassName} mt-0`}
+                    placeholder="Buscar destino"
+                    value={destinoParametroSearch}
+                    onChange={(event) => setDestinoParametroSearch(event.target.value)}
+                  />
+                  <div className="min-w-[70px] text-right text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                    {filteredDestinoParametroOptions.length}/{destinoParametroOptions.length}
+                  </div>
+                </div>
+                <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                  {filteredDestinoParametroOptions.map((destino) => {
+                    const linked = destinoAcaoLinkByDestinoId.get(destino.id) || null;
+                    const tipoMovimentacao = linked ? tipoMovimentacaoById.get(linked.destino_id) || null : null;
+                    return (
+                      <div
+                        key={destino.id}
+                        className="flex items-center justify-between rounded-xl border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-800"
+                      >
+                        <div>
+                          <div className="font-medium text-neutral-900 dark:text-neutral-100">
+                            {formatUpperText(destino.nome)}
+                          </div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
+                            {tipoMovimentacao
+                              ? `AÇÃO: ${getTipoMovimentacaoLabel(tipoMovimentacao.nome)}`
+                              : 'AÇÃO NÃO DEFINIDA'}
+                          </div>
+                          {!destino.ativo && (
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                              Destino inativo
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          title="Editar destino"
+                          disabled={!permissoes.gerenciarCadastrosBase}
+                          onClick={() => handleEditDestinoParametro(destino.id)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {destinoParametroOptions.length === 0 && (
+                    <div className="text-sm text-neutral-500 dark:text-neutral-400">Nenhum destino cadastrado.</div>
+                  )}
+                  {destinoParametroOptions.length > 0 && filteredDestinoParametroOptions.length === 0 && (
+                    <div className="text-sm text-neutral-500 dark:text-neutral-400">Nenhum resultado para a busca.</div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
           )}
         </>
@@ -2227,29 +2783,29 @@ export default function ParqueTecnologico({ mode }: Props) {
           )}
           <div className="rounded-2xl border border-neutral-200 bg-neutral-200/80 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
             <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="border-b border-neutral-200 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+            <table className="min-w-full text-center text-sm">
+              <thead className="border-b border-neutral-200 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
                 <tr>
                   <th className="px-3 py-3">Data</th>
                   <th className="px-3 py-3">Item</th>
                   <th className="px-3 py-3">Tipo</th>
                   <th className="px-3 py-3">Origem</th>
                   <th className="px-3 py-3">Destino</th>
-                  <th className="px-3 py-3 text-right">Quantidade</th>
-                  <th className="px-3 py-3 text-right">Valor Unit.</th>
+                  <th className="px-3 py-3">Qtde.</th>
+                  <th className="px-3 py-3">Valor Unit.</th>
                   <th className="px-3 py-3">Observação</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredMovimentacoes.map((movimento) => (
                   <tr key={movimento.id} className="border-b border-neutral-100 dark:border-neutral-800">
-                    <td className="px-3 py-3 text-neutral-700 dark:text-neutral-200">{formatDateTime(movimento.data_movimentacao)}</td>
+                    <td className="px-3 py-3 text-neutral-700 dark:text-neutral-200">{formatDateTimeMinutes(movimento.data_movimentacao)}</td>
                     <td className="px-3 py-3 font-medium text-neutral-900 dark:text-neutral-100">{formatUpperText(getParqueProdutoLabel(movimento.produto))}</td>
                     <td className="px-3 py-3"><span className={movementBadgeClass(movimento.tipo_movimentacao)}>{getTipoMovimentacaoLabel(movimento.tipo_movimentacao)}</span></td>
-                    <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{formatUpperText(movimento.origem_descricao || movimento.origem_tipo)}</td>
+                    <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{getOrigemDescricaoForUi(movimento.origem_tipo, movimento.origem_descricao)}</td>
                     <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{formatUpperText(movimento.destino_descricao || movimento.destino_tipo)}</td>
-                    <td className="px-3 py-3 text-right font-semibold text-neutral-900 dark:text-neutral-100">{movimento.quantidade.toLocaleString('pt-BR')}</td>
-                    <td className="px-3 py-3 text-right font-semibold text-neutral-900 dark:text-neutral-100">
+                    <td className="px-3 py-3 font-semibold text-neutral-900 dark:text-neutral-100">{movimento.quantidade.toLocaleString('pt-BR')}</td>
+                    <td className="px-3 py-3 font-semibold text-neutral-900 dark:text-neutral-100">
                       {movimento.custo_unitario === null ? '-' : `R$ ${movimento.custo_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     </td>
                     <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300">{formatUpperText(movimento.observacao)}</td>
@@ -2282,17 +2838,6 @@ export default function ParqueTecnologico({ mode }: Props) {
               </button>
             </div>
             <div className="max-h-[72vh] overflow-y-auto px-5 py-4">
-              <div className="mb-3 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => openItemLinkModal(produtoForm.item_base_id)}
-                  disabled={!permissoes.gerenciarCadastrosBase}
-                  className="inline-flex items-center gap-2 rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800"
-                >
-                  <Share className="h-3.5 w-3.5" />
-                  Linkar parâmetros
-                </button>
-              </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <select
                   className={inputClassName}
@@ -2397,14 +2942,16 @@ export default function ParqueTecnologico({ mode }: Props) {
                         }))
                       }
                     />
-                    <textarea
+                    <input
+                      type="text"
+                      inputMode="decimal"
                       className={inputClassName}
-                      placeholder="Observação da entrada inicial"
-                      value={produtoForm.observacao_inicial}
+                      placeholder="R$ 0,00"
+                      value={formatCurrencyInputBrl(produtoForm.valor_unitario_inicial)}
                       onChange={(event) =>
                         setProdutoForm((prev) => ({
                           ...prev,
-                          observacao_inicial: event.target.value.toUpperCase(),
+                          valor_unitario_inicial: parseCurrencyInputBrl(event.target.value),
                         }))
                       }
                     />
@@ -2869,7 +3416,6 @@ export default function ParqueTecnologico({ mode }: Props) {
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Produto</div>
                   <input
-                    list="parque-movimentacao-produtos"
                     className={inputClassName}
                     placeholder="Digite para buscar o produto"
                     value={movimentacaoProdutoBusca}
@@ -2878,7 +3424,7 @@ export default function ParqueTecnologico({ mode }: Props) {
                       window.setTimeout(() => setMovimentacaoProdutoBuscaFocused(false), 120);
                     }}
                     onChange={(event) => {
-                      const value = event.target.value.toUpperCase();
+                      const value = event.target.value;
                       setMovimentacaoProdutoBusca(value);
                       setMovimentacaoProdutoBuscaDirty(true);
 
@@ -2892,11 +3438,6 @@ export default function ParqueTecnologico({ mode }: Props) {
                       setMovimentacaoForm((prev) => ({ ...prev, produto_id: '' }));
                     }}
                   />
-                  <datalist id="parque-movimentacao-produtos">
-                    {produtosMovimentacaoComboboxOptions.map((option) => (
-                      <option key={option.id} value={option.label} />
-                    ))}
-                  </datalist>
                   {movimentacaoProdutoBuscaFocused && produtoBuscaSuggestions.length > 0 && (
                     <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-950">
                       {produtoBuscaSuggestions.map((option) => (
@@ -2919,7 +3460,7 @@ export default function ParqueTecnologico({ mode }: Props) {
                   )}
                   {produtosMovimentacaoOptions.length === 0 && (
                     <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
-                      Nenhum produto cadastrado no estoque. Cadastre em Estoque &gt; Novo produto.
+                      Nenhum produto cadastrado no estoque.
                     </div>
                   )}
                   {movimentacaoForm.tipo_movimentacao === 'entrada_compra' && !movimentacaoForm.produto_id && (
@@ -2936,14 +3477,16 @@ export default function ParqueTecnologico({ mode }: Props) {
                     onChange={(event) =>
                       setMovimentacaoForm((prev) => {
                         const nextTipo = event.target.value as ParqueMovimentacaoFormValues['tipo_movimentacao'];
+                        const destinoPadrao = getDestinoDefaultForTipoMovimentacao(nextTipo);
+
                         if (nextTipo === 'entrada_compra') {
                           return {
                             ...prev,
                             tipo_movimentacao: nextTipo,
                             origem_tipo: 'compra',
                             origem_descricao: prev.pedido_compra_id ? prev.origem_descricao : '',
-                            destino_tipo: 'estoque',
-                            destino_descricao: DESTINO_PARQUE_TECNOLOGICO,
+                            destino_tipo: inferDestinoTipo(nextTipo, destinoPadrao),
+                            destino_descricao: destinoPadrao,
                             observacao: removerSetorMatrizDaObservacao(prev.observacao),
                             setor_destino: '',
                           };
@@ -2954,20 +3497,22 @@ export default function ParqueTecnologico({ mode }: Props) {
                             tipo_movimentacao: nextTipo,
                             origem_tipo: 'estoque',
                             origem_descricao: 'PARQUE TECNOLOGICO',
-                            destino_tipo: 'clinica',
-                            destino_descricao: '',
+                            destino_tipo: inferDestinoTipo(nextTipo, destinoPadrao),
+                            destino_descricao: destinoPadrao,
                             setor_destino: '',
                             observacao: removerSetorMatrizDaObservacao(prev.observacao),
                           };
                         }
                         if (nextTipo === 'saida_setor') {
-                          const setorAtual = prev.setor_destino || setorOptions[0] || MATRIZ_SETOR_PADRAO;
+                          const setorAtual =
+                            normalizeLookupText(destinoPadrao.replace(/^MATRIZ\s*-\s*/i, '')) ||
+                            normalizeLookupText(prev.setor_destino || setorOptions[0] || MATRIZ_SETOR_PADRAO);
                           return {
                             ...prev,
                             tipo_movimentacao: nextTipo,
                             origem_tipo: 'estoque',
                             origem_descricao: 'PARQUE TECNOLOGICO',
-                            destino_tipo: 'setor',
+                            destino_tipo: inferDestinoTipo(nextTipo, destinoPadrao),
                             destino_descricao: `MATRIZ - ${normalizeLookupText(setorAtual)}`,
                             setor_destino: normalizeLookupText(setorAtual),
                             observacao: removerSetorMatrizDaObservacao(prev.observacao),
@@ -2988,10 +3533,10 @@ export default function ParqueTecnologico({ mode }: Props) {
                         return {
                           ...prev,
                           tipo_movimentacao: nextTipo,
-                          origem_tipo: nextTipo === 'entrada_manual' ? 'pre-cadastro' : 'estoque',
-                          origem_descricao: nextTipo === 'entrada_manual' ? 'PRE-CADASTRO' : 'PARQUE TECNOLOGICO',
-                          destino_tipo: 'estoque',
-                          destino_descricao: DESTINO_PARQUE_TECNOLOGICO,
+                          origem_tipo: 'estoque',
+                          origem_descricao: 'PARQUE TECNOLOGICO',
+                          destino_tipo: inferDestinoTipo(nextTipo, destinoPadrao),
+                          destino_descricao: destinoPadrao,
                           observacao: removerSetorMatrizDaObservacao(prev.observacao),
                           setor_destino: '',
                         };
@@ -3008,6 +3553,11 @@ export default function ParqueTecnologico({ mode }: Props) {
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Quantidade</div>
                   <input type="number" min="0.01" step="0.01" className={inputClassName} placeholder="Quantidade" value={numberValue(movimentacaoForm.quantidade)} onChange={(event) => setMovimentacaoForm((prev) => ({ ...prev, quantidade: event.target.value === '' ? '' : Number(event.target.value) }))} />
+                  {selectedMovimentacaoProduto && (
+                    <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
+                      SALDO ATUAL: {Number(selectedMovimentacaoProduto.quantidade_atual || 0).toLocaleString('pt-BR')}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Data da movimentação</div>
@@ -3015,58 +3565,62 @@ export default function ParqueTecnologico({ mode }: Props) {
                 </div>
 
                 {movimentacaoForm.tipo_movimentacao === 'entrada_compra' && (
-                  <>
-                    <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Pedido entregue (origem)</div>
-                      <select
-                        className={inputClassName}
-                        value={movimentacaoForm.pedido_compra_id}
-                        onChange={(event) => {
-                          const pedido = pedidosEntreguesComDestino.find((row) => row.id === event.target.value);
-                          const produtoEncontrado = findProdutoByPedidoItem(pedido?.item);
-                          const produtoLabel = produtoEncontrado ? getMovimentacaoProdutoOptionLabel(produtoEncontrado) : '';
-                          setMovimentacaoForm((prev) => ({
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Pedido entregue (origem)</div>
+                    <select
+                      className={inputClassName}
+                      value={movimentacaoForm.pedido_compra_id}
+                      onChange={(event) => {
+                        const pedido = pedidosEntreguesComDestino.find((row) => row.id === event.target.value);
+                        const produtoEncontrado = findProdutoByPedidoItem(pedido?.item);
+                        const produtoLabel = produtoEncontrado ? getMovimentacaoProdutoOptionLabel(produtoEncontrado) : '';
+                        setMovimentacaoForm((prev) => {
+                          const destinoSelecionado = prev.destino_descricao || getDestinoDefaultForTipoMovimentacao('entrada_compra');
+                          return {
                             ...prev,
                             produto_id: produtoEncontrado?.id || prev.produto_id,
                             pedido_compra_id: event.target.value,
                             quantidade: Number(pedido?.quantidade_disponivel || 0) > 0 ? Number(pedido?.quantidade_disponivel) : prev.quantidade,
                             origem_tipo: 'compra',
                             origem_descricao: resolvePedidoLojaOrigem(pedido),
-                            destino_tipo: 'estoque',
+                            destino_tipo: inferDestinoTipo('entrada_compra', destinoSelecionado),
+                            destino_descricao: destinoSelecionado,
                             valor_unitario: resolvePedidoValorUnitario(pedido),
                             data_movimentacao: pedido ? resolvePedidoDataMovimentacao(pedido, pedido.destino_atribuido_em) : prev.data_movimentacao,
                             setor_destino: '',
-                          }));
-                          setMovimentacaoProdutoBusca(produtoLabel);
-                          setMovimentacaoProdutoBuscaDirty(false);
-                        }}
-                      >
-                        <option value="">Selecione o pedido entregue</option>
-                        {pedidosEntreguesComDestino.map((pedido) => (
-                          <option key={pedido.id} value={pedido.id}>
-                            {pedido.origem_label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Valor unitário (R$)</div>
-                      <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        className={inputClassName}
-                        placeholder="Valor unitário"
-                        value={numberValue(movimentacaoForm.valor_unitario)}
-                        onChange={(event) =>
-                          setMovimentacaoForm((prev) => ({
-                            ...prev,
-                            valor_unitario: event.target.value === '' ? '' : Number(event.target.value),
-                          }))
-                        }
-                      />
-                    </div>
-                  </>
+                          };
+                        });
+                        setMovimentacaoProdutoBusca(produtoLabel);
+                        setMovimentacaoProdutoBuscaDirty(false);
+                      }}
+                    >
+                      <option value="">Selecione o pedido entregue</option>
+                      {pedidosEntreguesComDestino.map((pedido) => (
+                        <option key={pedido.id} value={pedido.id}>
+                          {pedido.origem_label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {exibirCampoValorUnitario && (
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Valor unitário (R$)</div>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className={inputClassName}
+                      placeholder="R$ 0,00"
+                      value={formatCurrencyInputBrl(movimentacaoForm.valor_unitario)}
+                      onChange={(event) =>
+                        setMovimentacaoForm((prev) => ({
+                          ...prev,
+                          valor_unitario: parseCurrencyInputBrl(event.target.value),
+                        }))
+                      }
+                    />
+                  </div>
                 )}
 
                 <div>
@@ -3087,8 +3641,6 @@ export default function ParqueTecnologico({ mode }: Props) {
                           origemDescricao = lojaOrigem || 'COMPRA';
                         } else if (origemSelecionada === 'ESTOQUE') {
                           origemDescricao = 'PARQUE TECNOLOGICO';
-                        } else if (origemSelecionada === 'PRE-CADASTRO') {
-                          origemDescricao = 'PRE-CADASTRO';
                         }
 
                         return {
@@ -3113,18 +3665,7 @@ export default function ParqueTecnologico({ mode }: Props) {
                   )}
                 </div>
                 <div>
-                  <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                    <span>Destino</span>
-                    <button
-                      type="button"
-                      onClick={() => openDestinoSetorModal(movimentacaoForm.destino_descricao)}
-                      disabled={!permissoes.gerenciarCadastrosBase}
-                      className="inline-flex items-center gap-1 rounded-full border border-neutral-300 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800"
-                    >
-                      <Share className="h-3 w-3" />
-                      Linkar
-                    </button>
-                  </div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Destino</div>
                   <select
                     className={inputClassName}
                     value={movimentacaoForm.destino_descricao}
@@ -3177,9 +3718,8 @@ export default function ParqueTecnologico({ mode }: Props) {
         </div>
       )}
       {mode === 'inventario' && showDescarteModal && <div className={overlayClassName}><div className={modalClassName}><div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 dark:border-neutral-800"><h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Registrar descarte</h3><button type="button" onClick={() => setShowDescarteModal(false)} className="rounded-full border border-neutral-300 p-2"><Plus className="h-4 w-4 rotate-45" /></button></div><div className="max-h-[72vh] overflow-y-auto px-5 py-4"><div className="grid grid-cols-1 gap-4 md:grid-cols-2"><select className={inputClassName} value={descarteForm.produto_id} onChange={(event) => setDescarteForm((prev) => ({ ...prev, produto_id: event.target.value }))}><option value="">Selecione o produto</option>{produtos.map((produto) => <option key={produto.id} value={produto.id}>{getParqueProdutoLabel(produto)}</option>)}</select><input type="number" min="0.01" step="0.01" className={inputClassName} placeholder="Quantidade" value={numberValue(descarteForm.quantidade)} onChange={(event) => setDescarteForm((prev) => ({ ...prev, quantidade: event.target.value === '' ? '' : Number(event.target.value) }))} /><input type="datetime-local" className={inputClassName} value={descarteForm.data_descarte} onChange={(event) => setDescarteForm((prev) => ({ ...prev, data_descarte: event.target.value }))} /><input className={inputClassName} placeholder="Motivo" value={descarteForm.motivo} onChange={(event) => setDescarteForm((prev) => ({ ...prev, motivo: event.target.value.toUpperCase() }))} /><textarea className={inputClassName} placeholder="Observação" value={descarteForm.observacao} onChange={(event) => setDescarteForm((prev) => ({ ...prev, observacao: event.target.value.toUpperCase() }))} /></div>{formError && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</div>}</div><div className="flex justify-end gap-2 border-t border-neutral-200 px-5 py-3 dark:border-neutral-800"><button type="button" onClick={() => setShowDescarteModal(false)} className={`${buttonClassName} border border-neutral-300 bg-white text-neutral-700`}>Cancelar</button><button type="button" onClick={handleSaveDescarte} disabled={saving} className={`${buttonClassName} bg-button text-white hover:bg-button-hover disabled:cursor-not-allowed disabled:opacity-60`}>{saving ? 'Salvando...' : 'Registrar'}</button></div></div></div>}
-      {historyProduto && <div className={overlayClassName}><div className="w-full max-w-5xl max-h-[92vh] overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-200 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900/95"><div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 dark:border-neutral-800"><div><h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Histórico do item</h3><p className="text-xs text-neutral-500 dark:text-neutral-400">{formatUpperText(getParqueProdutoLabel(historyProduto))}</p></div><button type="button" onClick={() => setHistoryProduto(null)} className="rounded-full border border-neutral-300 p-2"><Plus className="h-4 w-4 rotate-45" /></button></div><div className="max-h-[72vh] overflow-y-auto px-5 py-4">{historyLoading ? <div className="py-8 text-center text-sm text-neutral-500">Carregando...</div> : <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="border-b border-neutral-200 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400"><tr><th className="px-3 py-3">Data</th><th className="px-3 py-3">Tipo</th><th className="px-3 py-3">Origem</th><th className="px-3 py-3">Destino</th><th className="px-3 py-3 text-right">Quantidade</th><th className="px-3 py-3">Observação</th></tr></thead><tbody>{historyRows.map((row) => <tr key={row.id} className="border-b border-neutral-100 dark:border-neutral-800"><td className="px-3 py-3">{formatDateTime(row.data_movimentacao)}</td><td className="px-3 py-3"><span className={movementBadgeClass(row.tipo_movimentacao)}>{getTipoMovimentacaoLabel(row.tipo_movimentacao)}</span></td><td className="px-3 py-3">{formatUpperText(row.origem_descricao || row.origem_tipo)}</td><td className="px-3 py-3">{formatUpperText(row.destino_descricao || row.destino_tipo)}</td><td className="px-3 py-3 text-right font-semibold">{row.quantidade.toLocaleString('pt-BR')}</td><td className="px-3 py-3">{formatUpperText(row.observacao)}</td></tr>)}{historyRows.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-sm text-neutral-500">Nenhuma movimentação.</td></tr>}</tbody></table></div>}</div></div></div>}
+      {historyProduto && <div className={overlayClassName}><div className="w-full max-w-5xl max-h-[92vh] overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-200 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900/95"><div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 dark:border-neutral-800"><div><h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Histórico do item</h3><p className="text-xs text-neutral-500 dark:text-neutral-400">{formatUpperText(getParqueProdutoLabel(historyProduto))}</p></div><button type="button" onClick={() => setHistoryProduto(null)} className="rounded-full border border-neutral-300 p-2"><Plus className="h-4 w-4 rotate-45" /></button></div><div className="max-h-[72vh] overflow-y-auto px-5 py-4">{historyLoading ? <div className="py-8 text-center text-sm text-neutral-500">Carregando...</div> : <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="border-b border-neutral-200 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400"><tr><th className="px-3 py-3">Data</th><th className="px-3 py-3">Tipo</th><th className="px-3 py-3">Origem</th><th className="px-3 py-3">Destino</th><th className="px-3 py-3 text-right">Quantidade</th><th className="px-3 py-3">Observação</th></tr></thead><tbody>{historyRows.map((row) => <tr key={row.id} className="border-b border-neutral-100 dark:border-neutral-800"><td className="px-3 py-3">{formatDateTime(row.data_movimentacao)}</td><td className="px-3 py-3"><span className={movementBadgeClass(row.tipo_movimentacao)}>{getTipoMovimentacaoLabel(row.tipo_movimentacao)}</span></td><td className="px-3 py-3">{getOrigemDescricaoForUi(row.origem_tipo, row.origem_descricao)}</td><td className="px-3 py-3">{formatUpperText(row.destino_descricao || row.destino_tipo)}</td><td className="px-3 py-3 text-right font-semibold">{row.quantidade.toLocaleString('pt-BR')}</td><td className="px-3 py-3">{formatUpperText(row.observacao)}</td></tr>)}{historyRows.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-sm text-neutral-500">Nenhuma movimentação.</td></tr>}</tbody></table></div>}</div></div></div>}
     </div>
   );
 }
-
 

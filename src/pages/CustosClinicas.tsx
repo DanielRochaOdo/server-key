@@ -243,6 +243,21 @@ const resolveClinicLabel = (value?: string | null): ClinicKey | null => {
   if (text.includes('bezerra')) return 'BEZERRA';
   if (text.includes('parangaba')) return 'PARANGABA';
   if (text.includes('sobral')) return 'SOBRAL';
+  if (text.includes('matriz') || text.includes('administracao') || text.includes('admin') || text.includes('adm')) {
+    return 'MATRIZ';
+  }
+  return null;
+};
+
+const toClinicKey = (value?: string | null): ClinicKey | null => {
+  const resolved = resolveClinicLabel(value);
+  if (resolved) return resolved;
+  const normalized = normalizeKey(value);
+  if (normalized === 'MATRIZ') return 'MATRIZ';
+  if (normalized === 'AGUANAMBI') return 'AGUANAMBI';
+  if (normalized === 'BEZERRA') return 'BEZERRA';
+  if (normalized === 'PARANGABA') return 'PARANGABA';
+  if (normalized === 'SOBRAL') return 'SOBRAL';
   return null;
 };
 
@@ -311,17 +326,23 @@ const fetchMovementsByMonth = async (monthKey: string): Promise<InventoryMovemen
     return [];
   }
 
-  return (data || []).map((row: any) => ({
-    id: row.id,
-    monthKey: monthKey,
-    clinic: row.clinic as ClinicKey,
-    product: normalizeKey(row.product),
-    store: normalizeStore(row.store),
-    quantity: parseNumberValue(row.quantity),
-    unitCost: parseNumberValue(row.unit_cost),
-    totalCost: parseNumberValue(row.total_cost),
-    createdAt: row.created_at,
-  }));
+  return (data || [])
+    .map((row: any) => {
+      const clinic = toClinicKey(row.clinic);
+      if (!clinic) return null;
+      return {
+        id: row.id,
+        monthKey: monthKey,
+        clinic,
+        product: normalizeKey(row.product),
+        store: normalizeStore(row.store),
+        quantity: parseNumberValue(row.quantity),
+        unitCost: parseNumberValue(row.unit_cost),
+        totalCost: parseNumberValue(row.total_cost),
+        createdAt: row.created_at,
+      };
+    })
+    .filter((row): row is InventoryMovement => Boolean(row));
 };
 
 const fetchCarryoverByMonth = async (
@@ -483,6 +504,29 @@ const CustosClinicas: React.FC = () => {
 
   const prevMonthKey = useMemo(() => getPrevMonthKey(monthKey), [monthKey]);
 
+  const syncParqueDestinos = useCallback(async (options?: { openModalOnNew?: boolean; silentError?: boolean }) => {
+    const openModalOnNew = options?.openModalOnNew ?? false;
+    const silentError = options?.silentError ?? false;
+
+    try {
+      const destinosBase = await fetchParqueDestinosBase();
+      setParqueDestinos(destinosBase);
+
+      const destinosVistos = loadSeenDestinos();
+      const novos = destinosBase.filter((item) => !destinosVistos.includes(normalizeStore(item)));
+      setNovosDestinos(novos);
+      if (openModalOnNew && novos.length > 0) {
+        setShowDestinosModal(true);
+      }
+      setDestinosAvisoErro('');
+    } catch (error) {
+      console.error('Erro ao sincronizar destinos do Estoque:', error);
+      if (!silentError) {
+        setDestinosAvisoErro('NÃ£o foi possÃ­vel sincronizar os destinos do mÃ³dulo Estoque.');
+      }
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -497,7 +541,6 @@ const CustosClinicas: React.FC = () => {
         carryPrevPrev,
         historyPurchases,
         historyMovements,
-        destinosBase,
       ] =
         await Promise.all([
         fetchMonthData(monthKey),
@@ -509,7 +552,6 @@ const CustosClinicas: React.FC = () => {
         fetchCarryoverByMonth(prevPrevMonthKey),
         fetchPurchasesUpToMonth(monthKey),
         fetchMovementsUpToMonth(monthKey),
-        fetchParqueDestinosBase(),
       ]);
       setCurrentData(current);
       setPreviousData(previous);
@@ -525,26 +567,52 @@ const CustosClinicas: React.FC = () => {
       }));
       setPurchaseHistory(historyPurchases);
       setMovementHistory(historyMovements);
-      setParqueDestinos(destinosBase);
-
-      const destinosVistos = loadSeenDestinos();
-      const novos = destinosBase.filter((item) => !destinosVistos.includes(item));
-      setNovosDestinos(novos);
-      if (novos.length > 0) {
-        setShowDestinosModal(true);
-      }
-      setDestinosAvisoErro('');
     } catch (error) {
       console.error('Erro ao carregar Custos das Clínicas:', error);
       setDestinosAvisoErro('Não foi possível sincronizar os destinos do módulo Estoque.');
     } finally {
+      await syncParqueDestinos({ openModalOnNew: true, silentError: true });
       setLoading(false);
     }
-  }, [monthKey, prevMonthKey]);
+  }, [monthKey, prevMonthKey, syncParqueDestinos]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`custos-clinicas-destinos-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'parque_parametros_base',
+          filter: 'categoria=eq.destino_descricao',
+        },
+        () => {
+          void syncParqueDestinos({ openModalOnNew: true, silentError: true });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'parque_cadastros_link',
+          filter: 'origem_tipo=eq.descricoes_destino',
+        },
+        () => {
+          void syncParqueDestinos({ openModalOnNew: true, silentError: true });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [syncParqueDestinos]);
 
   useEffect(() => {
     saveUiState({
@@ -1452,6 +1520,7 @@ const CustosClinicas: React.FC = () => {
   };
 
   const handleOpenDestinosModal = () => {
+    void syncParqueDestinos({ openModalOnNew: false, silentError: true });
     setShowDestinosModal(true);
   };
 
@@ -2659,33 +2728,69 @@ const fetchMovementsUpToMonth = async (monthKey: string): Promise<InventoryMovem
     return [];
   }
 
-  return (data || []).map((row: any) => ({
-    id: row.id,
-    monthKey: String(row.competencia || '').slice(0, 7),
-    clinic: row.clinic as ClinicKey,
-    product: normalizeKey(row.product),
-    store: normalizeStore(row.store),
-    quantity: parseNumberValue(row.quantity),
-    unitCost: parseNumberValue(row.unit_cost),
-    totalCost: parseNumberValue(row.total_cost),
-    createdAt: row.created_at,
-  }));
+  return (data || [])
+    .map((row: any) => {
+      const clinic = toClinicKey(row.clinic);
+      if (!clinic) return null;
+      return {
+        id: row.id,
+        monthKey: String(row.competencia || '').slice(0, 7),
+        clinic,
+        product: normalizeKey(row.product),
+        store: normalizeStore(row.store),
+        quantity: parseNumberValue(row.quantity),
+        unitCost: parseNumberValue(row.unit_cost),
+        totalCost: parseNumberValue(row.total_cost),
+        createdAt: row.created_at,
+      };
+    })
+    .filter((row): row is InventoryMovement => Boolean(row));
 };
 
 const fetchParqueDestinosBase = async (): Promise<string[]> => {
-  const { data, error } = await supabase
-    .from('parque_parametros_base')
-    .select('nome, ativo')
-    .eq('categoria', 'destino_descricao')
-    .eq('ativo', true)
-    .order('nome', { ascending: true });
+  const [linksRes, destinosRes] = await Promise.all([
+    supabase
+      .from('parque_cadastros_link')
+      .select('origem_id, ativo')
+      .eq('origem_tipo', 'descricoes_destino')
+      .eq('destino_tipo', 'tipos_movimentacao')
+      .eq('ativo', true),
+    supabase
+      .from('parque_parametros_base')
+      .select('id, nome, ativo')
+      .eq('categoria', 'destino_descricao')
+      .order('nome', { ascending: true }),
+  ]);
 
-  if (error) {
-    console.error('Erro ao carregar destinos do Estoque:', error);
+  if (linksRes.error || destinosRes.error) {
+    console.error('Erro ao carregar destinos do Estoque:', linksRes.error || destinosRes.error);
     return [];
   }
 
-  return Array.from(new Set((data || []).map((row: any) => normalizeStore(row.nome)).filter(Boolean)));
+  const destinosRows = (destinosRes.data || []) as Array<{ id: string; nome: string; ativo: boolean }>;
+  const destinoById = new Map(destinosRows.map((row) => [row.id, row]));
+  const linkedDestinoIds = Array.from(
+    new Set(
+      ((linksRes.data || []) as Array<{ origem_id: string; ativo: boolean }>)
+        .filter((row) => row.ativo)
+        .map((row) => row.origem_id)
+        .filter(Boolean)
+    )
+  );
+
+  const linkedActiveNames = linkedDestinoIds
+    .map((id) => destinoById.get(id))
+    .filter((row): row is { id: string; nome: string; ativo: boolean } => Boolean(row && row.ativo))
+    .map((row) => normalizeStore(row.nome))
+    .filter(Boolean);
+
+  const fallbackActiveNames = destinosRows
+    .filter((row) => row.ativo)
+    .map((row) => normalizeStore(row.nome))
+    .filter(Boolean);
+
+  const source = linkedActiveNames.length > 0 ? linkedActiveNames : fallbackActiveNames;
+  return Array.from(new Set(source));
 };
 
 export default CustosClinicas;

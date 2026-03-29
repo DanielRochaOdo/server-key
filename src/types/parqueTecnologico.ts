@@ -124,9 +124,9 @@ export interface ParqueProdutoFormValues {
   unidade_base_id: string;
   marca_base_id: string;
   quantidade_inicial: number | '';
+  valor_unitario_inicial: number | '';
   quantidade_minima: number | '';
   ativo: boolean;
-  observacao_inicial: string;
 }
 
 export interface ParqueMovimentacaoFormValues {
