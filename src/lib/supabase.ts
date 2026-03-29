@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
@@ -34,6 +34,12 @@ const TABLE_MODULE_LABEL_MAP: Record<string, string> = {
   pc_protocolos: 'Pedidos de Compra',
   pc_protocolo_itens: 'Pedidos de Compra',
   pc_mensal_itens: 'Pedidos de Compra',
+  parque_itens_base: 'Parque Tecnologico',
+  parque_unidades_base: 'Parque Tecnologico',
+  parque_marcas_base: 'Parque Tecnologico',
+  parque_produtos: 'Parque Tecnologico',
+  parque_movimentacoes: 'Parque Tecnologico',
+  parque_descartes: 'Parque Tecnologico',
   users: 'Usuarios',
 };
 
@@ -57,6 +63,12 @@ const TABLE_MODULE_KEY_MAP: Record<string, string> = {
   pc_protocolos: 'pedidos_de_compra',
   pc_protocolo_itens: 'pedidos_de_compra',
   pc_mensal_itens: 'pedidos_de_compra',
+  parque_itens_base: 'parque_tecnologico',
+  parque_unidades_base: 'parque_tecnologico',
+  parque_marcas_base: 'parque_tecnologico',
+  parque_produtos: 'parque_tecnologico',
+  parque_movimentacoes: 'parque_tecnologico',
+  parque_descartes: 'parque_tecnologico',
   users: 'usuarios',
 };
 
@@ -200,3 +212,4 @@ export const debugAuthState = async () => {
   const { data: { session }, error } = await supabase.auth.getSession();
   return { session, error };
 };
+

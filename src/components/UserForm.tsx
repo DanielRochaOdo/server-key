@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Save, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { normalizeRole } from '../utils/roles';
@@ -39,6 +39,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
       { value: 'controle_uber', label: 'Controle Uber' },
       { value: 'visitas_clinicas', label: 'Visitas as Clinicas' },
       { value: 'pedidos_de_compra', label: 'Pedidos de Compra' },
+      { value: 'parque_tecnologico', label: 'Parque Tecnologico' },
     ],
     []
   );
@@ -79,9 +80,10 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
           'controle_uber',
           'visitas_clinicas',
           'pedidos_de_compra',
+          'parque_tecnologico',
         ];
       case 'financeiro':
-        return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas', 'custos_clinicas', 'contas_a_pagar', 'pedidos_de_compra', 'controle_uber'];
+        return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas', 'custos_clinicas', 'contas_a_pagar', 'pedidos_de_compra', 'controle_uber', 'parque_tecnologico'];
       case 'usuario':
         return ['acessos', 'pessoal', 'teams', 'win_users'];
       default:
@@ -684,3 +686,4 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSuccess, onCancel }) => {
 };
 
 export default UserForm;
+

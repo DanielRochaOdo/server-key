@@ -13,6 +13,7 @@ import {
   HiChevronRight,
   HiOutlineArrowDownTray,
   HiOutlineArrowPath,
+  HiOutlineArchiveBox,
   HiOutlineArrowTopRightOnSquare,
   HiOutlineArrowUpTray,
   HiOutlineArrowLeftStartOnRectangle,
@@ -54,6 +55,7 @@ import {
   HiOutlineXMark,
   HiOutlineBuildingOffice2,
   HiOutlineCircleStack,
+  HiOutlineCube,
 } from 'react-icons/hi2';
 import { FiSave } from 'react-icons/fi';
 
@@ -96,6 +98,7 @@ export const Monitor = HiOutlineComputerDesktop;
 export const Moon = HiOutlineMoon;
 export const Network = RiShieldKeyholeLine;
 export const Pencil = HiOutlinePencilSquare;
+export const Package = HiOutlineArchiveBox;
 export const Phone = HiOutlinePhone;
 export const Plus = HiOutlinePlus;
 export const PlusCircle = HiOutlinePlusCircle;
@@ -104,11 +107,13 @@ export const RefreshCw = HiOutlineArrowPath;
 export const Save = FiSave;
 export const Search = HiOutlineMagnifyingGlass;
 export const Settings = HiOutlineCog6Tooth;
+export const Share = HiOutlineShare;
 export const Shield = HiOutlineShieldCheck;
 export const ShoppingCart = HiOutlineShoppingCart;
 export const Star = HiOutlineStar;
 export const Sun = HiOutlineSun;
 export const Table = HiOutlineTableCells;
+export const Container = HiOutlineCube;
 export const Trash2 = HiOutlineTrash;
 export const Upload = HiOutlineArrowUpTray;
 export const User = HiOutlineUser;

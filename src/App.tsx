@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { PersistenceProvider } from './contexts/PersistenceContext';
@@ -22,9 +22,14 @@ import ControleEmpresas from './pages/ControleEmpresas';
 import ControleUber from './pages/ControleUber';
 import VisitasClinicas from './pages/VisitasClinicas';
 import CustosClinicas from './pages/CustosClinicas';
+import ParqueTecnologicoEstoque from './pages/ParqueTecnologicoEstoque';
+import ParqueTecnologicoInventario from './pages/ParqueTecnologicoInventario';
 import GlobalEditPermissionModal from './components/GlobalEditPermissionModal';
+import { useGlobalUppercaseInput } from './hooks/useGlobalUppercaseInput';
 
 function App() {
+  useGlobalUppercaseInput();
+
   return (
     <ThemeProvider>
       <PersistenceProvider>
@@ -165,6 +170,22 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/parque-tecnologico/estoque"
+                  element={
+                    <ProtectedRoute requiredModule="parque_tecnologico">
+                      <ParqueTecnologicoEstoque />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/parque-tecnologico/inventario"
+                  element={
+                    <ProtectedRoute requiredModule="parque_tecnologico">
+                      <ParqueTecnologicoInventario />
+                    </ProtectedRoute>
+                  }
+                />
 
                 <Route
                   path="/configuracoes"
@@ -195,3 +216,6 @@ function App() {
 }
 
 export default App;
+
+
+
