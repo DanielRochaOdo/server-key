@@ -1570,7 +1570,15 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                             <input
                                                 className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
                                                 value={m.setor ?? ""}
-                                                onChange={(e) => updateMensalItem(m.id, { setor: e.target.value.toUpperCase() })}
+                                                onChange={(e) => {
+                                                    const nextSetor = e.target.value.toUpperCase();
+                                                    setMensal((prev) =>
+                                                        prev.map((item) => (item.id === m.id ? { ...item, setor: nextSetor } : item))
+                                                    );
+                                                }}
+                                                onBlur={(e) => {
+                                                    void updateMensalItem(m.id, { setor: e.target.value.toUpperCase() });
+                                                }}
                                                 placeholder="Setor"
                                             />
                                         </td>
