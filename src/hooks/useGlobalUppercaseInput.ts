@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 const SKIP_INPUT_TYPES = new Set([
   'password',
   'email',
+  'search',
   'number',
   'date',
   'datetime-local',
@@ -31,6 +32,8 @@ const shouldSkipUppercase = (element: HTMLInputElement | HTMLTextAreaElement) =>
       element.id,
       element.getAttribute('autocomplete'),
       element.getAttribute('inputmode'),
+      element.getAttribute('placeholder'),
+      element.getAttribute('aria-label'),
     ]
       .filter(Boolean)
       .join(' ')
@@ -39,7 +42,11 @@ const shouldSkipUppercase = (element: HTMLInputElement | HTMLTextAreaElement) =>
     if (
       semanticHints.includes('email') ||
       semanticHints.includes('senha') ||
-      semanticHints.includes('password')
+      semanticHints.includes('password') ||
+      semanticHints.includes('search') ||
+      semanticHints.includes('busca') ||
+      semanticHints.includes('buscar') ||
+      semanticHints.includes('pesquisa')
     ) {
       return true;
     }
@@ -72,4 +79,3 @@ export const useGlobalUppercaseInput = () => {
     return () => document.removeEventListener('input', onInputCapture, true);
   }, []);
 };
-
