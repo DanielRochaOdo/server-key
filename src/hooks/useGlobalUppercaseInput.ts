@@ -4,6 +4,7 @@ const SKIP_INPUT_TYPES = new Set([
   'password',
   'email',
   'number',
+  'search',
   'date',
   'datetime-local',
   'month',
@@ -23,23 +24,45 @@ const hasUppercaseOptOut = (element: HTMLElement) =>
 const shouldSkipUppercase = (element: HTMLInputElement | HTMLTextAreaElement) => {
   if (hasUppercaseOptOut(element)) return true;
 
+  const semanticHints = [
+    element.getAttribute('placeholder'),
+    element.getAttribute('aria-label'),
+    element.getAttribute('title'),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (
+    semanticHints.includes('buscar') ||
+    semanticHints.includes('busca') ||
+    semanticHints.includes('pesquisar') ||
+    semanticHints.includes('pesquisa') ||
+    semanticHints.includes('search') ||
+    semanticHints.includes('filtro') ||
+    semanticHints.includes('filter')
+  ) {
+    return true;
+  }
+
   if (element instanceof HTMLInputElement) {
     if (SKIP_INPUT_TYPES.has(element.type.toLowerCase())) return true;
 
-    const semanticHints = [
+    const inputSemanticHints = [
       element.name,
       element.id,
       element.getAttribute('autocomplete'),
       element.getAttribute('inputmode'),
+      semanticHints,
     ]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
 
     if (
-      semanticHints.includes('email') ||
-      semanticHints.includes('senha') ||
-      semanticHints.includes('password')
+      inputSemanticHints.includes('email') ||
+      inputSemanticHints.includes('senha') ||
+      inputSemanticHints.includes('password')
     ) {
       return true;
     }

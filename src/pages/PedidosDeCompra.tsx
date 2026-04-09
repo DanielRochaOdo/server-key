@@ -353,6 +353,20 @@ function normalizeCompostoFilhos(raw: unknown): CompostoFilho[] {
         .filter((item) => item.nome.length > 0 && item.quantidade > 0);
 }
 
+function normalizeProtocolItemText(value: string) {
+    return String(value || "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function normalizeProtocolLink(value?: string | null) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) return null;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (/^(www\.|[\w-]+\.[\w.-]+)/i.test(trimmed)) return `https://${trimmed}`;
+    return trimmed;
+}
+
 export default function PedidosDeCompra() {
     const { ano: anoNow, mes: mesNow } = getNowYM();
     const { hasModuleAccess, hasModuleEditAccess, isFinanceiro, loadingProfile } = useAuth();
@@ -1034,13 +1048,13 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         const { error } = await supabase
             .from("pc_protocolo_itens")
             .update({
-                loja: editDraft.loja.trim(),
-                produto: editDraft.produto.trim(),
+                loja: normalizeProtocolItemText(editDraft.loja),
+                produto: normalizeProtocolItemText(editDraft.produto),
                 prioridade: editDraft.prioridade,
                 quantidade: Number(editDraft.quantidade || 0),
                 valor_unit: Number(editDraft.valor_unit || 0),
                 frete: Number(editDraft.frete || 0),
-                link: (editDraft.link || "").trim() || null,
+                link: normalizeProtocolLink(editDraft.link),
                 diretoria: editDraft.diretoria,
                 composto: Boolean(editDraft.composto),
                 filhos: filhosNormalizados,
@@ -1097,17 +1111,19 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
     async function addItem() {
         if (!protocoloSel) return;
         if (!requireEditPermission()) return;
-        if (!draft.loja.trim() || !draft.produto.trim()) return;
+        const loja = normalizeProtocolItemText(draft.loja);
+        const produto = normalizeProtocolItemText(draft.produto);
+        if (!loja || !produto) return;
 
         const payload = {
             protocolo_id: protocoloSel.id,
-            loja: draft.loja.trim(),
-            produto: draft.produto.trim(),
+            loja,
+            produto,
             prioridade: draft.prioridade,
             quantidade: Number(draft.quantidade || 0),
             valor_unit: Number(draft.valor_unit || 0),
             frete: Number(draft.frete || 0),
-            link: (draft.link || "").trim() || null,
+            link: normalizeProtocolLink(draft.link),
             diretoria: draft.diretoria,
             composto: false,
             filhos: [],
@@ -1786,7 +1802,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                         ) : (
                             <>
                                 {/* Form add */}
-                                <div className="mt-4 flex flex-wrap gap-2 items-center w-full mb-6">
+                                <div className="mt-4 flex flex-wrap gap-2 items-center w-full mb-6" data-uppercase="off">
                                     <input
                                         className="flex-1 min-w-[140px] rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Loja"
@@ -1833,6 +1849,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         className="flex-1 min-w-[120px] rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Link"
                                         value={draft.link || ""}
+                                        data-uppercase="off"
                                         onChange={(e) => setDraft((d) => ({ ...d, link: e.target.value }))}
                                     />
                                     <button
@@ -2055,7 +2072,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                     </table>
                                     {editItem && (
                                         <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                                            <div className="w-full max-w-4xl rounded-3xl border border-neutral-800 bg-neutral-950/90 text-white shadow-2xl p-5">
+                                            <div className="w-full max-w-4xl rounded-3xl border border-neutral-800 bg-neutral-950/90 text-white shadow-2xl p-5" data-uppercase="off">
                                                 <div className="flex items-center justify-between">
                                                     <h3 className="text-lg font-bold text-white">Editar item</h3>
                                                     <button
@@ -2066,7 +2083,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                     </button>
                                                 </div>
 
-                                                <div className="mt-4 grid grid-cols-12 gap-2">
+                                                <div className="mt-4 grid grid-cols-12 gap-2" data-uppercase="off">
                                                     <input
                                                         className="col-span-12 md:col-span-3 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                                         value={editDraft.loja}
@@ -2115,6 +2132,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                     <input
                                                         className="col-span-12 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                                         value={editDraft.link}
+                                                        data-uppercase="off"
                                                         onChange={(e) => setEditDraft((d) => ({ ...d, link: e.target.value }))}
                                                         placeholder="Link do produto"
                                                     />

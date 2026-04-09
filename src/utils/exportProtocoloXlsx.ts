@@ -56,7 +56,14 @@ function buildSheet(params: { titulo: string; itens: ExportItem[]; observacoes?:
   const lastColIdx = 6; // A..G
 
   const itensComLink = itens
-    .map((it) => ({ ...it, link: String(it.link || "").trim() }))
+    .map((it) => {
+      const link = String(it.link || "").trim();
+      return {
+        ...it,
+        link,
+        linkTarget: normalizeLinkTarget(link),
+      };
+    })
     .filter((it) => it.link.length > 0);
 
   // Linhas (A..G)
@@ -252,7 +259,7 @@ function buildSheet(params: { titulo: string; itens: ExportItem[]; observacoes?:
       });
 
       const addr = XLSX.utils.encode_cell({ r, c: 1 });
-      (ws as any)[addr].l = { Target: itensComLink[i].link, Tooltip: "Abrir link" };
+      (ws as any)[addr].l = { Target: itensComLink[i].linkTarget || itensComLink[i].link, Tooltip: "Abrir link" };
       setCellStyle(ws, r, 1, {
         font: { name: "Arial", sz: 11, color: { rgb: "FF0563C1" }, underline: true },
         border: thinBorder,
@@ -295,6 +302,14 @@ function reduceLinkDisplay(link: string) {
   } catch {
     return shorten(raw);
   }
+}
+
+function normalizeLinkTarget(link: string) {
+  const raw = String(link || "").trim();
+  if (!raw) return "";
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw)) return raw;
+  if (/^(www\.|[\w-]+\.[\w.-]+)/i.test(raw)) return `https://${raw}`;
+  return raw;
 }
 
 // ===== helpers styles/cells =====

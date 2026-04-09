@@ -2483,6 +2483,18 @@ const ContasAPagar: React.FC = () => {
     }
   }, [getRowsCounts, requireEditPermission]);
 
+  const handleOpenManageLoteFromList = useCallback((lote: LoteRegistro) => {
+    if (lote.fechado) return;
+    const tipo: 'resumido' | 'detalhado' | null = lote.detalhado ? 'detalhado' : lote.resumido ? 'resumido' : null;
+    if (!tipo) {
+      setToast({ type: 'error', message: 'Lote sem estrutura para edição.' });
+      return;
+    }
+    handleStartEditLote(lote, tipo, false);
+    setManageLoteContasSearch('');
+    setShowManageLoteContasModal(true);
+  }, [handleStartEditLote]);
+
   const handleCancelEditLote = useCallback(() => {
     setEditingLoteId(null);
     setEditingLoteNome('');
@@ -3447,6 +3459,15 @@ const ContasAPagar: React.FC = () => {
                           Detalhado
                         </button>
                         <div className="h-6 w-px bg-neutral-200 mx-1 hidden sm:block" />
+                        {!lote.fechado && (
+                          <button
+                            onClick={() => handleOpenManageLoteFromList(lote)}
+                            className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                            title="Adicionar ou remover contas do lote"
+                          >
+                            Contas
+                          </button>
+                        )}
                         {!lote.fechado && (
                           <button
                             onClick={() => handleDeleteLote(lote.id)}
