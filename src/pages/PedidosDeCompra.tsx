@@ -302,6 +302,20 @@ function formatDatePtBr(value?: string | null) {
     return `${day}/${month}/${year}`;
 }
 
+function getTodayDateFortaleza() {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Fortaleza",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).formatToParts(new Date());
+
+    const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+    const month = parts.find((part) => part.type === "month")?.value ?? "01";
+    const day = parts.find((part) => part.type === "day")?.value ?? "01";
+    return `${year}-${month}-${day}`;
+}
+
 function getMensalBaseTotal(item: MensalItem) {
     return round2(Number(item.quantidade || 0) * Number(item.valor_unit || 0));
 }
@@ -1617,7 +1631,14 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                             <select
                                                 className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
                                                 value={m.status}
-                                                onChange={(e) => updateMensalItem(m.id, { status: e.target.value as PcStatusMensal })}
+                                                onChange={(e) => {
+                                                    const nextStatus = e.target.value as PcStatusMensal;
+                                                    const patch: Partial<MensalItem> =
+                                                        nextStatus === "ENTREGUE"
+                                                            ? { status: nextStatus, previsao: getTodayDateFortaleza() }
+                                                            : { status: nextStatus };
+                                                    void updateMensalItem(m.id, patch);
+                                                }}
                                                 aria-label="Status"
                                             >
                                                 <option value="PEDIDO_FEITO">PEDIDO FEITO</option>
