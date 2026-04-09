@@ -364,6 +364,11 @@ const extrairSetorMatrizDaObservacao = (observacao?: string | null) => {
   return match?.[1]?.trim() || '';
 };
 
+const extrairSetorMatrizDoDestino = (destino?: string | null) =>
+  normalizeLookupText(destino)
+    .replace(/^MATRIZ\s*[-–—]?\s*/i, '')
+    .trim();
+
 interface Props {
   mode: 'estoque' | 'inventario';
 }
@@ -492,14 +497,29 @@ export default function ParqueTecnologico({ mode }: Props) {
   const [movimentacaoForm, setMovimentacaoForm] = useState<ParqueMovimentacaoFormValues>(() => {
     const savedForm = initialUiState?.movimentacaoForm || {};
     const origemTipoNormalizado = normalizeOrigemTipoForUi(savedForm.origem_tipo || emptyMovimentacaoForm.origem_tipo);
+    const tipoMovimentacao = savedForm.tipo_movimentacao || emptyMovimentacaoForm.tipo_movimentacao;
+    const setorSalvo =
+      tipoMovimentacao === 'saida_setor'
+        ? normalizeLookupText(savedForm.setor_destino || extrairSetorMatrizDoDestino(savedForm.destino_descricao))
+        : '';
     return {
       ...emptyMovimentacaoForm,
       ...savedForm,
+      tipo_movimentacao: tipoMovimentacao,
       origem_tipo: origemTipoNormalizado,
       origem_descricao:
         origemTipoNormalizado === 'compra'
           ? normalizeLookupText(savedForm.origem_descricao || emptyMovimentacaoForm.origem_descricao || 'COMPRA')
           : 'PARQUE TECNOLOGICO',
+      destino_tipo:
+        tipoMovimentacao === 'saida_setor'
+          ? 'setor'
+          : (savedForm.destino_tipo || emptyMovimentacaoForm.destino_tipo),
+      setor_destino: setorSalvo,
+      destino_descricao:
+        tipoMovimentacao === 'saida_setor'
+          ? `MATRIZ - ${setorSalvo || MATRIZ_SETOR_PADRAO}`
+          : (savedForm.destino_descricao || emptyMovimentacaoForm.destino_descricao),
     };
   });
   const [movimentacaoProdutoBusca, setMovimentacaoProdutoBusca] = useState(
@@ -549,6 +569,7 @@ export default function ParqueTecnologico({ mode }: Props) {
     descricoes_destino: '',
   });
   const [destinoParametroSearch, setDestinoParametroSearch] = useState('');
+  const destinoNomeInputRef = React.useRef<HTMLInputElement | null>(null);
   const baseNameInputRefs = React.useRef<Record<ParqueBaseCadastroTipo, HTMLInputElement | null>>({
     itens: null,
     unidades: null,
@@ -1004,8 +1025,14 @@ export default function ParqueTecnologico({ mode }: Props) {
   const origemTipoOptions = useMemo(() => [...ORIGENS_FIXAS], []);
 
   const setorOptions = useMemo(() => {
-    return [...SETORES_MATRIZ_FIXOS];
-  }, []);
+    const setoresCatalogo = catalogos.setores
+      .filter((item) => item.ativo)
+      .map((item) => normalizeLookupText(item.nome))
+      .filter(Boolean);
+
+    const combinados = Array.from(new Set([...setoresCatalogo, ...SETORES_MATRIZ_FIXOS]));
+    return combinados.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [catalogos.setores]);
 
   const clinicaDestinoOptions = useMemo(() => {
     const fromHistory = custosClinicasHistory
@@ -1072,8 +1099,7 @@ export default function ParqueTecnologico({ mode }: Props) {
     if (tipoMovimentacao === 'entrada_manual') return DESTINO_PARQUE_TECNOLOGICO;
     if (tipoMovimentacao === 'descarte') return 'DESCARTE';
     if (tipoMovimentacao === 'saida_setor') {
-      const destinoSetorVinculado = vinculado.find((destino) => normalizeLookupText(destino).startsWith('MATRIZ -'));
-      if (destinoSetorVinculado) return destinoSetorVinculado;
+      if (vinculado.length > 0) return vinculado[0];
       const setorPadrao = normalizeLookupText(setorOptions[0] || MATRIZ_SETOR_PADRAO);
       return `MATRIZ - ${setorPadrao}`;
     }
@@ -1097,14 +1123,14 @@ export default function ParqueTecnologico({ mode }: Props) {
       normalizeLookupText(movimentacaoForm.tipo_movimentacao)
     ) || [];
 
-    if (vinculados.length > 0) {
-      if (movimentacaoForm.tipo_movimentacao === 'saida_setor') {
-        const setoresVinculados = vinculados.filter((destino) =>
-          normalizeLookupText(destino).startsWith('MATRIZ -')
-        );
-        return setoresVinculados.length > 0 ? setoresVinculados : vinculados;
+    if (movimentacaoForm.tipo_movimentacao === 'saida_setor') {
+      if (vinculados.length > 0) {
+        return Array.from(new Set([...vinculados, ...matrizSetorOptions]));
       }
+      return matrizSetorOptions;
+    }
 
+    if (vinculados.length > 0) {
       if (movimentacaoForm.tipo_movimentacao === 'saida_clinica') {
         const clinicasVinculadas = vinculados.filter((destino) => {
           const clinic = normalizeClinicKey(destino);
@@ -1116,12 +1142,48 @@ export default function ParqueTecnologico({ mode }: Props) {
       return vinculados;
     }
 
-    if (movimentacaoForm.tipo_movimentacao === 'saida_setor') {
-      return matrizSetorOptions;
-    }
     if (movimentacaoForm.tipo_movimentacao === 'saida_clinica') return [...clinicaDestinoOptions];
     return [DESTINO_PARQUE_TECNOLOGICO, ...clinicaDestinoOptions, ...matrizSetorOptions];
   }, [clinicaDestinoOptions, destinoVinculosPorTipoMovimentacao, movimentacaoForm.tipo_movimentacao, setorOptions]);
+
+  useEffect(() => {
+    if (movimentacaoForm.tipo_movimentacao !== 'saida_setor') return;
+
+    const setorAtual = normalizeLookupText(movimentacaoForm.setor_destino);
+    const setorDoDestino = extrairSetorMatrizDoDestino(movimentacaoForm.destino_descricao);
+    const setorNormalizado =
+      setorAtual || setorDoDestino || normalizeLookupText(setorOptions[0] || MATRIZ_SETOR_PADRAO);
+    const destinoNormalizado = `MATRIZ - ${setorNormalizado}`;
+
+    if (
+      setorAtual === setorNormalizado &&
+      normalizeLookupText(movimentacaoForm.destino_descricao) === destinoNormalizado &&
+      movimentacaoForm.destino_tipo === 'setor'
+    ) {
+      return;
+    }
+
+    setMovimentacaoForm((prev) => {
+      if (prev.tipo_movimentacao !== 'saida_setor') return prev;
+      const prevSetor = normalizeLookupText(prev.setor_destino);
+      const prevDestino = normalizeLookupText(prev.destino_descricao);
+      if (prevSetor === setorNormalizado && prevDestino === destinoNormalizado && prev.destino_tipo === 'setor') {
+        return prev;
+      }
+      return {
+        ...prev,
+        destino_tipo: 'setor',
+        setor_destino: setorNormalizado,
+        destino_descricao: destinoNormalizado,
+      };
+    });
+  }, [
+    movimentacaoForm.tipo_movimentacao,
+    movimentacaoForm.setor_destino,
+    movimentacaoForm.destino_descricao,
+    movimentacaoForm.destino_tipo,
+    setorOptions,
+  ]);
 
   const itemLinkByItemId = useMemo(() => {
     const map = new Map<string, ParqueItemParametroLink>();
@@ -1559,7 +1621,8 @@ export default function ParqueTecnologico({ mode }: Props) {
     setDestinoParametroFeedback({ type: 'info', message: 'SALVANDO...' });
 
     try {
-      const nomeDestino = normalizeLookupText(destinoParametroForm.nome);
+      const nomeDigitadoAtual = destinoNomeInputRef.current?.value ?? destinoParametroForm.nome;
+      let nomeDestino = normalizeLookupText(nomeDigitadoAtual);
       if (!nomeDestino) {
         throw new Error('Informe o destino.');
       }
@@ -2492,9 +2555,13 @@ export default function ParqueTecnologico({ mode }: Props) {
               </p>
               <div className="mt-3 space-y-3">
                 <input
+                  ref={destinoNomeInputRef}
                   className={inputClassName}
                   placeholder="Nome do destino"
                   value={destinoParametroForm.nome}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   disabled={!permissoes.gerenciarCadastrosBase}
                   onChange={(event) =>
                     {
@@ -2525,6 +2592,13 @@ export default function ParqueTecnologico({ mode }: Props) {
                     </option>
                   ))}
                 </select>
+                {normalizeLookupText(
+                  tipoMovimentacaoById.get(destinoParametroForm.tipo_movimentacao_parametro_id)?.nome
+                ) === 'SAIDA_SETOR' && (
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                    Para saída de setor, você pode informar o destino completo (ex.: MATRIZ - COMERCIAL) ou qualquer outra expressão.
+                  </div>
+                )}
                 <label className="inline-flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
@@ -3380,8 +3454,9 @@ export default function ParqueTecnologico({ mode }: Props) {
                         }
                         if (nextTipo === 'saida_setor') {
                           const setorAtual =
+                            normalizeLookupText(prev.setor_destino) ||
                             normalizeLookupText(destinoPadrao.replace(/^MATRIZ\s*-\s*/i, '')) ||
-                            normalizeLookupText(prev.setor_destino || setorOptions[0] || MATRIZ_SETOR_PADRAO);
+                            normalizeLookupText(setorOptions[0] || MATRIZ_SETOR_PADRAO);
                           return {
                             ...prev,
                             tipo_movimentacao: nextTipo,

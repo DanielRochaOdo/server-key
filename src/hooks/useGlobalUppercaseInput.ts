@@ -95,4 +95,3 @@ export const useGlobalUppercaseInput = () => {
     return () => document.removeEventListener('input', onInputCapture, true);
   }, []);
 };
-

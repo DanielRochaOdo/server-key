@@ -150,6 +150,9 @@ const toFriendlyMovimentacaoError = (error: { message?: unknown; details?: unkno
   if (normalized.includes('quantidade informada excede saldo disponivel do pedido')) {
     return 'A quantidade informada excede o saldo disponivel desse pedido.';
   }
+  if (normalized.includes('setor invalido para matriz')) {
+    return 'Setor de MATRIZ invalido. Verifique se o setor esta cadastrado e ativo.';
+  }
   if (normalized.includes('sem permiss')) {
     return 'Voce nao possui permissao para registrar movimentacoes.';
   }
