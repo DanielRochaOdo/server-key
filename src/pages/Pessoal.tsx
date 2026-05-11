@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, Database, Copy } from 'lucide-react';
 import PessoalForm from '../components/PessoalForm';
 import PessoalFileUpload from '../components/PessoalFileUpload';
@@ -6,9 +6,11 @@ import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
+import { useClipboardCopy } from '../hooks/useClipboardCopy';
+import { useProtectedVisibility } from '../hooks/useProtectedVisibility';
 import { decryptPassword } from '../utils/encryption';
+import { writeExportFile, writeTemplateFile } from '../utils/xlsxExport';
 
 interface Pessoal {
   id: string;
@@ -33,19 +35,22 @@ const Pessoal: React.FC = () => {
   const [showUpload, setShowUpload] = useState(() => getState('pessoal_showUpload') || false);
   const [editingPessoal, setEditingPessoal] = useState<Pessoal | null>(() => getState('pessoal_editingPessoal') || null);
   const [searchTerm, setSearchTerm] = useState(() => getState('pessoal_searchTerm') || '');
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingPessoal, setViewingPessoal] = useState<Pessoal | null>(() => getState('pessoal_viewingPessoal') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
   const [pendingActionPessoal, setPendingActionPessoal] = useState<Pessoal | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { user } = useAuth();
+  const { copiedKey, copyText } = useClipboardCopy();
+  const {
+    visibleIds,
+    showPasswordModal,
+    toggleVisibility,
+    handlePasswordVerified,
+    closePasswordModal,
+  } = useProtectedVisibility();
+  const userId = user?.id || null;
 
   const itemsPerPage = 10;
 
@@ -55,7 +60,7 @@ const Pessoal: React.FC = () => {
       const { data, error } = await supabase
         .from('pessoal')
         .select('id, descricao, para_que_serve, ip_url, usuario_login, senha, observacao, suporte_contato, email, dia_pagamento, created_at')
-        .eq('user_id', user?.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -65,7 +70,7 @@ const Pessoal: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [userId]);
 
   useEffect(() => {
     fetchPessoais();
@@ -117,57 +122,6 @@ const Pessoal: React.FC = () => {
     }
   }, []);
 
-  const togglePasswordVisibility = useCallback((id: string) => {
-    if (visiblePasswords.has(id)) {
-      // Hide password - no authentication needed
-      const newVisible = new Set(visiblePasswords);
-      newVisible.delete(id);
-      setVisiblePasswords(newVisible);
-    } else {
-      // Show password - require authentication
-      setPendingPasswordReveal(id);
-      setShowPasswordModal(true);
-    }
-  }, [visiblePasswords]);
-
-  const copyText = useCallback(async (value?: string, key?: string) => {
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = value;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      try {
-        document.execCommand('copy');
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    }
-    if (!key) return;
-    if (copyTimeoutRef.current) {
-      clearTimeout(copyTimeoutRef.current);
-    }
-    setCopiedKey(key);
-    copyTimeoutRef.current = setTimeout(() => {
-      setCopiedKey((prev) => (prev === key ? null : prev));
-    }, 800);
-  }, []);
-
-  const handlePasswordVerified = useCallback((passwordId: string | null) => {
-    if (!passwordId) return;
-    setVisiblePasswords((prev) => {
-      const next = new Set(prev);
-      next.add(passwordId);
-      return next;
-    });
-    setPendingPasswordReveal(null);
-  }, []);
-
   const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', pessoal: Pessoal) => {
     setPendingAction(action);
     setPendingActionPessoal(pessoal);
@@ -198,7 +152,7 @@ const Pessoal: React.FC = () => {
   }, [pendingAction, pendingActionPessoal, handleDelete]);
 
   const filteredPessoaisSorted = useMemo(() => {
-    let filtered = pessoais.filter((pessoal) =>
+    const filtered = pessoais.filter((pessoal) =>
       pessoal.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pessoal.ip_url?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pessoal.usuario_login?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -215,78 +169,34 @@ const Pessoal: React.FC = () => {
 
   const exportData = useCallback(async (format: 'csv' | 'xlsx' | 'template') => {
     try {
-      const XLSXModule: any = await import('xlsx-js-style');
-      const candidates = [
-        XLSXModule,
-        XLSXModule?.default,
-        XLSXModule?.XLSX,
-        XLSXModule?.default?.XLSX,
-        (globalThis as any)?.XLSX,
-      ];
-      let XLSX = candidates.find(
-        (candidate) =>
-          candidate?.utils?.json_to_sheet &&
-          candidate?.utils?.book_new &&
-          candidate?.utils?.book_append_sheet &&
-          candidate?.writeFile
-      );
-
-      if (!XLSX) {
-        const FallbackModule: any = await import('xlsx');
-        const fallbackCandidates = [
-          FallbackModule,
-          FallbackModule?.default,
-          FallbackModule?.XLSX,
-          FallbackModule?.default?.XLSX,
-          (globalThis as any)?.XLSX,
-        ];
-        XLSX = fallbackCandidates.find(
-          (candidate) =>
-            candidate?.utils?.json_to_sheet &&
-            candidate?.utils?.book_new &&
-            candidate?.utils?.book_append_sheet &&
-            candidate?.writeFile
-        );
-      }
-
-      if (!XLSX) {
-        console.error('XLSX module shape:', {
-          bundleKeys: XLSXModule ? Object.keys(XLSXModule) : null,
-          hasGlobalXLSX: Boolean((globalThis as any)?.XLSX),
-        });
-        throw new Error('Biblioteca de exportacao indisponivel.');
-      }
-
       if (format === 'template') {
-        const templateData = [{
-          descricao: '',
-          para_que_serve: '',
-          ip_url: '',
-          usuario_login: '',
-          senha: '',
-          observacao: '',
-          suporte_contato: '',
-          email: '',
-          dia_pagamento: ''
-        }];
-        const ws = XLSX.utils.json_to_sheet(templateData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Template');
-        XLSX.writeFile(wb, 'template_pessoal.xlsx', { bookType: 'xlsx' });
+        await writeTemplateFile(
+          [
+            {
+              descricao: '',
+              para_que_serve: '',
+              ip_url: '',
+              usuario_login: '',
+              senha: '',
+              observacao: '',
+              suporte_contato: '',
+              email: '',
+              dia_pagamento: '',
+            },
+          ],
+          'Template',
+          'template_pessoal.xlsx'
+        );
       } else {
-        const dataToExport = filteredPessoaisSorted.map(({ id, created_at, ...rest }) => rest);
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Pessoal');
-
-        const filterInfo = searchTerm ? `_filtrado` : '';
-        const filename = `pessoal${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-
-        if (format === 'csv') {
-          XLSX.writeFile(wb, filename, { bookType: 'csv' });
-        } else {
-          XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
-        }
+        const dataToExport = filteredPessoaisSorted.map((pessoal) => {
+          const exportable = { ...pessoal } as Partial<Pessoal>;
+          delete exportable.id;
+          delete exportable.created_at;
+          return exportable as Record<string, unknown>;
+        });
+        const filterInfo = searchTerm ? '_filtrado' : '';
+        const filename = `pessoal${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
+        await writeExportFile(dataToExport, 'Pessoal', filename, format);
       }
       setShowExportMenu(false);
     } catch (error) {
@@ -308,30 +218,30 @@ const Pessoal: React.FC = () => {
     setEditingPessoal(null);
     clearState('pessoal_showForm');
     clearState('pessoal_editingPessoal');
-  }, [fetchPessoais]);
+  }, [clearState, fetchPessoais]);
 
   const handleUploadSuccess = useCallback(() => {
     fetchPessoais();
     setShowUpload(false);
     clearState('pessoal_showUpload');
-  }, [fetchPessoais]);
+  }, [clearState, fetchPessoais]);
 
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingPessoal(null);
     clearState('pessoal_showForm');
     clearState('pessoal_editingPessoal');
-  }, []);
+  }, [clearState]);
 
   const handleCancelUpload = useCallback(() => {
     setShowUpload(false);
     clearState('pessoal_showUpload');
-  }, []);
+  }, [clearState]);
 
   const handleCloseView = useCallback(() => {
     setViewingPessoal(null);
     clearState('pessoal_viewingPessoal');
-  }, []);
+  }, [clearState]);
 
   // Dashboard stats based on filtered data
   const dashboardStats = useMemo(() => {
@@ -506,14 +416,14 @@ const Pessoal: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
                     {pessoal.senha ? (
                       <div className="flex items-center space-x-1 sm:space-x-2">
-                        {visiblePasswords.has(pessoal.id) ? (
+                        {visibleIds.has(pessoal.id) ? (
                           <span className="font-mono text-xs sm:text-sm text-green-600">
                             {decryptPassword(pessoal.senha || '')}
                           </span>
                         ) : (
                           <span className="font-mono text-xs sm:text-sm">••••••••</span>
                         )}
-                        {visiblePasswords.has(pessoal.id) && (
+                        {visibleIds.has(pessoal.id) && (
                           <button
                             type="button"
                             onClick={() => copyText(decryptPassword(pessoal.senha || ''), `pessoal-pass-${pessoal.id}`)}
@@ -527,10 +437,10 @@ const Pessoal: React.FC = () => {
                         )}
                         <button
                           type="button"
-                          onClick={() => togglePasswordVisibility(pessoal.id)} 
+                          onClick={() => toggleVisibility(pessoal.id)} 
                           className="text-neutral-400 hover:text-neutral-600"
                         >
-                          {visiblePasswords.has(pessoal.id) ? (
+                          {visibleIds.has(pessoal.id) ? (
                             <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" />
                           ) : (
                             <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -659,11 +569,8 @@ const Pessoal: React.FC = () => {
 
       <PasswordVerificationModal
         isOpen={showPasswordModal}
-        onClose={() => {
-          setShowPasswordModal(false);
-          setPendingPasswordReveal(null);
-        }}
-        onSuccess={() => handlePasswordVerified(pendingPasswordReveal)}
+        onClose={closePasswordModal}
+        onSuccess={handlePasswordVerified}
         title="Verificação de Senha"
         message="Digite sua senha para visualizar a senha do item:"
       />

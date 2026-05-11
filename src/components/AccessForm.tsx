@@ -58,31 +58,29 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
     }
     
     // Só definir dados iniciais se não há dados salvos
-    setFormData(prev => {
-      if (access) {
-        return {
-          descricao: access.descricao || '',
-          para_que_serve: access.para_que_serve || '',
-          ip_url: access.ip_url || '',
-          usuario_login: access.usuario_login || '',
-          senha: access.senha ? decryptPassword(access.senha) : '',
-          observacao: access.observacao || '',
-          suporte_contato: access.suporte_contato || '',
-          email: access.email || '',
-        };
-      } else {
-        return {
-          descricao: '',
-          para_que_serve: '',
-          ip_url: '',
-          usuario_login: '',
-          senha: '',
-          observacao: '',
-          suporte_contato: '',
-          email: '',
-        };
-      }
-    });
+    setFormData(
+      access
+        ? {
+            descricao: access.descricao || '',
+            para_que_serve: access.para_que_serve || '',
+            ip_url: access.ip_url || '',
+            usuario_login: access.usuario_login || '',
+            senha: access.senha ? decryptPassword(access.senha) : '',
+            observacao: access.observacao || '',
+            suporte_contato: access.suporte_contato || '',
+            email: access.email || '',
+          }
+        : {
+            descricao: '',
+            para_que_serve: '',
+            ip_url: '',
+            usuario_login: '',
+            senha: '',
+            observacao: '',
+            suporte_contato: '',
+            email: '',
+          }
+    );
     setError('');
   }, [access?.id, persistenceKey]); // Usar access.id em vez de access completo
   
@@ -112,7 +110,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
 
     try {
       // Encrypt password for storage (reversible for frontend viewing)
-      let processedPassword = formData.senha ? encryptPassword(formData.senha) : '';
+      const processedPassword = formData.senha ? encryptPassword(formData.senha) : '';
 
       const dataToSave = {
         ...formData,
@@ -335,5 +333,4 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
 };
 
 export default AccessForm;
-
 

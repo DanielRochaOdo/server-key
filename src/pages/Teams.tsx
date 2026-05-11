@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, UserCheck, Building, Copy } from 'lucide-react';
 import TeamForm from '../components/TeamForm';
 import TeamFileUpload from '../components/TeamFileUpload';
@@ -6,9 +6,11 @@ import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
+import { useClipboardCopy } from '../hooks/useClipboardCopy';
+import { useProtectedVisibility } from '../hooks/useProtectedVisibility';
 import { decryptPassword } from '../utils/encryption';
+import { writeExportFile, writeTemplateFile } from '../utils/xlsxExport';
 
 interface Team {
   id: string;
@@ -30,20 +32,21 @@ const Teams: React.FC = () => {
   const [editingTeam, setEditingTeam] = useState<Team | null>(() => getState('teams_editingTeam') || null);
   const [searchTerm, setSearchTerm] = useState(() => getState('teams_searchTerm') || '');
   const [selectedDepartment, setSelectedDepartment] = useState(() => getState('teams_selectedDepartment') || '');
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingTeam, setViewingTeam] = useState<Team | null>(() => getState('teams_viewingTeam') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
   const [pendingActionTeam, setPendingActionTeam] = useState<Team | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [sortOrder, setSortOrder] = useState<string | null>(null);
+  const { copiedKey, copyText } = useClipboardCopy();
+  const {
+    visibleIds,
+    showPasswordModal,
+    toggleVisibility,
+    handlePasswordVerified,
+    closePasswordModal,
+  } = useProtectedVisibility();
   const itemsPerPage = 10;
-  const { user } = useAuth();
 
   useEffect(() => {
     fetchTeams();
@@ -107,56 +110,6 @@ const Teams: React.FC = () => {
     }
   };
 
-  const togglePasswordVisibility = (id: string) => {
-    if (visiblePasswords.has(id)) {
-      // Hide password
-      const newVisible = new Set(visiblePasswords);
-      newVisible.delete(id);
-      setVisiblePasswords(newVisible);
-    } else {
-      // Show password - require authentication
-      setPendingPasswordReveal(id);
-      setShowPasswordModal(true);
-    }
-  };
-
-  const copyText = React.useCallback(async (value?: string, key?: string) => {
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = value;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      try {
-        document.execCommand('copy');
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    }
-    if (!key) return;
-    if (copyTimeoutRef.current) {
-      clearTimeout(copyTimeoutRef.current);
-    }
-    setCopiedKey(key);
-    copyTimeoutRef.current = setTimeout(() => {
-      setCopiedKey((prev) => (prev === key ? null : prev));
-    }, 800);
-  }, []);
-
-  const handlePasswordVerified = () => {
-    if (pendingPasswordReveal) {
-      const newVisible = new Set(visiblePasswords);
-      newVisible.add(pendingPasswordReveal);
-      setVisiblePasswords(newVisible);
-      setPendingPasswordReveal(null);
-    }
-  };
-
   const requestActionVerification = (action: 'view' | 'edit' | 'delete', team: Team) => {
     setPendingAction(action);
     setPendingActionTeam(team);
@@ -207,68 +160,30 @@ const Teams: React.FC = () => {
 
   const exportData = async (format: 'csv' | 'xlsx' | 'template') => {
     try {
-      const styledModule: any = await import('xlsx-js-style');
-      const styledCandidates = [
-        styledModule,
-        styledModule?.default,
-        styledModule?.XLSX,
-        styledModule?.default?.XLSX,
-        (globalThis as any)?.XLSX,
-      ];
-      let XLSX = styledCandidates.find(
-        (candidate) =>
-          candidate?.utils?.json_to_sheet &&
-          candidate?.utils?.book_new &&
-          candidate?.utils?.book_append_sheet &&
-          candidate?.writeFile
-      );
-
-      if (!XLSX) {
-        const fallbackModule: any = await import('xlsx');
-        const fallbackCandidates = [
-          fallbackModule,
-          fallbackModule?.default,
-          fallbackModule?.XLSX,
-          fallbackModule?.default?.XLSX,
-          (globalThis as any)?.XLSX,
-        ];
-        XLSX = fallbackCandidates.find(
-          (candidate) =>
-            candidate?.utils?.json_to_sheet &&
-            candidate?.utils?.book_new &&
-            candidate?.utils?.book_append_sheet &&
-            candidate?.writeFile
-        );
-      }
-
-      if (!XLSX) throw new Error('Biblioteca de exportacao indisponivel.');
-
       if (format === 'template') {
-        const templateData = [{
-          login: '',
-          senha: '',
-          usuario: '',
-          observacao: '',
-          departamento: ''
-        }];
-        const ws = XLSX.utils.json_to_sheet(templateData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Template');
-        XLSX.writeFile(wb, 'template_contas_teams.xlsx', { bookType: 'xlsx' });
+        await writeTemplateFile(
+          [
+            {
+              login: '',
+              senha: '',
+              usuario: '',
+              observacao: '',
+              departamento: '',
+            },
+          ],
+          'Template',
+          'template_contas_teams.xlsx'
+        );
       } else {
-        const dataToExport = filteredTeams.map(({ id, created_at, ...rest }) => rest);
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Teams');
-
+        const dataToExport = filteredTeams.map((team) => {
+          const exportable = { ...team } as Partial<Team>;
+          delete exportable.id;
+          delete exportable.created_at;
+          return exportable as Record<string, unknown>;
+        });
         const filterInfo = (searchTerm || selectedDepartment) ? `_filtrado` : '';
         const filename = `contas_teams${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-
-        if (format === 'csv') {
-          XLSX.writeFile(wb, filename, { bookType: 'csv' });
-        } else {
-          XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
-        }
+        await writeExportFile(dataToExport, 'Teams', filename, format);
       }
       setShowExportMenu(false);
     } catch (error) {
@@ -485,9 +400,9 @@ const Teams: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-600">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <span className="font-mono text-xs sm:text-sm">
-                        {visiblePasswords.has(team.id) ? decryptPassword(team.senha) : '••••••••'}
+                        {visibleIds.has(team.id) ? decryptPassword(team.senha) : '••••••••'}
                       </span>
-                      {visiblePasswords.has(team.id) && (
+                      {visibleIds.has(team.id) && (
                         <button
                           type="button"
                           onClick={() => copyText(decryptPassword(team.senha), `teams-pass-${team.id}`)}
@@ -500,10 +415,10 @@ const Teams: React.FC = () => {
                         </button>
                       )}
                       <button 
-                        onClick={() => togglePasswordVisibility(team.id)} 
+                        onClick={() => toggleVisibility(team.id)} 
                         className="text-neutral-400 hover:text-neutral-600"
                       >
-                        {visiblePasswords.has(team.id) ? (
+                        {visibleIds.has(team.id) ? (
                           <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" />
                         ) : (
                           <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -620,10 +535,7 @@ const Teams: React.FC = () => {
 
       <PasswordVerificationModal
         isOpen={showPasswordModal}
-        onClose={() => {
-          setShowPasswordModal(false);
-          setPendingPasswordReveal(null);
-        }}
+        onClose={closePasswordModal}
         onSuccess={handlePasswordVerified}
         title="Verificação de Senha"
         message="Digite sua senha para visualizar a senha do team:"
@@ -658,7 +570,4 @@ const Teams: React.FC = () => {
 };
 
 export default Teams;
-
-
-
 

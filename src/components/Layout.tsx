@@ -22,7 +22,6 @@ import {
   Building2,
   Car,
   Calendar,
-  Database,
   Table,
   Package,
   Container,
@@ -61,21 +60,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [extendedProfile, setExtendedProfile] = useState<UserProfileExtended | null>(null);
   const { theme, toggleTheme } = useTheme();
   const navRef = React.useRef<HTMLElement | null>(null);
-  const sectionPaths = {
-    acessos: ['/pessoal', '/acessos', '/teams', '/win-users'],
-    financeiro: [
-      '/rateio-claro',
-      '/rateio-google',
-      '/rateio-mkm',
-      '/contas-a-pagar',
-      '/pedidos-de-compra',
-      '/controle-empresas',
-      '/controle-uber',
-      '/visitas-clinicas',
-    ],
-    parque_tecnologico: ['/parque-tecnologico/estoque', '/parque-tecnologico/inventario', '/custos-clinicas'],
-    configuracoes: ['/configuracoes', '/usuarios'],
-  };
   const [openSections, setOpenSections] = useState<Record<NavSection['key'], boolean>>(() => ({
     acessos: false,
     financeiro: false,

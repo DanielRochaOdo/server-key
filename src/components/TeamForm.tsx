@@ -43,25 +43,23 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
     }
     
     // Só definir dados iniciais se não há dados salvos
-    setFormData(prev => {
-      if (team) {
-        return {
-          login: team.login || '',
-          senha: team.senha ? decryptPassword(team.senha) : '',
-          usuario: team.usuario || '',
-          observacao: team.observacao || '',
-          departamento: team.departamento || '',
-        };
-      } else {
-        return {
-          login: '',
-          senha: '',
-          usuario: '',
-          observacao: '',
-          departamento: '',
-        };
-      }
-    });
+    setFormData(
+      team
+        ? {
+            login: team.login || '',
+            senha: team.senha ? decryptPassword(team.senha) : '',
+            usuario: team.usuario || '',
+            observacao: team.observacao || '',
+            departamento: team.departamento || '',
+          }
+        : {
+            login: '',
+            senha: '',
+            usuario: '',
+            observacao: '',
+            departamento: '',
+          }
+    );
   }, [team?.id, persistenceKey]); // Usar team.id em vez de team completo
   
   // Salvar dados quando formData muda
@@ -87,7 +85,7 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
 
     try {
       // Encrypt password for storage (reversible for frontend viewing)
-      let processedPassword = formData.senha ? encryptPassword(formData.senha) : '';
+      const processedPassword = formData.senha ? encryptPassword(formData.senha) : '';
 
       const dataToSave = {
         ...formData,
@@ -258,5 +256,4 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
 };
 
 export default TeamForm;
-
 

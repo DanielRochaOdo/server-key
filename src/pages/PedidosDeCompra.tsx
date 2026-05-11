@@ -46,6 +46,15 @@ const PC_PROTOCOLO_PANEL_WIDTH_KEY = "serverkey:pedidos_compra_protocolo_panel_w
 const PC_PROTOCOLO_COLUMN_WIDTHS_KEY = "serverkey:pedidos_compra_protocolo_column_widths";
 const DEFAULT_EMAIL_RECIPIENTS = ["daniel.rocha@odontoart.com", "ryanmendes@odontoart.com"];
 
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+function ignoreStorageError(error: unknown) {
+    if (import.meta.env.DEV) {
+        console.debug("Falha ao acessar localStorage:", error);
+    }
+}
+
 type PcUiState = {
     tab: "MENSAL" | "PROTOCOLO";
     ano: number;
@@ -72,7 +81,9 @@ function loadPcUiState(defaults: PcUiState): PcUiState {
 function savePcUiState(state: PcUiState) {
     try {
         localStorage.setItem(PC_STATE_KEY, JSON.stringify(state));
-    } catch { }
+    } catch (error) {
+        ignoreStorageError(error);
+    }
 }
 
 function loadEmailRecipients(): string[] {
@@ -89,7 +100,8 @@ function loadEmailRecipients(): string[] {
             .map((value) => (typeof value === "string" ? normalize(value) : ""))
             .filter((value) => value.length > 0);
         return Array.from(new Set([...defaults, ...normalized]));
-    } catch {
+    } catch (error) {
+        ignoreStorageError(error);
         return Array.from(new Set(defaults));
     }
 }
@@ -348,20 +360,31 @@ function createCompostoFilho(): CompostoFilho {
     };
 }
 
+type CompostoFilhoRecord = Partial<Record<keyof CompostoFilho, unknown>>;
+
+function toFiniteNumber(value: unknown) {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function normalizeCompostoFilhos(raw: unknown): CompostoFilho[] {
     if (!Array.isArray(raw)) return [];
+    const usedIds = new Set<string>();
+
     return raw
-        .map((item: any) => {
-            const idRaw = String(item?.id || "").trim();
-            const id = idRaw || createCompostoFilho().id;
-            const nome = String(item?.nome || "").toUpperCase().trim();
-            const quantidade = Number(item?.quantidade || 0);
-            const valor_unit = Number(item?.valor_unit || 0);
+        .map((row): CompostoFilho => {
+            const item = row && typeof row === "object" ? (row as CompostoFilhoRecord) : {};
+            const idRaw = String(item.id ?? "").trim();
+            let id = idRaw || createCompostoFilho().id;
+            while (usedIds.has(id)) {
+                id = createCompostoFilho().id;
+            }
+            usedIds.add(id);
             return {
                 id,
-                nome,
-                quantidade: Number.isFinite(quantidade) ? quantidade : 0,
-                valor_unit: Number.isFinite(valor_unit) ? valor_unit : 0,
+                nome: String(item.nome ?? "").toUpperCase().trim(),
+                quantidade: toFiniteNumber(item.quantidade),
+                valor_unit: toFiniteNumber(item.valor_unit),
             };
         })
         .filter((item) => item.nome.length > 0 && item.quantidade > 0);
@@ -379,6 +402,38 @@ function normalizeProtocolLink(value?: string | null) {
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
     if (/^(www\.|[\w-]+\.[\w.-]+)/i.test(trimmed)) return `https://${trimmed}`;
     return trimmed;
+}
+
+function createEmptyProtocolItemDraft(): ProtocoloItemDraft {
+    return {
+        loja: "",
+        produto: "",
+        prioridade: "MEDIA",
+        quantidade: 1,
+        valor_unit: 0,
+        frete: 0,
+        link: "",
+        diretoria: false,
+        composto: false,
+        filhos: [],
+    };
+}
+
+function buildProtocolItemMutation(draft: ProtocoloItemDraft) {
+    const filhos = draft.composto ? normalizeCompostoFilhos(draft.filhos) : [];
+
+    return {
+        loja: normalizeProtocolItemText(draft.loja),
+        produto: normalizeProtocolItemText(draft.produto),
+        prioridade: draft.prioridade,
+        quantidade: toFiniteNumber(draft.quantidade),
+        valor_unit: toFiniteNumber(draft.valor_unit),
+        frete: toFiniteNumber(draft.frete),
+        link: normalizeProtocolLink(draft.link),
+        diretoria: Boolean(draft.diretoria),
+        composto: Boolean(draft.composto),
+        filhos,
+    };
 }
 
 export default function PedidosDeCompra() {
@@ -417,7 +472,6 @@ export default function PedidosDeCompra() {
 
 
     const [mensal, setMensal] = useState<MensalItem[]>([]);
-    const [totais, setTotais] = useState<{ total_entregue: number; total_aprovado: number } | null>(null);
     const [mensalSort, setMensalSort] = useState<{
         column: "item" | "quantidade" | "valor_unit" | "frete" | "valor_total" | "diretoria" | "status";
         direction: "asc" | "desc";
@@ -435,18 +489,7 @@ export default function PedidosDeCompra() {
     const [novoTitulo, setNovoTitulo] = useState("");
 
     const [editItem, setEditItem] = useState<ProtocoloItem | null>(null);
-    const [editDraft, setEditDraft] = useState<ProtocoloItemDraft>({
-        loja: "",
-        produto: "",
-        prioridade: "MEDIA" as PcPrioridade,
-        quantidade: 1,
-        valor_unit: 0,
-        frete: 0,
-        link: "",
-        diretoria: false,
-        composto: false,
-        filhos: [],
-    });
+    const [editDraft, setEditDraft] = useState<ProtocoloItemDraft>(() => createEmptyProtocolItemDraft());
     const [sendingEmail, setSendingEmail] = useState(false);
     const [showEmailRecipientsModal, setShowEmailRecipientsModal] = useState(false);
     const [emailRecipientsError, setEmailRecipientsError] = useState<string | null>(null);
@@ -463,18 +506,7 @@ export default function PedidosDeCompra() {
     const protocoloLayoutRef = useRef<HTMLDivElement | null>(null);
 
     // item editor protocolo
-    const [draft, setDraft] = useState<ProtocoloItemDraft>({
-        loja: "",
-        produto: "",
-        prioridade: "MEDIA",
-        quantidade: 1,
-        valor_unit: 0,
-        frete: 0,
-        link: "",
-        diretoria: false,
-        composto: false,
-        filhos: [],
-    });
+    const [draft, setDraft] = useState<ProtocoloItemDraft>(() => createEmptyProtocolItemDraft());
     const [protocoloColumnWidths, setProtocoloColumnWidths] = useState<Record<ProtocoloResizableColumn, number>>(
         () => loadProtocoloColumnWidths()
     );
@@ -484,6 +516,14 @@ export default function PedidosDeCompra() {
         setShowEditDeniedModal(true);
         return false;
     }, [canEditPedidos]);
+
+    const updateDraft = useCallback((patch: Partial<ProtocoloItemDraft>) => {
+        setDraft((prev) => ({ ...prev, ...patch }));
+    }, []);
+
+    const updateEditDraft = useCallback((patch: Partial<ProtocoloItemDraft>) => {
+        setEditDraft((prev) => ({ ...prev, ...patch }));
+    }, []);
 
     const startMensalColumnResize = useCallback(
         (event: React.MouseEvent<HTMLDivElement>, column: MensalResizableColumn) => {
@@ -598,6 +638,21 @@ export default function PedidosDeCompra() {
         return round2(itens.reduce((acc, i) => acc + getProtocoloItemTotal(i), 0));
     }, [itens]);
 
+    const totais = useMemo(() => {
+        return mensal.reduce(
+            (acc, item) => {
+                if (item.status === "ENTREGUE") {
+                    acc.total_entregue += Number(item.valor_total_frete || 0);
+                }
+                if (item.status === "ENTREGUE" || item.status === "PEDIDO_FEITO") {
+                    acc.total_aprovado += Number(item.valor_total_frete || 0);
+                }
+                return acc;
+            },
+            { total_entregue: 0, total_aprovado: 0 }
+        );
+    }, [mensal]);
+
     const aprovadoDiretoria = useMemo(() => {
         return mensal.reduce((acc, item) => {
             if (item.diretoria && (item.status === 'ENTREGUE' || item.status === 'PEDIDO_FEITO')) {
@@ -617,35 +672,41 @@ export default function PedidosDeCompra() {
         return 2500 - totalConsiderados;
     }, [mensal]);
 
-    const normalizeEmail = (value: string) => value.trim().toLowerCase();
     const defaultEmailRecipients = useMemo(
-        () => DEFAULT_EMAIL_RECIPIENTS.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0),
+        () => DEFAULT_EMAIL_RECIPIENTS.map((value) => normalizeEmail(value)).filter((value) => value.length > 0),
         []
     );
-    const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
     useEffect(() => {
         try {
             localStorage.setItem(PC_EMAIL_RECIPIENTS_KEY, JSON.stringify(emailRecipients));
-        } catch { }
+        } catch (error) {
+            ignoreStorageError(error);
+        }
     }, [emailRecipients]);
 
     useEffect(() => {
         try {
             localStorage.setItem(PC_MENSAL_COLUMN_WIDTHS_KEY, JSON.stringify(mensalColumnWidths));
-        } catch { }
+        } catch (error) {
+            ignoreStorageError(error);
+        }
     }, [mensalColumnWidths]);
 
     useEffect(() => {
         try {
             localStorage.setItem(PC_PROTOCOLO_PANEL_WIDTH_KEY, JSON.stringify(protocolosPanelWidth));
-        } catch { }
+        } catch (error) {
+            ignoreStorageError(error);
+        }
     }, [protocolosPanelWidth]);
 
     useEffect(() => {
         try {
             localStorage.setItem(PC_PROTOCOLO_COLUMN_WIDTHS_KEY, JSON.stringify(protocoloColumnWidths));
-        } catch { }
+        } catch (error) {
+            ignoreStorageError(error);
+        }
     }, [protocoloColumnWidths]);
 
     const handleOpenEmailRecipientsModal = useCallback(() => {
@@ -663,15 +724,15 @@ export default function PedidosDeCompra() {
         setEmailRecipients((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
         setEmailRecipientInput("");
         setEmailRecipientsError(null);
-    }, [emailRecipientInput, normalizeEmail, isValidEmail]);
+    }, [emailRecipientInput]);
 
     const handleRemoveEmailRecipient = useCallback((recipient: string) => {
         const normalized = normalizeEmail(recipient);
         if (defaultEmailRecipients.includes(normalized)) return;
         setEmailRecipients((prev) => prev.filter((item) => item !== normalized));
-    }, [defaultEmailRecipients, normalizeEmail]);
+    }, [defaultEmailRecipients]);
 
-    const handleConfirmSendEmail = useCallback(async () => {
+    async function handleConfirmSendEmail() {
         const normalizedRecipients = emailRecipients
             .map((recipient) => normalizeEmail(recipient))
             .filter((recipient) => recipient.length > 0);
@@ -686,7 +747,7 @@ export default function PedidosDeCompra() {
         setShowEmailRecipientsModal(false);
         setEmailRecipientsError(null);
         await enviarEmailProtocolo(normalizedRecipients);
-    }, [emailRecipients, enviarEmailProtocolo, isValidEmail, normalizeEmail]);
+    }
 
     const handleMensalSort = (column: "item" | "quantidade" | "valor_unit" | "frete" | "valor_total" | "diretoria" | "status") => {
         setMensalSort((prev) => {
@@ -768,20 +829,6 @@ export default function PedidosDeCompra() {
             return;
         }
         setMensal((data ?? []) as MensalItem[]);
-
-        const { data: tData, error: tErr } = await supabase
-            .from("pc_mensal_totais")
-            .select("*")
-            .eq("ano", ano)
-            .eq("mes", mes)
-            .maybeSingle();
-
-        if (tErr) {
-            console.error("Erro totais:", tErr.message);
-            setTotais(null);
-            return;
-        }
-        setTotais(tData ? { total_entregue: Number(tData.total_entregue || 0), total_aprovado: Number(tData.total_aprovado || 0) } : null);
     }, [ano, mes]);
 
     const loadProtocolos = useCallback(async () => {
@@ -810,7 +857,7 @@ export default function PedidosDeCompra() {
 
         const found = protocolos.find((p) => p.id === protocoloSelId);
         if (found) setProtocoloSel(found);
-    }, [protocolos, protocoloSelId]);
+    }, [protocolos, protocoloSelId, protocoloSel?.id]);
 
     const loadItens = useCallback(async (protocoloId: string) => {
         if (!canAccessProtocoloTab) {
@@ -828,11 +875,15 @@ export default function PedidosDeCompra() {
             setItens([]);
             return;
         }
-        const normalized = (data ?? []).map((row: any) => ({
-            ...row,
-            composto: Boolean(row?.composto),
-            filhos: normalizeCompostoFilhos(row?.filhos),
-        }));
+        const normalized = (data ?? []).map((row) => {
+            const item = row as ProtocoloItem;
+            return {
+                ...item,
+                link: normalizeProtocolLink(item.link),
+                composto: Boolean((row as { composto?: unknown }).composto),
+                filhos: normalizeCompostoFilhos((row as { filhos?: unknown }).filhos),
+            };
+        });
         setItens(normalized as ProtocoloItem[]);
     }, [canAccessProtocoloTab]);
 
@@ -864,15 +915,24 @@ export default function PedidosDeCompra() {
     // =============================
     // ACTIONS: MENSAL
     // =============================
-async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
-        if (!requireEditPermission()) return;
-        const { error } = await supabase.from("pc_mensal_itens").update(patch).eq("id", id);
-        if (error) {
-            console.error("Erro update mensal:", error.message);
-            return;
-        }
-        await loadMensal();
-    }
+    const patchMensalState = useCallback((id: string, patch: Partial<MensalItem>) => {
+        setMensal((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    }, []);
+
+    const updateMensalItem = useCallback(
+        async (id: string, patch: Partial<MensalItem>) => {
+            if (!requireEditPermission()) return false;
+            const { error } = await supabase.from("pc_mensal_itens").update(patch).eq("id", id);
+            if (error) {
+                console.error("Erro update mensal:", error.message);
+                setToast({ type: "error", message: "Nao foi possivel salvar a alteracao do mensal." });
+                await loadMensal();
+                return false;
+            }
+            return true;
+        },
+        [loadMensal, requireEditPermission]
+    );
 
     const toggleMensalDiretoria = useCallback(
         async (item: MensalItem) => {
@@ -990,12 +1050,13 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
     function startEdit(i: ProtocoloItem) {
         setEditItem(i);
         setEditDraft({
-            loja: i.loja,
-            produto: i.produto,
+            ...createEmptyProtocolItemDraft(),
+            loja: normalizeProtocolItemText(i.loja),
+            produto: normalizeProtocolItemText(i.produto),
             prioridade: i.prioridade,
-            quantidade: Number(i.quantidade || 0),
-            valor_unit: Number(i.valor_unit || 0),
-            frete: Number(i.frete || 0),
+            quantidade: toFiniteNumber(i.quantidade),
+            valor_unit: toFiniteNumber(i.valor_unit),
+            frete: toFiniteNumber(i.frete),
             link: i.link || "",
             diretoria: i.diretoria ?? false,
             composto: Boolean(i.composto),
@@ -1030,11 +1091,9 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                     return { ...filho, nome: String(value).toUpperCase() };
                 }
                 if (field === "quantidade") {
-                    const parsed = Number(value || 0);
-                    return { ...filho, quantidade: Number.isFinite(parsed) ? parsed : 0 };
+                    return { ...filho, quantidade: toFiniteNumber(value) };
                 }
-                const parsed = Number(value || 0);
-                return { ...filho, valor_unit: Number.isFinite(parsed) ? parsed : 0 };
+                return { ...filho, valor_unit: toFiniteNumber(value) };
             }),
         }));
     }
@@ -1043,44 +1102,25 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         if (!editItem) return;
         if (!requireEditPermission()) return;
 
-        const filhosNormalizados = editDraft.composto
-            ? editDraft.filhos
-                .map((filho) => ({
-                    id: String(filho.id || "").trim() || createCompostoFilho().id,
-                    nome: String(filho.nome || "").toUpperCase().trim(),
-                    quantidade: Number(filho.quantidade || 0),
-                    valor_unit: Number(filho.valor_unit || 0),
-                }))
-                .filter((filho) => filho.nome.length > 0 && filho.quantidade > 0)
-            : [];
-
-        if (editDraft.composto && filhosNormalizados.length === 0) {
+        const payload = buildProtocolItemMutation(editDraft);
+        if (payload.composto && payload.filhos.length === 0) {
             setToast({ type: "error", message: "Item composto precisa de ao menos 1 unitario valido." });
             return;
         }
 
         const { error } = await supabase
             .from("pc_protocolo_itens")
-            .update({
-                loja: normalizeProtocolItemText(editDraft.loja),
-                produto: normalizeProtocolItemText(editDraft.produto),
-                prioridade: editDraft.prioridade,
-                quantidade: Number(editDraft.quantidade || 0),
-                valor_unit: Number(editDraft.valor_unit || 0),
-                frete: Number(editDraft.frete || 0),
-                link: normalizeProtocolLink(editDraft.link),
-                diretoria: editDraft.diretoria,
-                composto: Boolean(editDraft.composto),
-                filhos: filhosNormalizados,
-            })
+            .update(payload)
             .eq("id", editItem.id);
 
         if (error) {
             console.error("Erro editar item:", error.message);
+            setToast({ type: "error", message: "Nao foi possivel salvar o item." });
             return;
         }
 
         setEditItem(null);
+        setEditDraft(createEmptyProtocolItemDraft());
         if (protocoloSel) {
             await loadItens(protocoloSel.id);
             await loadProtocolos();
@@ -1109,58 +1149,25 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         setShowSaveConfirm(true);
     }
 
-    async function excluirProtocolo() {
-        if (!protocoloSel) return;
-        if (!requireEditPermission()) return;
-        const { error } = await supabase.from("pc_protocolos").delete().eq("id", protocoloSel.id);
-        if (error) {
-            console.error("Erro excluir protocolo:", error.message);
-            return;
-        }
-        setProtocoloSel(null);
-        setProtocoloSelId(null);
-        await loadProtocolos();
-    }
-
     async function addItem() {
         if (!protocoloSel) return;
         if (!requireEditPermission()) return;
-        const loja = normalizeProtocolItemText(draft.loja);
-        const produto = normalizeProtocolItemText(draft.produto);
-        if (!loja || !produto) return;
+        const itemPayload = buildProtocolItemMutation(draft);
+        if (!itemPayload.loja || !itemPayload.produto) return;
 
         const payload = {
             protocolo_id: protocoloSel.id,
-            loja,
-            produto,
-            prioridade: draft.prioridade,
-            quantidade: Number(draft.quantidade || 0),
-            valor_unit: Number(draft.valor_unit || 0),
-            frete: Number(draft.frete || 0),
-            link: normalizeProtocolLink(draft.link),
-            diretoria: draft.diretoria,
-            composto: false,
-            filhos: [],
+            ...itemPayload,
         };
 
         const { error } = await supabase.from("pc_protocolo_itens").insert([payload]);
         if (error) {
             console.error("Erro add item:", error.message);
+            setToast({ type: "error", message: "Nao foi possivel adicionar o item." });
             return;
         }
 
-        setDraft({
-            loja: "",
-            produto: "",
-            prioridade: "MEDIA",
-            quantidade: 1,
-            valor_unit: 0,
-            frete: 0,
-            link: "",
-            diretoria: false,
-            composto: false,
-            filhos: [],
-        });
+        setDraft(createEmptyProtocolItemDraft());
         await loadItens(protocoloSel.id);
         await loadProtocolos();
     }
@@ -1227,7 +1234,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
         });
     }
 
-    const getAccessToken = async () => {
+    const getAccessToken = useCallback(async () => {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
 
@@ -1244,7 +1251,7 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
             throw new Error("Sessao expirada. Faça login novamente.");
         }
         return token;
-    };
+    }, []);
 
     async function enviarEmailProtocolo(recipients?: string[]) {
         if (!protocoloSel || sendingEmail) return;
@@ -1382,12 +1389,12 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                             <div className="mt-4 grid gap-3 sm:grid-cols-4">
                                 <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
                                     <p className="text-xs uppercase tracking-widest text-neutral-400">Total Aprovado</p>
-                                    <p className="text-2xl font-semibold text-white">{currency(totais?.total_aprovado ?? 0)}</p>
+                                    <p className="text-2xl font-semibold text-white">{currency(totais.total_aprovado)}</p>
                                     <p className="text-xs text-neutral-400">Aprovações do mês corrente</p>
                                 </div>
                                 <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
                                     <p className="text-xs uppercase tracking-widest text-neutral-400">Total Entregue</p>
-                                    <p className="text-2xl font-semibold text-white">{currency(totais?.total_entregue ?? 0)}</p>
+                                    <p className="text-2xl font-semibold text-white">{currency(totais.total_entregue)}</p>
                                     <p className="text-xs text-neutral-400">Atualizado automaticamente</p>
                                 </div>
                                 <div className="rounded-2xl border border-white/10 bg-neutral-200/5 p-4">
@@ -1600,11 +1607,10 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                             <input
                                                 className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
                                                 value={m.setor ?? ""}
+                                                disabled={!canEditPedidos}
                                                 onChange={(e) => {
                                                     const nextSetor = e.target.value.toUpperCase();
-                                                    setMensal((prev) =>
-                                                        prev.map((item) => (item.id === m.id ? { ...item, setor: nextSetor } : item))
-                                                    );
+                                                    patchMensalState(m.id, { setor: nextSetor });
                                                 }}
                                                 onBlur={(e) => {
                                                     void updateMensalItem(m.id, { setor: e.target.value.toUpperCase() });
@@ -1618,7 +1624,11 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                     type="date"
                                                     className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
                                                     value={m.previsao ?? ""}
-                                                    onChange={(e) => updateMensalItem(m.id, { previsao: e.target.value || null })}
+                                                    onChange={(e) => {
+                                                        const nextPrevisao = e.target.value || null;
+                                                        patchMensalState(m.id, { previsao: nextPrevisao });
+                                                        void updateMensalItem(m.id, { previsao: nextPrevisao });
+                                                    }}
                                                     aria-label="Previsão"
                                                 />
                                             ) : (
@@ -1631,12 +1641,14 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                             <select
                                                 className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-sm text-white text-center"
                                                 value={m.status}
+                                                disabled={!canEditPedidos}
                                                 onChange={(e) => {
                                                     const nextStatus = e.target.value as PcStatusMensal;
                                                     const patch: Partial<MensalItem> =
                                                         nextStatus === "ENTREGUE"
                                                             ? { status: nextStatus, previsao: getTodayDateFortaleza() }
                                                             : { status: nextStatus };
+                                                    patchMensalState(m.id, patch);
                                                     void updateMensalItem(m.id, patch);
                                                 }}
                                                 aria-label="Status"
@@ -1836,18 +1848,18 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         className="flex-1 min-w-[140px] rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Loja"
                                         value={draft.loja}
-                                        onChange={(e) => setDraft((d) => ({ ...d, loja: e.target.value.toUpperCase() }))}
+                                        onChange={(e) => updateDraft({ loja: e.target.value.toUpperCase() })}
                                     />
                                     <input
                                         className="flex-1 min-w-[200px] rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         placeholder="Produto"
                                         value={draft.produto}
-                                        onChange={(e) => setDraft((d) => ({ ...d, produto: e.target.value.toUpperCase() }))}
+                                        onChange={(e) => updateDraft({ produto: e.target.value.toUpperCase() })}
                                     />
                                     <select
                                         className="w-32 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                         value={draft.prioridade}
-                                        onChange={(e) => setDraft((d) => ({ ...d, prioridade: e.target.value as PcPrioridade }))}
+                                        onChange={(e) => updateDraft({ prioridade: e.target.value as PcPrioridade })}
                                     >
                                         <option value="BAIXA">Baixa</option>
                                         <option value="MEDIA">Média</option>
@@ -1858,18 +1870,18 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         className="w-20 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-center text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                         placeholder="Qtd"
                                         value={draft.quantidade}
-                                        onChange={(e) => setDraft((d) => ({ ...d, quantidade: Number(e.target.value) }))}
+                                        onChange={(e) => updateDraft({ quantidade: toFiniteNumber(e.target.value) })}
                                     />
                                     <MoneyInputBRL
                                         value={draft.valor_unit}
-                                        onChange={(val) => setDraft((d) => ({ ...d, valor_unit: val }))}
+                                        onChange={(val) => updateDraft({ valor_unit: val })}
                                         placeholder="Valor (R$)"
                                         showPlaceholderWhenZero
                                         className="w-32 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
                                     <MoneyInputBRL
                                         value={draft.frete}
-                                        onChange={(val) => setDraft((d) => ({ ...d, frete: val }))}
+                                        onChange={(val) => updateDraft({ frete: val })}
                                         placeholder="Frete (R$)"
                                         showPlaceholderWhenZero
                                         className="w-32 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -1879,10 +1891,10 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                         placeholder="Link"
                                         value={draft.link || ""}
                                         data-uppercase="off"
-                                        onChange={(e) => setDraft((d) => ({ ...d, link: e.target.value }))}
+                                        onChange={(e) => updateDraft({ link: e.target.value })}
                                     />
                                     <button
-                                        onClick={() => setDraft((d) => ({ ...d, diretoria: !d.diretoria }))}
+                                        onClick={() => updateDraft({ diretoria: !draft.diretoria })}
                                         className={`flex items-center gap-1 rounded-2xl border border-neutral-800 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition-colors ${
                                             draft.diretoria ? "bg-neutral-200/10" : "hover:bg-neutral-200/5"
                                         }`}
@@ -2116,19 +2128,19 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                     <input
                                                         className="col-span-12 md:col-span-3 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                                         value={editDraft.loja}
-                                                        onChange={(e) => setEditDraft((d) => ({ ...d, loja: e.target.value.toUpperCase() }))}
+                                                        onChange={(e) => updateEditDraft({ loja: e.target.value.toUpperCase() })}
                                                         placeholder="Loja"
                                                     />
                                                     <input
                                                         className="col-span-12 md:col-span-4 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                                         value={editDraft.produto}
-                                                        onChange={(e) => setEditDraft((d) => ({ ...d, produto: e.target.value.toUpperCase() }))}
+                                                        onChange={(e) => updateEditDraft({ produto: e.target.value.toUpperCase() })}
                                                         placeholder="Produto"
                                                     />
                                                     <select
                                                         className="col-span-5 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                                         value={editDraft.prioridade}
-                                                        onChange={(e) => setEditDraft((d) => ({ ...d, prioridade: e.target.value as PcPrioridade }))}
+                                                        onChange={(e) => updateEditDraft({ prioridade: e.target.value as PcPrioridade })}
                                                     >
                                                         <option value="BAIXA">Baixa</option>
                                                         <option value="MEDIA">Média</option>
@@ -2139,20 +2151,20 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                         inputMode="decimal"
                                                         className="col-span-6 md:col-span-1 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-2 py-2 text-sm text-right text-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                         value={editDraft.quantidade}
-                                                        onChange={(e) => setEditDraft((d) => ({ ...d, quantidade: Number(e.target.value) }))}
+                                                        onChange={(e) => updateEditDraft({ quantidade: toFiniteNumber(e.target.value) })}
                                                         placeholder="Qtd"
                                                     />
 
                                                     <MoneyInputBRL
                                                         value={editDraft.valor_unit}
-                                                        onChange={(val) => setEditDraft((d) => ({ ...d, valor_unit: val }))}
+                                                        onChange={(val) => updateEditDraft({ valor_unit: val })}
                                                         placeholder="Valor (R$)"
                                                         showPlaceholderWhenZero
                                                         className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                     />
                                                     <MoneyInputBRL
                                                         value={editDraft.frete}
-                                                        onChange={(val) => setEditDraft((d) => ({ ...d, frete: val }))}
+                                                        onChange={(val) => updateEditDraft({ frete: val })}
                                                         placeholder="Frete (R$)"
                                                         showPlaceholderWhenZero
                                                         className="col-span-12 md:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -2162,13 +2174,13 @@ async function updateMensalItem(id: string, patch: Partial<MensalItem>) {
                                                         className="col-span-12 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-white shadow-sm"
                                                         value={editDraft.link}
                                                         data-uppercase="off"
-                                                        onChange={(e) => setEditDraft((d) => ({ ...d, link: e.target.value }))}
+                                                        onChange={(e) => updateEditDraft({ link: e.target.value })}
                                                         placeholder="Link do produto"
                                                     />
                                                     <div className="col-span-12 flex items-center gap-3">
                                                         <button
                                                             type="button"
-                                                            onClick={() => setEditDraft((d) => ({ ...d, diretoria: !d.diretoria }))}
+                                                            onClick={() => updateEditDraft({ diretoria: !editDraft.diretoria })}
                                                             className={`flex items-center gap-1 rounded-2xl border border-neutral-800 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition-colors ${
                                                                 editDraft.diretoria ? "bg-neutral-200/10" : "hover:bg-neutral-200/5"
                                                             }`}

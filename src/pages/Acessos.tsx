@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Key, Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, Database, ExternalLink, Copy } from 'lucide-react';
 import AccessForm from '../components/AccessForm';
 import FileUpload from '../components/FileUpload';
@@ -6,9 +6,11 @@ import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
+import { useClipboardCopy } from '../hooks/useClipboardCopy';
+import { useProtectedVisibility } from '../hooks/useProtectedVisibility';
 import { decryptPassword } from '../utils/encryption';
+import { writeExportFile, writeTemplateFile } from '../utils/xlsxExport';
 
 interface Access {
   id: string;
@@ -33,19 +35,21 @@ const Acessos: React.FC = () => {
   const [showUpload, setShowUpload] = useState(() => getState('acessos_showUpload') || false);
   const [editingAccess, setEditingAccess] = useState<Access | null>(() => getState('acessos_editingAccess') || null);
   const [searchTerm, setSearchTerm] = useState(() => getState('acessos_searchTerm') || '');
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingAccess, setViewingAccess] = useState<Access | null>(() => getState('acessos_viewingAccess') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
   const [pendingActionAccess, setPendingActionAccess] = useState<Access | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { user } = useAuth();
+  const { copiedKey, copyText } = useClipboardCopy();
+  const {
+    visibleIds,
+    showPasswordModal,
+    toggleVisibility,
+    handlePasswordVerified,
+    closePasswordModal,
+  } = useProtectedVisibility();
 
   const itemsPerPage = 10;
 
@@ -116,57 +120,6 @@ const Acessos: React.FC = () => {
     }
   }, []);
 
-  const togglePasswordVisibility = useCallback((id: string) => {
-    if (visiblePasswords.has(id)) {
-      // Hide password - no authentication needed
-      const newVisible = new Set(visiblePasswords);
-      newVisible.delete(id);
-      setVisiblePasswords(newVisible);
-    } else {
-      // Show password - require authentication
-      setPendingPasswordReveal(id);
-      setShowPasswordModal(true);
-    }
-  }, [visiblePasswords]);
-
-  const copyText = useCallback(async (value?: string, key?: string) => {
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = value;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      try {
-        document.execCommand('copy');
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    }
-    if (!key) return;
-    if (copyTimeoutRef.current) {
-      clearTimeout(copyTimeoutRef.current);
-    }
-    setCopiedKey(key);
-    copyTimeoutRef.current = setTimeout(() => {
-      setCopiedKey((prev) => (prev === key ? null : prev));
-    }, 800);
-  }, []);
-
-  const handlePasswordVerified = useCallback((passwordId: string | null) => {
-    if (!passwordId) return;
-    setVisiblePasswords((prev) => {
-      const next = new Set(prev);
-      next.add(passwordId);
-      return next;
-    });
-    setPendingPasswordReveal(null);
-  }, []);
-
   const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', acesso: Access) => {
     setPendingAction(action);
     setPendingActionAccess(acesso);
@@ -197,7 +150,7 @@ const Acessos: React.FC = () => {
   }, [pendingAction, pendingActionAccess, handleDelete]);
 
   const filteredAcessosSorted = useMemo(() => {
-    let filtered = acessos.filter((acesso) =>
+    const filtered = acessos.filter((acesso) =>
       acesso.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
       acesso.ip_url?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       acesso.usuario_login?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -214,72 +167,34 @@ const Acessos: React.FC = () => {
 
   const exportData = useCallback(async (format: 'csv' | 'xlsx' | 'template') => {
     try {
-      const styledModule: any = await import('xlsx-js-style');
-      const styledCandidates = [
-        styledModule,
-        styledModule?.default,
-        styledModule?.XLSX,
-        styledModule?.default?.XLSX,
-        (globalThis as any)?.XLSX,
-      ];
-      let XLSX = styledCandidates.find(
-        (candidate) =>
-          candidate?.utils?.json_to_sheet &&
-          candidate?.utils?.book_new &&
-          candidate?.utils?.book_append_sheet &&
-          candidate?.writeFile
-      );
-
-      if (!XLSX) {
-        const fallbackModule: any = await import('xlsx');
-        const fallbackCandidates = [
-          fallbackModule,
-          fallbackModule?.default,
-          fallbackModule?.XLSX,
-          fallbackModule?.default?.XLSX,
-          (globalThis as any)?.XLSX,
-        ];
-        XLSX = fallbackCandidates.find(
-          (candidate) =>
-            candidate?.utils?.json_to_sheet &&
-            candidate?.utils?.book_new &&
-            candidate?.utils?.book_append_sheet &&
-            candidate?.writeFile
-        );
-      }
-
-      if (!XLSX) throw new Error('Biblioteca de exportacao indisponivel.');
-
       if (format === 'template') {
-        const templateData = [{
-          descricao: '',
-          para_que_serve: '',
-          ip_url: '',
-          usuario_login: '',
-          senha: '',
-          observacao: '',
-          suporte_contato: '',
-          email: '',
-          dia_pagamento: ''
-        }];
-        const ws = XLSX.utils.json_to_sheet(templateData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Template');
-        XLSX.writeFile(wb, 'template_acessos.xlsx', { bookType: 'xlsx' });
+        await writeTemplateFile(
+          [
+            {
+              descricao: '',
+              para_que_serve: '',
+              ip_url: '',
+              usuario_login: '',
+              senha: '',
+              observacao: '',
+              suporte_contato: '',
+              email: '',
+              dia_pagamento: '',
+            },
+          ],
+          'Template',
+          'template_acessos.xlsx'
+        );
       } else {
-        const dataToExport = filteredAcessosSorted.map(({ id, created_at, ...rest }) => rest);
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Acessos');
-
-        const filterInfo = searchTerm ? `_filtrado` : '';
-        const filename = `acessos${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-
-        if (format === 'csv') {
-          XLSX.writeFile(wb, filename, { bookType: 'csv' });
-        } else {
-          XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
-        }
+        const dataToExport = filteredAcessosSorted.map((acesso) => {
+          const exportable = { ...acesso } as Partial<Access>;
+          delete exportable.id;
+          delete exportable.created_at;
+          return exportable as Record<string, unknown>;
+        });
+        const filterInfo = searchTerm ? '_filtrado' : '';
+        const filename = `acessos${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
+        await writeExportFile(dataToExport, 'Acessos', filename, format);
       }
       setShowExportMenu(false);
     } catch (error) {
@@ -301,30 +216,30 @@ const Acessos: React.FC = () => {
     setEditingAccess(null);
     clearState('acessos_showForm');
     clearState('acessos_editingAccess');
-  }, [fetchAcessos]);
+  }, [clearState, fetchAcessos]);
 
   const handleUploadSuccess = useCallback(() => {
     fetchAcessos();
     setShowUpload(false);
     clearState('acessos_showUpload');
-  }, [fetchAcessos]);
+  }, [clearState, fetchAcessos]);
 
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingAccess(null);
     clearState('acessos_showForm');
     clearState('acessos_editingAccess');
-  }, []);
+  }, [clearState]);
 
   const handleCancelUpload = useCallback(() => {
     setShowUpload(false);
     clearState('acessos_showUpload');
-  }, []);
+  }, [clearState]);
 
   const handleCloseView = useCallback(() => {
     setViewingAccess(null);
     clearState('acessos_viewingAccess');
-  }, []);
+  }, [clearState]);
 
   // Dashboard stats based on filtered data
   const dashboardStats = useMemo(() => {
@@ -500,9 +415,9 @@ const Acessos: React.FC = () => {
                     {acesso.senha && (
                       <div className="flex items-center space-x-1 sm:space-x-2">
                         <span className="font-mono text-xs sm:text-sm">
-                          {visiblePasswords.has(acesso.id) ? decryptPassword(acesso.senha) : '••••••••'}
+                          {visibleIds.has(acesso.id) ? decryptPassword(acesso.senha) : '••••••••'}
                         </span>
-                        {visiblePasswords.has(acesso.id) && (
+                        {visibleIds.has(acesso.id) && (
                           <button
                             type="button"
                             onClick={() => copyText(decryptPassword(acesso.senha), `acessos-pass-${acesso.id}`)}
@@ -516,10 +431,10 @@ const Acessos: React.FC = () => {
                         )}
                         <button
                           type="button"
-                          onClick={() => togglePasswordVisibility(acesso.id)} 
+                          onClick={() => toggleVisibility(acesso.id)} 
                           className="text-neutral-400 hover:text-neutral-600"
                         >
-                          {visiblePasswords.has(acesso.id) ? (
+                          {visibleIds.has(acesso.id) ? (
                             <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" />
                           ) : (
                             <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -646,11 +561,8 @@ const Acessos: React.FC = () => {
 
       <PasswordVerificationModal
         isOpen={showPasswordModal}
-        onClose={() => {
-          setShowPasswordModal(false);
-          setPendingPasswordReveal(null);
-        }}
-        onSuccess={() => handlePasswordVerified(pendingPasswordReveal)}
+        onClose={closePasswordModal}
+        onSuccess={handlePasswordVerified}
         title="Verificação de Senha"
         message="Digite sua senha para visualizar a senha do acesso:"
       />
@@ -684,3 +596,5 @@ const Acessos: React.FC = () => {
 };
 
 export default Acessos;
+
+

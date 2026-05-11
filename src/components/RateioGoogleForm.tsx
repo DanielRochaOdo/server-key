@@ -53,27 +53,25 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
     }
     
     // Só definir dados iniciais se não há dados salvos
-    setFormData(prev => {
-      if (rateio) {
-        return {
-          nome_completo: rateio.nome_completo || '',
-          email: rateio.email || '',
-          status: rateio.status || '',
-          ultimo_login: rateio.ultimo_login || '',
-          armazenamento: rateio.armazenamento || '',
-          situacao: rateio.situacao || '',
-        };
-      } else {
-        return {
-          nome_completo: '',
-          email: '',
-          status: '',
-          ultimo_login: '',
-          armazenamento: '',
-          situacao: '',
-        };
-      }
-    });
+    setFormData(
+      rateio
+        ? {
+            nome_completo: rateio.nome_completo || '',
+            email: rateio.email || '',
+            status: rateio.status || '',
+            ultimo_login: rateio.ultimo_login || '',
+            armazenamento: rateio.armazenamento || '',
+            situacao: rateio.situacao || '',
+          }
+        : {
+            nome_completo: '',
+            email: '',
+            status: '',
+            ultimo_login: '',
+            armazenamento: '',
+            situacao: '',
+          }
+    );
     setError('');
   }, [rateio?.id, persistenceKey]); // Usar rateio.id em vez de rateio completo
   
@@ -392,5 +390,4 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
 };
 
 export default RateioGoogleForm;
-
 
