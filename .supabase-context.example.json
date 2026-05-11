@@ -1,0 +1,7 @@
+{
+  "profile": "conta_empresa_a",
+  "project_ref": "abcdefghijklmnopqrst",
+  "db_password_env": "SUPABASE_DB_PASSWORD_A",
+  "auto_link_db_commands": true
+}
+

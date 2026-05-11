@@ -60,33 +60,31 @@ const PessoalForm: React.FC<PessoalFormProps> = ({ pessoal, onSuccess, onCancel 
     }
     
     // Só definir dados iniciais se não há dados salvos
-    setFormData(prev => {
-      if (pessoal) {
-        return {
-          descricao: pessoal.descricao || '',
-          para_que_serve: pessoal.para_que_serve || '',
-          ip_url: pessoal.ip_url || '',
-          usuario_login: pessoal.usuario_login || '',
-          senha: pessoal.senha && pessoal.senha.trim() ? decryptPassword(pessoal.senha) : '',
-          observacao: pessoal.observacao || '',
-          suporte_contato: pessoal.suporte_contato || '',
-          email: pessoal.email || '',
-          dia_pagamento: pessoal.dia_pagamento || 0,
-        };
-      } else {
-        return {
-          descricao: '',
-          para_que_serve: '',
-          ip_url: '',
-          usuario_login: '',
-          senha: '',
-          observacao: '',
-          suporte_contato: '',
-          email: '',
-          dia_pagamento: 0,
-        };
-      }
-    });
+    setFormData(
+      pessoal
+        ? {
+            descricao: pessoal.descricao || '',
+            para_que_serve: pessoal.para_que_serve || '',
+            ip_url: pessoal.ip_url || '',
+            usuario_login: pessoal.usuario_login || '',
+            senha: pessoal.senha && pessoal.senha.trim() ? decryptPassword(pessoal.senha) : '',
+            observacao: pessoal.observacao || '',
+            suporte_contato: pessoal.suporte_contato || '',
+            email: pessoal.email || '',
+            dia_pagamento: pessoal.dia_pagamento || 0,
+          }
+        : {
+            descricao: '',
+            para_que_serve: '',
+            ip_url: '',
+            usuario_login: '',
+            senha: '',
+            observacao: '',
+            suporte_contato: '',
+            email: '',
+            dia_pagamento: 0,
+          }
+    );
   }, [pessoal?.id, persistenceKey]);
   
   // Salvar dados quando formData muda
@@ -364,5 +362,4 @@ const PessoalForm: React.FC<PessoalFormProps> = ({ pessoal, onSuccess, onCancel 
 };
 
 export default PessoalForm;
-
 

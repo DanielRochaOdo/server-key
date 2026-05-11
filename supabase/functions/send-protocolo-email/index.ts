@@ -64,7 +64,25 @@ const normalizeRole = (role?: string | null) => {
 const sanitizeUrl = (value?: string | null) => {
   const trimmed = (value || "").trim();
   if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+
+  const parseHttpUrl = (candidate: string) => {
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+      return parsed.toString();
+    } catch {
+      return "";
+    }
+  };
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return parseHttpUrl(trimmed);
+  }
+
+  if (/^(www\.|[\w-]+\.[\w.-]+)/i.test(trimmed)) {
+    return parseHttpUrl(`https://${trimmed}`);
+  }
+
   return "";
 };
 

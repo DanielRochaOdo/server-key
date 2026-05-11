@@ -268,18 +268,6 @@ const isLikelySameItem = (candidate?: string | null, pedidoItem?: string | null)
   return left === right || left.includes(right) || right.includes(left);
 };
 
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const inferPedidoEspecificacao = (pedidoItem?: string | null, itemBaseNome?: string | null) => {
-  const pedido = normalizeLookupText(pedidoItem);
-  const itemBase = normalizeLookupText(itemBaseNome);
-  if (!pedido || !itemBase) return '';
-
-  const itemRegex = new RegExp(`\\b${escapeRegExp(itemBase)}\\b`, 'g');
-  const stripped = pedido.replace(itemRegex, ' ').replace(/\s+/g, ' ').trim();
-  return stripped || '';
-};
-
 const formatDateTime = (value?: string | null) => {
   if (!value) return '-';
   const date = new Date(value);
@@ -309,15 +297,9 @@ const toDateTimeLocalInput = (value?: string | null) => {
 };
 
 const resolvePedidoDataMovimentacao = (
-  pedido: ParquePedidoCompraEntregue,
-  destinoAtribuidoEm?: string | null
+  _pedido: ParquePedidoCompraEntregue,
+  _destinoAtribuidoEm?: string | null
 ) => {
-  if (destinoAtribuidoEm) return toDateTimeLocalInput(destinoAtribuidoEm);
-  const ano = Number(pedido.ano || 0);
-  const mes = Number(pedido.mes || 0);
-  if (Number.isFinite(ano) && Number.isFinite(mes) && ano > 1900 && mes >= 1 && mes <= 12) {
-    return `${ano}-${String(mes).padStart(2, '0')}-01T09:00`;
-  }
   return toDateTimeLocalInput();
 };
 
@@ -1113,6 +1095,7 @@ export default function ParqueTecnologico({ mode }: Props) {
   ) => {
     const vinculado = destinoVinculosPorTipoMovimentacao.get(normalizeLookupText(tipoMovimentacao)) || [];
 
+    if (tipoMovimentacao === 'entrada_compra') return DESTINO_PARQUE_TECNOLOGICO;
     if (tipoMovimentacao === 'entrada_manual') return DESTINO_PARQUE_TECNOLOGICO;
     if (tipoMovimentacao === 'descarte') return 'DESCARTE';
     if (tipoMovimentacao === 'saida_setor') {
@@ -1436,111 +1419,6 @@ export default function ParqueTecnologico({ mode }: Props) {
       .sort((a, b) => b.score - a.score);
 
     return scored[0]?.produto || null;
-  };
-
-  const findItemBaseByPedidoItem = (pedidoItem?: string | null) => {
-    if (!pedidoItem) return null;
-    return (
-      catalogos.itens.find((itemBase) => itemBase.ativo && isLikelySameItem(itemBase.nome, pedidoItem)) ||
-      null
-    );
-  };
-
-  const ensureProdutoFromPedido = async (pedido?: ParquePedidoCompraEntregue | null) => {
-    if (!pedido?.item) {
-      throw new Error('Pedido sem item informado.');
-    }
-
-    const produtoExistente = findProdutoByPedidoItem(pedido.item);
-    if (produtoExistente?.id) return produtoExistente.id;
-
-    const nomeItem = normalizeLookupText(pedido.item);
-    let itemBase = findItemBaseByPedidoItem(pedido.item);
-
-    if (!itemBase) {
-      const { error: upsertError } = await supabase
-        .from('parque_itens_base')
-        .upsert({ nome: nomeItem, ativo: true }, { onConflict: 'nome' });
-      if (upsertError) throw upsertError;
-
-      const { data: itemRow, error: itemError } = await supabase
-        .from('parque_itens_base')
-        .select('id, nome, ativo')
-        .eq('nome', nomeItem)
-        .maybeSingle();
-      if (itemError) throw itemError;
-      if (!itemRow?.id) {
-        throw new Error('Não foi possível criar/identificar o item base automaticamente.');
-      }
-
-      itemBase = {
-        id: itemRow.id,
-        nome: itemRow.nome || nomeItem,
-        ativo: Boolean(itemRow.ativo),
-      };
-    }
-
-    const especificacaoInferida = inferPedidoEspecificacao(pedido.item, itemBase?.nome || pedido.item);
-
-    const { data: produtoRows, error: produtoLookupError } = await supabase
-      .from('parque_produtos')
-      .select('id, especificacao_valor')
-      .eq('item_base_id', itemBase.id)
-      .eq('categoria', 'TECNOLOGIA')
-      .is('unidade_base_id', null)
-      .is('marca_base_id', null);
-
-    if (produtoLookupError) throw produtoLookupError;
-
-    const especificacaoNormalizada = normalizeLookupText(especificacaoInferida);
-    const produtoComEspecificacao = (produtoRows || []).find(
-      (row: { id: string; especificacao_valor?: string | null }) =>
-        normalizeLookupText(row.especificacao_valor) === especificacaoNormalizada
-    );
-    if (produtoComEspecificacao?.id) return produtoComEspecificacao.id;
-
-    const produtoSemEspecificacao = (produtoRows || []).find(
-      (row: { id: string; especificacao_valor?: string | null }) =>
-        !normalizeLookupText(row.especificacao_valor)
-    );
-    if (produtoSemEspecificacao?.id) return produtoSemEspecificacao.id;
-
-    try {
-      return await createParqueProduto({
-        item_base_id: itemBase.id,
-        categoria: 'TECNOLOGIA',
-        especificacao_valor: especificacaoInferida,
-        unidade_base_id: '',
-        marca_base_id: '',
-        quantidade_inicial: '',
-        valor_unitario_inicial: '',
-        quantidade_minima: '',
-        ativo: true,
-      });
-    } catch (error) {
-      const maybeCode = (error as { code?: string } | null)?.code;
-      if (maybeCode !== '23505') throw error;
-
-      const { data: retryProdutoRows, error: retryLookupError } = await supabase
-        .from('parque_produtos')
-        .select('id, especificacao_valor')
-        .eq('item_base_id', itemBase.id)
-        .eq('categoria', 'TECNOLOGIA')
-        .is('unidade_base_id', null)
-        .is('marca_base_id', null);
-      if (retryLookupError) throw retryLookupError;
-      const retryMatch = (retryProdutoRows || []).find(
-        (row: { id: string; especificacao_valor?: string | null }) =>
-          normalizeLookupText(row.especificacao_valor) === especificacaoNormalizada
-      );
-      if (retryMatch?.id) return retryMatch.id;
-      const retryWithoutSpec = (retryProdutoRows || []).find(
-        (row: { id: string; especificacao_valor?: string | null }) =>
-          !normalizeLookupText(row.especificacao_valor)
-      );
-      if (retryWithoutSpec?.id) return retryWithoutSpec.id;
-      throw error;
-    }
   };
 
   const applyLinkedProdutoParams = (itemBaseId: string, keepValues = false) => {
@@ -1885,7 +1763,7 @@ export default function ParqueTecnologico({ mode }: Props) {
       setFormError(
         produtoEncontrado
           ? ''
-          : 'Pedido entregue selecionado. Produto correspondente não encontrado; ele será criado automaticamente ao registrar no estoque.'
+          : 'Pedido entregue selecionado. Produto correspondente não encontrado; selecione um produto já cadastrado ou cadastre manualmente antes de registrar.'
       );
     }
     setShowMovimentacaoModal(true);
@@ -1919,9 +1797,7 @@ export default function ParqueTecnologico({ mode }: Props) {
 
           let produtoId = findProdutoIdByItem(pedido.item);
           if (!produtoId) {
-            produtoId = await ensureProdutoFromPedido(pedido);
-            const itemNome = findItemBaseByPedidoItem(pedido.item)?.nome || normalizeLookupText(pedido.item);
-            produtoPool.push({ id: produtoId, itemNome });
+            throw new Error('PRODUTO NÃO CADASTRADO. CADASTRE O PRODUTO MANUALMENTE E TENTE NOVAMENTE.');
           }
 
           await registerParqueMovimentacao({
@@ -2069,8 +1945,7 @@ export default function ParqueTecnologico({ mode }: Props) {
       }
 
       if (!payload.produto_id && payload.tipo_movimentacao === 'entrada_compra') {
-        const pedido = pedidosEntregues.find((row) => row.id === payload.pedido_compra_id);
-        payload.produto_id = await ensureProdutoFromPedido(pedido || null);
+        throw new Error('Selecione um produto já cadastrado para a entrada por compra.');
       }
       if (!payload.produto_id) throw new Error('Selecione o produto.');
 
@@ -3539,7 +3414,7 @@ export default function ParqueTecnologico({ mode }: Props) {
                   )}
                   {movimentacaoForm.tipo_movimentacao === 'entrada_compra' && !movimentacaoForm.produto_id && (
                     <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
-                      Se não houver produto cadastrado, ele será criado automaticamente a partir do tipo de item.
+                      Se não houver produto cadastrado, faça o cadastro manual antes de registrar a entrada.
                     </div>
                   )}
                 </div>
@@ -3635,8 +3510,9 @@ export default function ParqueTecnologico({ mode }: Props) {
                   )}
                 </div>
                 <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Data da movimentação</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Data e hora do lançamento no estoque</div>
                   <input type="datetime-local" className={inputClassName} value={movimentacaoForm.data_movimentacao} onChange={(event) => setMovimentacaoForm((prev) => ({ ...prev, data_movimentacao: event.target.value }))} />
+                  <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Padrão: dia e hora atuais.</div>
                 </div>
 
                 {movimentacaoForm.tipo_movimentacao === 'entrada_compra' && (
@@ -3653,7 +3529,7 @@ export default function ParqueTecnologico({ mode }: Props) {
                           const destinoSelecionado = prev.destino_descricao || getDestinoDefaultForTipoMovimentacao('entrada_compra');
                           return {
                             ...prev,
-                            produto_id: produtoEncontrado?.id || prev.produto_id,
+                            produto_id: produtoEncontrado?.id || '',
                             pedido_compra_id: event.target.value,
                             quantidade: Number(pedido?.quantidade_disponivel || 0) > 0 ? Number(pedido?.quantidade_disponivel) : prev.quantidade,
                             origem_tipo: 'compra',

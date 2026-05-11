@@ -67,7 +67,7 @@ const WinUserForm: React.FC<WinUserFormProps> = ({ user, onSuccess, onCancel }) 
 
     try {
       // Encrypt password for storage (reversible for frontend viewing)
-      let processedPassword = senha ? encryptPassword(senha) : '';
+      const processedPassword = senha ? encryptPassword(senha) : '';
 
       const dataToSave = {
         login,
@@ -206,5 +206,4 @@ const WinUserForm: React.FC<WinUserFormProps> = ({ user, onSuccess, onCancel }) 
 };
 
 export default WinUserForm;
-
 

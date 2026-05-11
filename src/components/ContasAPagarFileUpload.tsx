@@ -31,10 +31,17 @@ const STATUS_OPTIONS = [
   'Enviado financeiro'
 ];
 
-const PAGTO_OPTIONS = ['BOLETO', 'CARTAO', 'PIX', 'TRANSFERENCIA'] as const;
+type PagtoOption = 'BOLETO' | 'CARTAO' | 'PIX' | 'TRANSFERENCIA';
 
-const normalizePagto = (value: string): (typeof PAGTO_OPTIONS)[number] => {
-  const norm = normalize(value);
+const normalizeText = (text: string) =>
+  text.toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const normalizePagto = (value: string): PagtoOption => {
+  const norm = normalizeText(value);
   if (norm.includes('pix')) return 'PIX';
   if (norm.includes('transfer')) return 'TRANSFERENCIA';
   if (norm.includes('cart')) return 'CARTAO';
@@ -51,15 +58,8 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
   const [showPreview, setShowPreview] = useState(false);
   const { user, hasModuleEditAccess } = useAuth();
 
-  const normalize = (text: string) =>
-    text.toLowerCase()
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
   const mapHeader = (header: string): string | null => {
-    const norm = normalize(header);
+    const norm = normalizeText(header);
 
     if (norm.includes('status') && norm.includes('documento')) return 'status_documento';
     if (norm.includes('pagamento') || norm.includes('tipo') && norm.includes('pag')) return 'tipo_pagto';
@@ -87,7 +87,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
   };
 
   const normalizeStatus = (value: string): string | null => {
-    const norm = normalize(value);
+    const norm = normalizeText(value);
     if (norm.includes('nao') && norm.includes('emitido')) return STATUS_OPTIONS[0];
     if (norm.includes('emitido') && norm.includes('pendente')) return STATUS_OPTIONS[1];
     if (norm.includes('enviado') && norm.includes('financeiro')) return STATUS_OPTIONS[2];
@@ -260,8 +260,12 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
 
         if (hasAnyValue) {
           const parsedValor = row.valor ? Number(row.valor) : Number.NaN;
+          const statusDocumento = row.status_documento || STATUS_OPTIONS[0];
+          const dataEnvioFinanceiro = statusDocumento === STATUS_OPTIONS[2]
+            ? new Date().toISOString()
+            : null;
           rows.push({
-            status_documento: row.status_documento || STATUS_OPTIONS[0],
+            status_documento: statusDocumento,
             fornecedor: row.fornecedor || null,
             tipo_pagto: row.tipo_pagto || 'BOLETO',
             link: row.link || null,
@@ -279,6 +283,7 @@ const ContasAPagarFileUpload: React.FC<ContasAPagarFileUploadProps> = ({ onSucce
             tipo_de_conta: row.tipo_de_conta || null,
             cpf_cnpj: row.cpf_cnpj || null,
             tipo_conta: 'fixa',
+            data_envio_financeiro: dataEnvioFinanceiro,
             user_id: user.id,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()

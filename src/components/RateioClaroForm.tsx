@@ -48,23 +48,21 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
     }
     
     // Só definir dados iniciais se não há dados salvos
-    setFormData(prev => {
-      if (rateio) {
-        return {
-          nome: rateio.nome || '',
-          numero_linha: rateio.numero_linha || '',
-          responsavel_atual: rateio.responsavel_atual || '',
-          setor: rateio.setor || '',
-        };
-      } else {
-        return {
-          nome: '',
-          numero_linha: '',
-          responsavel_atual: '',
-          setor: '',
-        };
-      }
-    });
+    setFormData(
+      rateio
+        ? {
+            nome: rateio.nome || '',
+            numero_linha: rateio.numero_linha || '',
+            responsavel_atual: rateio.responsavel_atual || '',
+            setor: rateio.setor || '',
+          }
+        : {
+            nome: '',
+            numero_linha: '',
+            responsavel_atual: '',
+            setor: '',
+          }
+    );
     setError('');
   }, [rateio?.id, persistenceKey]); // Usar rateio.id em vez de rateio completo
   
@@ -247,5 +245,4 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
 };
 
 export default RateioClaroForm;
-
 

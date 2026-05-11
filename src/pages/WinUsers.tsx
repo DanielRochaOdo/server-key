@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Upload, Download, Search, Edit, Trash2, Eye, EyeOff, UserCheck, Users, Copy } from 'lucide-react';
 import WinUserForm from '../components/WinUserForm';
 import WinUserFileUpload from '../components/WinUserFileUpload';
@@ -7,7 +7,10 @@ import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { usePersistence } from '../contexts/PersistenceContext';
+import { useClipboardCopy } from '../hooks/useClipboardCopy';
+import { useProtectedVisibility } from '../hooks/useProtectedVisibility';
 import { decryptPassword } from '../utils/encryption';
+import { writeExportFile, writeTemplateFile } from '../utils/xlsxExport';
 
 interface WinUser {
   id: string;
@@ -26,17 +29,20 @@ const WinUsers: React.FC = () => {
   const [showUpload, setShowUpload] = useState(() => getState('winusers_showUpload') || false);
   const [editingUser, setEditingUser] = useState<WinUser | null>(() => getState('winusers_editingUser') || null);
   const [searchTerm, setSearchTerm] = useState(() => getState('winusers_searchTerm') || '');
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingUser, setViewingUser] = useState<WinUser | null>(() => getState('winusers_viewingUser') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [pendingPasswordReveal, setPendingPasswordReveal] = useState<string | null>(null);
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
   const [pendingActionUser, setPendingActionUser] = useState<WinUser | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { copiedKey, copyText } = useClipboardCopy();
+  const {
+    visibleIds,
+    showPasswordModal,
+    toggleVisibility,
+    handlePasswordVerified,
+    closePasswordModal,
+  } = useProtectedVisibility();
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -97,56 +103,6 @@ const WinUsers: React.FC = () => {
     }
   };
 
-  const togglePasswordVisibility = (id: string) => {
-    if (visiblePasswords.has(id)) {
-      // Hide password
-      const newVisible = new Set(visiblePasswords);
-      newVisible.delete(id);
-      setVisiblePasswords(newVisible);
-    } else {
-      // Show password - require authentication
-      setPendingPasswordReveal(id);
-      setShowPasswordModal(true);
-    }
-  };
-
-  const copyText = React.useCallback(async (value?: string, key?: string) => {
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = value;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      try {
-        document.execCommand('copy');
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    }
-    if (!key) return;
-    if (copyTimeoutRef.current) {
-      clearTimeout(copyTimeoutRef.current);
-    }
-    setCopiedKey(key);
-    copyTimeoutRef.current = setTimeout(() => {
-      setCopiedKey((prev) => (prev === key ? null : prev));
-    }, 800);
-  }, []);
-
-  const handlePasswordVerified = () => {
-    if (pendingPasswordReveal) {
-      const newVisible = new Set(visiblePasswords);
-      newVisible.add(pendingPasswordReveal);
-      setVisiblePasswords(newVisible);
-      setPendingPasswordReveal(null);
-    }
-  };
-
   const requestActionVerification = (action: 'view' | 'edit' | 'delete', user: WinUser) => {
     setPendingAction(action);
     setPendingActionUser(user);
@@ -186,54 +142,28 @@ const WinUsers: React.FC = () => {
 
   const exportData = async (format: 'csv' | 'xlsx' | 'template') => {
     try {
-      const modules = await Promise.allSettled([
-        import('xlsx-js-style'),
-        import('xlsx')
-      ]);
-      const candidates: any[] = [];
-      for (const result of modules) {
-        if (result.status === 'fulfilled') {
-          const moduleValue: any = result.value;
-          candidates.push(moduleValue, moduleValue?.default, moduleValue?.XLSX, moduleValue?.default?.XLSX);
-        }
-      }
-      candidates.push((globalThis as any).XLSX);
-
-      const xlsx = candidates.find((candidate) =>
-        candidate?.utils?.json_to_sheet &&
-        candidate?.utils?.book_new &&
-        candidate?.utils?.book_append_sheet &&
-        candidate?.writeFile
-      );
-
-      if (!xlsx) {
-        throw new Error('Biblioteca de exportacao indisponivel.');
-      }
-
       if (format === 'template') {
-        const templateData = [{
-          login: '',
-          senha: '',
-          usuario: ''
-        }];
-        const ws = xlsx.utils.json_to_sheet(templateData);
-        const wb = xlsx.utils.book_new();
-        xlsx.utils.book_append_sheet(wb, ws, 'Template');
-        xlsx.writeFile(wb, 'template_usuarios_windows.xlsx', { bookType: 'xlsx' });
+        await writeTemplateFile(
+          [
+            {
+              login: '',
+              senha: '',
+              usuario: '',
+            },
+          ],
+          'Template',
+          'template_usuarios_windows.xlsx'
+        );
       } else {
-        const dataToExport = filteredUsers.map(({ id, created_at, ...rest }) => rest);
-        const ws = xlsx.utils.json_to_sheet(dataToExport);
-        const wb = xlsx.utils.book_new();
-        xlsx.utils.book_append_sheet(wb, ws, 'UsuariosWindows');
-
+        const dataToExport = filteredUsers.map((user) => {
+          const exportable = { ...user } as Partial<WinUser>;
+          delete exportable.id;
+          delete exportable.created_at;
+          return exportable as Record<string, unknown>;
+        });
         const filterInfo = searchTerm ? `_filtrado` : '';
         const filename = `usuarios_windows${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-
-        if (format === 'csv') {
-          xlsx.writeFile(wb, filename, { bookType: 'csv' });
-        } else {
-          xlsx.writeFile(wb, filename, { bookType: 'xlsx' });
-        }
+        await writeExportFile(dataToExport, 'UsuariosWindows', filename, format);
       }
       setShowExportMenu(false);
     } catch (error) {
@@ -419,9 +349,9 @@ const WinUsers: React.FC = () => {
                   <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-neutral-600">
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <span className="font-mono text-xs sm:text-sm">
-                        {visiblePasswords.has(user.id) ? decryptPassword(user.senha) : '••••••••'}
+                        {visibleIds.has(user.id) ? decryptPassword(user.senha) : '••••••••'}
                       </span>
-                      {visiblePasswords.has(user.id) && (
+                      {visibleIds.has(user.id) && (
                         <button
                           type="button"
                           onClick={() => copyText(decryptPassword(user.senha), `winusers-pass-${user.id}`)}
@@ -434,10 +364,10 @@ const WinUsers: React.FC = () => {
                         </button>
                       )}
                       <button
-                        onClick={() => togglePasswordVisibility(user.id)}
+                        onClick={() => toggleVisibility(user.id)}
                         className="text-neutral-400 hover:text-neutral-600"
                       >
-                        {visiblePasswords.has(user.id) ? (
+                        {visibleIds.has(user.id) ? (
                           <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" />
                         ) : (
                           <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -547,10 +477,7 @@ const WinUsers: React.FC = () => {
 
       <PasswordVerificationModal
         isOpen={showPasswordModal}
-        onClose={() => {
-          setShowPasswordModal(false);
-          setPendingPasswordReveal(null);
-        }}
+        onClose={closePasswordModal}
         onSuccess={handlePasswordVerified}
         title="Verificação de Senha"
         message="Digite sua senha para visualizar a senha do usuário:"

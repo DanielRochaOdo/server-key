@@ -10,6 +10,14 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { getLocalDateKey, getUsdBrlRate } from '../utils/usdBrlRate';
+import {
+  loadClosedLoteOps,
+  markClosedLoteDetalhadoExport,
+  markClosedLoteEmailResult,
+  markClosedLoteResumidoExport,
+  saveClosedLoteOps,
+  type ClosedLoteOpsMeta,
+} from '../services/contasAPagarClosedLotes';
 const resolveXlsx = async () => {
   const isStyled = (candidate: any) => Boolean(candidate?.style_version);
   const pickCandidate = (moduleRef: any) => {
@@ -114,6 +122,8 @@ interface ContaAPagar {
   tipo_de_conta?: string | null;
   cpf_cnpj?: string | null;
   tipo_conta?: ContaTipo | null;
+  data_envio_financeiro?: string | null;
+  updated_at?: string | null;
   created_at: string;
 }
 
@@ -121,13 +131,6 @@ const STATUS_OPTIONS = [
   'Nao emitido',
   'Emitido pendente assinatura',
   'Enviado financeiro'
-];
-
-const PAGTO_OPTIONS = [
-  'BOLETO',
-  'CARTAO',
-  'PIX',
-  'TRANSFERENCIA',
 ];
 
 const normalizeTipoPagto = (value?: string | null) => (value || '').trim().toUpperCase();
@@ -687,6 +690,7 @@ const ContasAPagar: React.FC = () => {
   const [pendingActionConta, setPendingActionConta] = useState<ContaAPagar | null>(null);
   const [updatingStatusIds, setUpdatingStatusIds] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<string | null>(() => getState('contasAPagar_statusFilter') ?? null);
+  const [slaFilter, setSlaFilter] = useState<ContaSlaBadge | null>(null);
   const [showContaTipoModal, setShowContaTipoModal] = useState(false);
   const persistedStatusFilter = getState('contasAPagar_statusFilter') as string | null | undefined;
   const savedExportState = useMemo(() => loadExportModalState(), []);
@@ -704,11 +708,13 @@ const ContasAPagar: React.FC = () => {
   const [emailContext, setEmailContext] = useState<{
     columns: string[];
     rows: Array<Array<string | number | Date | null>>;
+    loteId?: string;
   } | null>(null);
   const [showConsolidateLoteModal, setShowConsolidateLoteModal] = useState(false);
   const [consolidateSelection, setConsolidateSelection] = useState<Set<string>>(new Set());
   const [consolidateError, setConsolidateError] = useState<string | null>(null);
   const [lotes, setLotes] = useState<LoteRegistro[]>(() => loadLotes());
+  const [closedLoteOps, setClosedLoteOps] = useState<Record<string, ClosedLoteOpsMeta>>(() => loadClosedLoteOps());
   const [lotesLoaded, setLotesLoaded] = useState(false);
   const [showLoteCreationModeModal, setShowLoteCreationModeModal] = useState(false);
   const [loteCreationMode, setLoteCreationMode] = useState<LoteCreationMode>('novo');
@@ -785,6 +791,10 @@ const ContasAPagar: React.FC = () => {
       console.error('Erro ao salvar destinatarios de e-mail:', error);
     }
   }, [emailRecipients]);
+
+  useEffect(() => {
+    saveClosedLoteOps(closedLoteOps);
+  }, [closedLoteOps]);
 
   useEffect(() => {
     setLotesLoaded(false);
@@ -932,6 +942,10 @@ const ContasAPagar: React.FC = () => {
     }
     setState('contasAPagar_statusFilter', value);
   }, [clearState, setState]);
+
+  const updateSlaFilter = useCallback((value: ContaSlaBadge | null) => {
+    setSlaFilter((prev) => (prev === value ? null : value));
+  }, []);
 
   const normalizeEmail = (value: string) => value.trim().toLowerCase();
   const defaultEmailRecipients = useMemo(
@@ -1394,6 +1408,95 @@ const ContasAPagar: React.FC = () => {
     return startOfDay(addDays(date, -dayIndex));
   };
 
+  const isSameDate = (left: Date, right: Date) => (
+    left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate()
+  );
+
+  const isDateOnOrAfter = (left: Date, right: Date) => {
+    const leftDate = startOfDay(left).getTime();
+    const rightDate = startOfDay(right).getTime();
+    return leftDate >= rightDate;
+  };
+
+  const isDateOnOrBefore = (left: Date, right: Date) => {
+    const leftDate = startOfDay(left).getTime();
+    const rightDate = startOfDay(right).getTime();
+    return leftDate <= rightDate;
+  };
+
+  const getPreviousWeekWednesday = (dueDate: Date) => {
+    const dayOfWeek = dueDate.getDay();
+    const mondayOffset = (dayOfWeek + 6) % 7;
+    const mondayOfCurrentWeek = addDays(startOfDay(dueDate), -mondayOffset);
+    return addDays(mondayOfCurrentWeek, -5);
+  };
+
+  const resolveStatusForDueDate = (conta: ContaAPagar, dueDate: Date) => {
+    const status = conta.status_documento || 'Nao emitido';
+    if (status === 'Nao emitido') return status;
+
+    const statusTimestampRaw = status === 'Enviado financeiro'
+      ? conta.data_envio_financeiro
+      : conta.updated_at;
+    const statusDate = statusTimestampRaw ? new Date(statusTimestampRaw) : null;
+    if (!statusDate || Number.isNaN(statusDate.getTime())) {
+      return 'Nao emitido';
+    }
+
+    // Status so vale para o ciclo atual quando atualizado dentro da janela de envio:
+    // quarta-feira da semana anterior ate o dia do vencimento.
+    const prazoEnvio = getPreviousWeekWednesday(dueDate);
+    const updatedInCycle = isDateOnOrAfter(statusDate, prazoEnvio) && isDateOnOrBefore(statusDate, dueDate);
+    return updatedInCycle ? status : 'Nao emitido';
+  };
+
+  type ContaSlaBadge = 'enviado' | 'no_prazo' | 'vence_hoje' | 'atrasado' | 'sem_vencimento';
+
+  const getContaSla = (conta: ContaAPagar, baseDate: Date): {
+    badge: ContaSlaBadge;
+    dueDate: Date | null;
+    prazoEnvio: Date | null;
+  } => {
+    const day = getDayValue(conta.vencimento ?? null);
+    if (!day) {
+      return { badge: 'sem_vencimento', dueDate: null, prazoEnvio: null };
+    }
+
+    const dueDate = getNextDueDate(day, baseDate);
+    const effectiveStatus = resolveStatusForDueDate(conta, dueDate);
+    if (effectiveStatus === 'Enviado financeiro') {
+      return { badge: 'enviado', dueDate, prazoEnvio: getPreviousWeekWednesday(dueDate) };
+    }
+
+    const prazoEnvio = getPreviousWeekWednesday(dueDate);
+    const today = startOfDay(baseDate);
+    if (today > prazoEnvio) {
+      return { badge: 'atrasado', dueDate, prazoEnvio };
+    }
+    if (isSameDate(today, prazoEnvio)) {
+      return { badge: 'vence_hoje', dueDate, prazoEnvio };
+    }
+    return { badge: 'no_prazo', dueDate, prazoEnvio };
+  };
+
+  const getSlaBadgeClasses = (badge: ContaSlaBadge) => {
+    if (badge === 'enviado') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (badge === 'no_prazo') return 'bg-sky-50 text-sky-700 border-sky-200';
+    if (badge === 'vence_hoje') return 'bg-amber-50 text-amber-700 border-amber-200';
+    if (badge === 'atrasado') return 'bg-red-50 text-red-700 border-red-200';
+    return 'bg-neutral-200 text-neutral-500 border-neutral-300';
+  };
+
+  const getSlaBadgeLabel = (badge: ContaSlaBadge) => {
+    if (badge === 'enviado') return 'SLA: enviado';
+    if (badge === 'no_prazo') return 'SLA: no prazo';
+    if (badge === 'vence_hoje') return 'SLA: vence hoje';
+    if (badge === 'atrasado') return 'SLA: atrasado';
+    return 'SLA: sem vencimento';
+  };
+
   const toggleSort = useCallback((key: 'fornecedor' | 'status_documento' | 'valor' | 'vencimento') => {
     setSortConfig((prev) => {
       if (prev.key !== key) return { key, direction: 'asc' };
@@ -1419,9 +1522,21 @@ const ContasAPagar: React.FC = () => {
   const handleStatusChange = useCallback(async (contaId: string, value: string) => {
     if (!requireEditPermission()) return;
     const statusValue = value.trim() === '' ? null : value.trim();
+    const nowIso = new Date().toISOString();
+    const currentConta = contas.find((conta) => conta.id === contaId) ?? null;
+    const currentStatus = currentConta?.status_documento ?? null;
+    const currentDataEnvio = currentConta?.data_envio_financeiro ?? null;
+    const isSent = statusValue === 'Enviado financeiro';
+    const shouldStampSendDate = isSent && (currentStatus !== 'Enviado financeiro' || !currentDataEnvio);
+    const nextDataEnvio = isSent
+      ? (shouldStampSendDate ? nowIso : currentDataEnvio)
+      : null;
+
     setUpdatingStatusIds(prev => new Set(prev).add(contaId));
     setContas(prev => prev.map((conta) => (
-      conta.id === contaId ? { ...conta, status_documento: statusValue } : conta
+      conta.id === contaId
+        ? { ...conta, status_documento: statusValue, data_envio_financeiro: nextDataEnvio, updated_at: nowIso }
+        : conta
     )));
 
     try {
@@ -1429,7 +1544,8 @@ const ContasAPagar: React.FC = () => {
         .from('contas_a_pagar')
         .update({
           status_documento: statusValue,
-          updated_at: new Date().toISOString(),
+          data_envio_financeiro: nextDataEnvio,
+          updated_at: nowIso,
         })
         .eq('id', contaId);
 
@@ -1446,7 +1562,7 @@ const ContasAPagar: React.FC = () => {
         return next;
       });
     }
-  }, [fetchContas, requireEditPermission]);
+  }, [contas, fetchContas, requireEditPermission]);
 
   const nextWeekEntries = useMemo(() => {
     if (!contasByTab.length) return [];
@@ -1454,25 +1570,31 @@ const ContasAPagar: React.FC = () => {
     const nextWeekStart = startOfWeekSunday(addDays(startOfDay(now), 7));
     const nextWeekEnd = addDays(nextWeekStart, 6);
 
-    return contasByTab.filter((conta) => {
+    return contasByTab.flatMap((conta) => {
       const day = getDayValue(conta.vencimento ?? null);
-      if (!day) return false;
+      if (!day) return [];
       const dueDate = getNextDueDate(day, now);
-      return dueDate >= nextWeekStart && dueDate <= nextWeekEnd;
+      if (dueDate >= nextWeekStart && dueDate <= nextWeekEnd) {
+        return [{ conta, dueDate }];
+      }
+      return [];
     });
   }, [contasByTab]);
 
   const nextWeekSuppliers = useMemo(() => {
-    const entries = nextWeekEntries.map((conta) => ({
+    const baseDate = new Date();
+    const entries = nextWeekEntries.map(({ conta, dueDate }) => ({
       id: conta.id,
       fornecedor: conta.fornecedor || 'Fornecedor nao informado',
       vencimento: conta.vencimento ?? null,
-      status: conta.status_documento || '',
+      dueDate,
+      prazoEnvio: getPreviousWeekWednesday(dueDate),
+      status: resolveStatusForDueDate(conta, dueDate),
+      slaBadge: getContaSla(conta, baseDate).badge,
     }));
     return entries.sort((a, b) => {
-      const aDay = a.vencimento ?? 0;
-      const bDay = b.vencimento ?? 0;
-      if (aDay !== bDay) return aDay - bDay;
+      const byDueDate = a.dueDate.getTime() - b.dueDate.getTime();
+      if (byDueDate !== 0) return byDueDate;
       return a.fornecedor.localeCompare(b.fornecedor);
     });
   }, [nextWeekEntries]);
@@ -1510,6 +1632,7 @@ const ContasAPagar: React.FC = () => {
   }, [pendingAction, pendingActionConta, handleDelete, requireEditPermission]);
 
   const filteredContasSorted = useMemo(() => {
+    const baseDate = new Date();
     const term = searchTerm.toLowerCase();
     let filtered = contasByTab.filter((conta) =>
       (conta.fornecedor || '').toLowerCase().includes(term) ||
@@ -1522,6 +1645,9 @@ const ContasAPagar: React.FC = () => {
 
     if (statusFilter) {
       filtered = filtered.filter((conta) => conta.status_documento === statusFilter);
+    }
+    if (slaFilter) {
+      filtered = filtered.filter((conta) => getContaSla(conta, baseDate).badge === slaFilter);
     }
 
     const compareValues = (aValue: string | number | null, bValue: string | number | null) => {
@@ -1562,7 +1688,7 @@ const ContasAPagar: React.FC = () => {
     }
 
     return filtered;
-  }, [contasByTab, searchTerm, sortConfig, statusFilter]);
+  }, [contasByTab, searchTerm, slaFilter, sortConfig, statusFilter]);
 
   const createDefaultExportEntry = (conta: ContaAPagar) => {
     const now = new Date();
@@ -1980,7 +2106,7 @@ const ContasAPagar: React.FC = () => {
       XLSX.utils.book_append_sheet(wb, ws, 'Planilha 3'); // igual ao anexo
       const filenameBase = overrides?.filenameBase ?? `PROTOCOLO_FINANCEIRO_RESUMIDO_${dateStamp}`;
       XLSX.writeFile(wb, `${filenameBase}.xlsx`, { bookType: 'xlsx', cellStyles: true });
-      return;
+      return true;
     }
 
     if (format === 'template') {
@@ -2080,9 +2206,11 @@ const ContasAPagar: React.FC = () => {
       : `PROTOCOLO_FINANCEIRO_${dateStamp}`);
 
     XLSX.writeFile(wb, `${filenameBase}.xlsx`, { bookType: 'xlsx', cellStyles: true });
+    return true;
   } catch (error) {
       console.error('Erro ao exportar contas a pagar:', error);
       setToast({ type: 'error', message: 'Falha ao exportar planilha.' });
+      return false;
     }
   }, [buildXlsxDataRows, filteredContasSorted, setToast]);
 
@@ -2212,7 +2340,7 @@ const ContasAPagar: React.FC = () => {
     }
   }, [buildXlsxDataRows, exportEntries, normalizeEmail, sendingEmail]);
 
-  const handleOpenEmailRecipientsModal = useCallback((context?: { columns: string[]; rows: Array<Array<string | number | Date | null>> }) => {
+  const handleOpenEmailRecipientsModal = useCallback((context?: { columns: string[]; rows: Array<Array<string | number | Date | null>>; loteId?: string }) => {
     setEmailRecipientInput('');
     setEmailRecipientsError(null);
     setEmailContext(context ?? null);
@@ -2250,6 +2378,15 @@ const ContasAPagar: React.FC = () => {
       return;
     }
     const success = await handleSendXlsxEmail(emailRecipients, emailContext ?? undefined);
+    if (emailContext?.loteId) {
+      const timestampIso = new Date().toISOString();
+      setClosedLoteOps((prev) => markClosedLoteEmailResult(prev, emailContext.loteId as string, {
+        timestampIso,
+        recipients: emailRecipients,
+        success,
+        errorMessage: success ? undefined : 'Falha ao enviar e-mail.',
+      }));
+    }
     if (success) {
       setShowEmailRecipientsModal(false);
       setEmailContext(null);
@@ -2482,6 +2619,18 @@ const ContasAPagar: React.FC = () => {
       setEditingLoteTab('fixa');
     }
   }, [getRowsCounts, requireEditPermission]);
+
+  const handleOpenManageLoteFromList = useCallback((lote: LoteRegistro) => {
+    if (lote.fechado) return;
+    const tipo: 'resumido' | 'detalhado' | null = lote.detalhado ? 'detalhado' : lote.resumido ? 'resumido' : null;
+    if (!tipo) {
+      setToast({ type: 'error', message: 'Lote sem estrutura para edição.' });
+      return;
+    }
+    handleStartEditLote(lote, tipo, false);
+    setManageLoteContasSearch('');
+    setShowManageLoteContasModal(true);
+  }, [handleStartEditLote]);
 
   const handleCancelEditLote = useCallback(() => {
     setEditingLoteId(null);
@@ -2910,7 +3059,7 @@ const ContasAPagar: React.FC = () => {
     )));
   }, []);
 
-  const handleExportEditingLote = useCallback(() => {
+  const handleExportEditingLote = useCallback(async () => {
     if (!editingLoteType) return;
     const dateStamp = new Date().toISOString().slice(0, 10);
     const safeName = (editingLoteNome || 'lote')
@@ -2920,19 +3069,98 @@ const ContasAPagar: React.FC = () => {
     const suffix = editingLoteType === 'resumido' ? 'RESUMIDO' : 'DETALHADO';
     const filenameBase = `${safeName}_${suffix}_${dateStamp}`;
 
+    let ok = false;
     if (editingLoteType === 'resumido') {
-      void exportData('xlsx_resumido', {}, {
+      ok = await exportData('xlsx_resumido', {}, {
         filenameBase,
         resumidoRows: editingLoteRows as LoteRowResumido[],
       });
+      if (ok && editingLoteReadOnly && editingLoteId) {
+        const timestampIso = new Date().toISOString();
+        setClosedLoteOps((prev) => markClosedLoteResumidoExport(prev, editingLoteId, timestampIso));
+      }
       return;
     }
 
-    void exportData('xlsx', {}, {
+    ok = await exportData('xlsx', {}, {
       filenameBase,
       detalhadoRows: editingLoteRows as LoteRowDetalhado[],
     });
-  }, [editingLoteNome, editingLoteRows, editingLoteType, exportData]);
+    if (ok && editingLoteReadOnly && editingLoteId) {
+      const timestampIso = new Date().toISOString();
+      setClosedLoteOps((prev) => markClosedLoteDetalhadoExport(prev, editingLoteId, timestampIso));
+    }
+  }, [editingLoteId, editingLoteNome, editingLoteReadOnly, editingLoteRows, editingLoteType, exportData]);
+
+  const getClosedLoteDetalhadoRows = useCallback((lote: LoteRegistro): LoteRowDetalhado[] => {
+    if (lote.detalhadoRows && lote.detalhadoRows.length > 0) {
+      return lote.detalhadoRows;
+    }
+    return mapResumidoToDetalhado(lote.resumidoRows ?? []);
+  }, [mapResumidoToDetalhado]);
+
+  const getClosedLoteResumidoRows = useCallback((lote: LoteRegistro): LoteRowResumido[] => {
+    if (lote.resumidoRows && lote.resumidoRows.length > 0) {
+      return lote.resumidoRows;
+    }
+    return mapDetalhadoToResumido(lote.detalhadoRows ?? []);
+  }, [mapDetalhadoToResumido]);
+
+  const buildLoteFilenameBase = useCallback((loteNome: string, suffix: 'DETALHADO' | 'RESUMIDO') => {
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    const safeName = (loteNome || 'lote')
+      .replace(/[^\w\d-]+/g, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 40);
+    return `${safeName}_${suffix}_${dateStamp}`;
+  }, []);
+
+  const handleExportClosedLote = useCallback(async (lote: LoteRegistro, tipo: 'detalhado' | 'resumido') => {
+    if (tipo === 'detalhado') {
+      const detalhadoRows = getClosedLoteDetalhadoRows(lote);
+      if (detalhadoRows.length === 0) {
+        setToast({ type: 'error', message: 'Lote sem linhas detalhadas para exportar.' });
+        return;
+      }
+      const ok = await exportData('xlsx', {}, {
+        filenameBase: buildLoteFilenameBase(lote.nome, 'DETALHADO'),
+        detalhadoRows,
+      });
+      if (ok) {
+        const timestampIso = new Date().toISOString();
+        setClosedLoteOps((prev) => markClosedLoteDetalhadoExport(prev, lote.id, timestampIso));
+      }
+      return;
+    }
+
+    const resumidoRows = getClosedLoteResumidoRows(lote);
+    if (resumidoRows.length === 0) {
+      setToast({ type: 'error', message: 'Lote sem linhas resumidas para exportar.' });
+      return;
+    }
+    const ok = await exportData('xlsx_resumido', {}, {
+      filenameBase: buildLoteFilenameBase(lote.nome, 'RESUMIDO'),
+      resumidoRows,
+    });
+    if (ok) {
+      const timestampIso = new Date().toISOString();
+      setClosedLoteOps((prev) => markClosedLoteResumidoExport(prev, lote.id, timestampIso));
+    }
+  }, [buildLoteFilenameBase, exportData, getClosedLoteDetalhadoRows, getClosedLoteResumidoRows]);
+
+  const handleEmailClosedLoteDetalhado = useCallback((lote: LoteRegistro) => {
+    const detalhadoRows = getClosedLoteDetalhadoRows(lote);
+    if (detalhadoRows.length === 0) {
+      setToast({ type: 'error', message: 'Lote sem linhas detalhadas para envio.' });
+      return;
+    }
+    const rows = buildDetalhadoEmailRows(detalhadoRows);
+    handleOpenEmailRecipientsModal({
+      columns: XLSX_EXPORT_HEADERS,
+      rows,
+      loteId: lote.id,
+    });
+  }, [buildDetalhadoEmailRows, getClosedLoteDetalhadoRows, handleOpenEmailRecipientsModal]);
 
 
   const handleNewContaClick = useCallback(() => {
@@ -2985,6 +3213,17 @@ const ContasAPagar: React.FC = () => {
   const formatDay = (value?: number | null) => {
     if (value === null || value === undefined) return '-';
     return value.toString();
+  };
+
+  const formatShortDate = (value?: string | Date | null) => {
+    if (!value) return '-';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    try {
+      return new Intl.DateTimeFormat('pt-BR').format(date);
+    } catch {
+      return date.toLocaleDateString('pt-BR');
+    }
   };
 
   const formatDateTime = (value: string) => {
@@ -3055,6 +3294,7 @@ const ContasAPagar: React.FC = () => {
   };
 
   const dashboardStats = useMemo(() => {
+    const baseDate = new Date();
     const totalCount = contasByTab.length;
     const naoEmitidoCount = contasByTab.filter((conta) => conta.status_documento === 'Nao emitido').length;
     const pendenteCount = contasByTab.filter((conta) => conta.status_documento === 'Emitido pendente assinatura').length;
@@ -3062,7 +3302,13 @@ const ContasAPagar: React.FC = () => {
     const proximosCount = nextWeekEntries.length;
     const totalValor = contasByTab.reduce((acc, conta) => acc + (parseValorNumber(conta.valor) ?? 0), 0);
 
-    return [
+    const slaBadges = contasByTab.map((conta) => getContaSla(conta, baseDate).badge);
+    const noPrazoCount = slaBadges.filter((badge) => badge === 'no_prazo').length;
+    const venceHojeCount = slaBadges.filter((badge) => badge === 'vence_hoje').length;
+    const atrasadoCount = slaBadges.filter((badge) => badge === 'atrasado').length;
+    const enviadoNoCicloCount = slaBadges.filter((badge) => badge === 'enviado').length;
+
+    const mainStats = [
       {
         title: 'Total de Contas',
         value: totalCount,
@@ -3070,7 +3316,10 @@ const ContasAPagar: React.FC = () => {
         color: 'text-primary-600',
         bgColor: 'bg-primary-100',
         description: `${totalCount} conta${totalCount !== 1 ? 's' : ''} cadastrada${totalCount !== 1 ? 's' : ''}`,
-        onClick: () => updateStatusFilter(null),
+        onClick: () => {
+          updateStatusFilter(null);
+          updateSlaFilter(null);
+        },
       },
       {
         title: 'Valor total',
@@ -3079,6 +3328,10 @@ const ContasAPagar: React.FC = () => {
         color: 'text-emerald-600',
         bgColor: 'bg-emerald-100',
         description: 'Soma de todas as contas',
+        onClick: () => {
+          updateStatusFilter(null);
+          updateSlaFilter(null);
+        },
       },
       {
         title: 'Nao emitido',
@@ -3087,7 +3340,10 @@ const ContasAPagar: React.FC = () => {
         color: 'text-red-600',
         bgColor: 'bg-red-100',
         description: `${naoEmitidoCount} pendente${naoEmitidoCount !== 1 ? 's' : ''}`,
-        onClick: () => updateStatusFilter('Nao emitido'),
+        onClick: () => {
+          updateStatusFilter('Nao emitido');
+          updateSlaFilter(null);
+        },
       },
       {
         title: 'Pendente assinatura',
@@ -3096,7 +3352,10 @@ const ContasAPagar: React.FC = () => {
         color: 'text-yellow-600',
         bgColor: 'bg-yellow-100',
         description: `${pendenteCount} aguardando`,
-        onClick: () => updateStatusFilter('Emitido pendente assinatura'),
+        onClick: () => {
+          updateStatusFilter('Emitido pendente assinatura');
+          updateSlaFilter(null);
+        },
       },
       {
         title: 'Enviado financeiro',
@@ -3105,7 +3364,10 @@ const ContasAPagar: React.FC = () => {
         color: 'text-green-600',
         bgColor: 'bg-green-100',
         description: `${enviadoCount} enviado${enviadoCount !== 1 ? 's' : ''}`,
-        onClick: () => updateStatusFilter('Enviado financeiro'),
+        onClick: () => {
+          updateStatusFilter('Enviado financeiro');
+          updateSlaFilter(null);
+        },
       },
       {
         title: 'Proximos vencimentos',
@@ -3117,7 +3379,64 @@ const ContasAPagar: React.FC = () => {
         onClick: () => setShowNextWeekModal(true),
       }
     ];
-  }, [contasByTab, nextWeekEntries, updateStatusFilter]);
+
+    const slaStats = [
+      {
+        title: 'SLA no prazo',
+        value: noPrazoCount,
+        icon: FileText,
+        color: 'text-sky-600',
+        bgColor: 'bg-sky-100',
+        description: 'Ainda dentro do prazo',
+        onClick: () => {
+          updateStatusFilter(null);
+          updateSlaFilter('no_prazo');
+        },
+        className: slaFilter === 'no_prazo' ? 'ring-2 ring-sky-300' : '',
+      },
+      {
+        title: 'SLA vence hoje',
+        value: venceHojeCount,
+        icon: FileText,
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-100',
+        description: 'Prazo de envio no dia',
+        onClick: () => {
+          updateStatusFilter(null);
+          updateSlaFilter('vence_hoje');
+        },
+        className: slaFilter === 'vence_hoje' ? 'ring-2 ring-amber-300' : '',
+      },
+      {
+        title: 'SLA atrasado',
+        value: atrasadoCount,
+        icon: Ban,
+        color: 'text-red-600',
+        bgColor: 'bg-red-100',
+        description: 'Fora do prazo de envio',
+        onClick: () => {
+          updateStatusFilter(null);
+          updateSlaFilter('atrasado');
+        },
+        className: slaFilter === 'atrasado' ? 'ring-2 ring-red-300' : '',
+      },
+      {
+        title: 'SLA enviado',
+        value: enviadoNoCicloCount,
+        icon: CheckCircle,
+        color: 'text-emerald-600',
+        bgColor: 'bg-emerald-100',
+        description: 'Enviado no ciclo correto',
+        onClick: () => {
+          updateStatusFilter(null);
+          updateSlaFilter('enviado');
+        },
+        className: slaFilter === 'enviado' ? 'ring-2 ring-emerald-300' : '',
+      },
+    ];
+
+    return { mainStats, slaStats };
+  }, [contasByTab, nextWeekEntries, slaFilter, updateSlaFilter, updateStatusFilter]);
 
   if (loading) {
     return (
@@ -3208,9 +3527,15 @@ const ContasAPagar: React.FC = () => {
       />
 
       {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
-        <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-3 sm:p-4 shadow-sm">
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-3 sm:p-4 shadow-sm space-y-3">
           <DashboardStats
-            stats={dashboardStats}
+            stats={dashboardStats.mainStats}
+            layout="row"
+            className="no-scrollbar mb-0 !gap-3"
+            cardClassName="min-w-[160px] sm:min-w-[170px] lg:min-w-[180px] !p-3 sm:!p-4 border border-neutral-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
+          />
+          <DashboardStats
+            stats={dashboardStats.slaStats}
             layout="row"
             className="no-scrollbar mb-0 !gap-3"
             cardClassName="min-w-[160px] sm:min-w-[170px] lg:min-w-[180px] !p-3 sm:!p-4 border border-neutral-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
@@ -3401,6 +3726,39 @@ const ContasAPagar: React.FC = () => {
                           <span>
                             Criado em: <strong className="font-semibold text-neutral-700">{formatDateTime(lote.criado_em)}</strong>
                           </span>
+                          {closedLoteOps[lote.id]?.ultimoExportDetalhadoEm && (
+                            <>
+                              <span className="hidden sm:inline text-neutral-300">â€¢</span>
+                              <span>
+                                Det. exportado: <strong className="font-semibold text-neutral-700">{formatDateTime(closedLoteOps[lote.id]?.ultimoExportDetalhadoEm as string)}</strong>
+                              </span>
+                            </>
+                          )}
+                          {closedLoteOps[lote.id]?.ultimoExportResumidoEm && (
+                            <>
+                              <span className="hidden sm:inline text-neutral-300">â€¢</span>
+                              <span>
+                                Res. exportado: <strong className="font-semibold text-neutral-700">{formatDateTime(closedLoteOps[lote.id]?.ultimoExportResumidoEm as string)}</strong>
+                              </span>
+                            </>
+                          )}
+                          {closedLoteOps[lote.id]?.ultimoEmailDetalhadoEm && (
+                            <>
+                              <span className="hidden sm:inline text-neutral-300">â€¢</span>
+                              <span>
+                                E-mail det.: <strong className="font-semibold text-neutral-700">{formatDateTime(closedLoteOps[lote.id]?.ultimoEmailDetalhadoEm as string)}</strong>
+                              </span>
+                            </>
+                          )}
+                          {closedLoteOps[lote.id]?.ultimoEmailStatus && (
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                              closedLoteOps[lote.id]?.ultimoEmailStatus === 'sucesso'
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'border-red-200 bg-red-50 text-red-700'
+                            }`}>
+                              Email {closedLoteOps[lote.id]?.ultimoEmailStatus}
+                            </span>
+                          )}
                           {lote.fechado && (() => {
                             const counts = getLoteCounts(lote);
                             return (
@@ -3447,6 +3805,43 @@ const ContasAPagar: React.FC = () => {
                           Detalhado
                         </button>
                         <div className="h-6 w-px bg-neutral-200 mx-1 hidden sm:block" />
+                        {lote.fechado && (
+                          <>
+                            <button
+                              onClick={() => void handleExportClosedLote(lote, 'detalhado')}
+                              className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                              title="Exportar XLSX detalhado"
+                            >
+                              <Download className="h-3 w-3" />
+                              Exportar Det.
+                            </button>
+                            <button
+                              onClick={() => void handleExportClosedLote(lote, 'resumido')}
+                              className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                              title="Exportar XLSX resumido"
+                            >
+                              <Download className="h-3 w-3" />
+                              Exportar Res.
+                            </button>
+                            <button
+                              onClick={() => handleEmailClosedLoteDetalhado(lote)}
+                              className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                              title="Enviar detalhado por e-mail"
+                            >
+                              <Mail className="h-3 w-3" />
+                              Enviar Det.
+                            </button>
+                          </>
+                        )}
+                        {!lote.fechado && (
+                          <button
+                            onClick={() => handleOpenManageLoteFromList(lote)}
+                            className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                            title="Adicionar ou remover contas do lote"
+                          >
+                            Contas
+                          </button>
+                        )}
                         {!lote.fechado && (
                           <button
                             onClick={() => handleDeleteLote(lote.id)}
@@ -3582,7 +3977,7 @@ const ContasAPagar: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="px-2 py-2 whitespace-nowrap text-neutral-600">
+                        <td className="px-2 py-2 text-neutral-600">
                           <select
                             value={conta.status_documento || 'Nao emitido'}
                             onChange={(e) => handleStatusChange(conta.id, e.target.value)}
@@ -3596,6 +3991,25 @@ const ContasAPagar: React.FC = () => {
                               </option>
                             ))}
                           </select>
+                          {(() => {
+                            const contaSla = getContaSla(conta, new Date());
+                            const envioLabel = conta.status_documento === 'Enviado financeiro'
+                              ? formatShortDate(conta.data_envio_financeiro)
+                              : 'N/A';
+                            return (
+                              <div className="mt-1 flex items-center justify-between gap-2">
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${getSlaBadgeClasses(contaSla.badge)}`}
+                                  title={`Prazo de envio: ${formatShortDate(contaSla.prazoEnvio)}`}
+                                >
+                                  {getSlaBadgeLabel(contaSla.badge)}
+                                </span>
+                                <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 whitespace-nowrap">
+                                  {envioLabel}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-2 py-2 align-top">
                           <div className="text-neutral-600 break-words whitespace-normal leading-snug">
@@ -3675,19 +4089,39 @@ const ContasAPagar: React.FC = () => {
                       )}
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <select
-                        value={conta.status_documento || 'Nao emitido'}
-                        onChange={(e) => handleStatusChange(conta.id, e.target.value)}
-                        disabled={updatingStatusIds.has(conta.id)}
-                        className={`flex-1 rounded-lg border px-2 py-2 text-xs font-semibold uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 disabled:opacity-60 ${getStatusColorClasses(conta.status_documento || 'Nao emitido')}`}
-                        aria-label="Status do documento"
-                      >
-                        {STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex-1 min-w-0">
+                        <select
+                          value={conta.status_documento || 'Nao emitido'}
+                          onChange={(e) => handleStatusChange(conta.id, e.target.value)}
+                          disabled={updatingStatusIds.has(conta.id)}
+                          className={`w-full rounded-lg border px-2 py-2 text-xs font-semibold uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 disabled:opacity-60 ${getStatusColorClasses(conta.status_documento || 'Nao emitido')}`}
+                          aria-label="Status do documento"
+                        >
+                          {STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                        {(() => {
+                          const contaSla = getContaSla(conta, new Date());
+                          const envioLabel = conta.status_documento === 'Enviado financeiro'
+                            ? formatShortDate(conta.data_envio_financeiro)
+                            : 'N/A';
+                          return (
+                            <div className="mt-1 flex items-center justify-between gap-2">
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${getSlaBadgeClasses(contaSla.badge)}`}
+                              >
+                                {getSlaBadgeLabel(contaSla.badge)}
+                              </span>
+                              <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 whitespace-nowrap">
+                                {envioLabel}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => requestActionVerification('view', conta)}
@@ -4570,7 +5004,11 @@ const ContasAPagar: React.FC = () => {
                 <button
                   onClick={() => {
                     const rows = buildDetalhadoEmailRows(editingLoteRows as LoteRowDetalhado[]);
-                    handleOpenEmailRecipientsModal({ columns: XLSX_EXPORT_HEADERS, rows });
+                    handleOpenEmailRecipientsModal({
+                      columns: XLSX_EXPORT_HEADERS,
+                      rows,
+                      loteId: editingLoteId ?? undefined,
+                    });
                   }}
                   disabled={sendingEmail}
                   className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-primary-200 text-sm font-medium text-primary-700 transition-colors ${
@@ -4771,9 +5209,17 @@ const ContasAPagar: React.FC = () => {
                 )}
                 {nextWeekSuppliers.map((item) => (
                   <li key={item.id} className="border border-neutral-200 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
-                    <span>{item.fornecedor}</span>
+                    <div className="min-w-0">
+                      <span className="block truncate">{item.fornecedor}</span>
+                      <span className="mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
+                        Prazo envio: {formatShortDate(item.prazoEnvio)}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-2 text-neutral-500">
                       <span>Dia {formatDay(item.vencimento)}</span>
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${getSlaBadgeClasses(item.slaBadge)}`}>
+                        {getSlaBadgeLabel(item.slaBadge)}
+                      </span>
                       {item.status === 'Enviado financeiro' && (
                         <CheckCircle className="h-4 w-4 text-green-600" />
                       )}

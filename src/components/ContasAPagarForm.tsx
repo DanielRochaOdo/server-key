@@ -24,6 +24,7 @@ interface ContaAPagar {
   tipo_de_conta?: string | null;
   cpf_cnpj?: string | null;
   tipo_conta?: 'fixa' | 'avulsa' | 'ressarcimento' | null;
+  data_envio_financeiro?: string | null;
 }
 type ContaTipo = 'fixa' | 'avulsa' | 'ressarcimento';
 interface ContasAPagarFormProps {
@@ -122,7 +123,8 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         if (parsedData && Object.keys(parsedData).length > 0) {
           const savedMoeda = (parsedData.moeda || 'BRL').toUpperCase();
           setIsUsd(savedMoeda === 'USD');
-          const { moeda: _moeda, ...rest } = parsedData;
+          const rest = { ...parsedData };
+          delete rest.moeda;
           setFormData(prev => ({ ...prev, ...rest }));
         }
         return;
@@ -294,6 +296,18 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
       }
 
       const dataToSave = {
+        data_envio_financeiro: (() => {
+          const previousStatus = conta?.status_documento || null;
+          const previousSendDate = conta?.data_envio_financeiro || null;
+          const currentStatus = formData.status_documento || null;
+          if (currentStatus === STATUS_OPTIONS[2]) {
+            if (previousStatus === STATUS_OPTIONS[2] && previousSendDate) {
+              return previousSendDate;
+            }
+            return new Date().toISOString();
+          }
+          return null;
+        })(),
         ...formData,
         valor: valorFinal,
         valor_moeda: parsedValor,

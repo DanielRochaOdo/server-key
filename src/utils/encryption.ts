@@ -125,7 +125,7 @@ export const decryptPassword = (encryptedPassword: string): string => {
     }
 
     return decrypted;
-  } catch (error) {
+  } catch {
     return trimmedPassword;
   }
 };
