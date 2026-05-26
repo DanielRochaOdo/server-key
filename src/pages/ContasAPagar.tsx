@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail } from 'lucide-react';
+import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail, Eye } from 'lucide-react';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
 import DashboardStats from '../components/DashboardStats';
@@ -98,6 +98,7 @@ interface LoteRegistro {
   avulsasTotal?: number;
   ressarcimentoTotal?: number;
   criado_em: string;
+  updated_at?: string | null;
   resumidoRows?: LoteRowResumido[];
   detalhadoRows?: LoteRowDetalhado[];
 }
@@ -126,6 +127,13 @@ interface ContaAPagar {
   updated_at?: string | null;
   created_at: string;
 }
+
+type ContaEnvioFinanceiroVinculo = {
+  contaId: string;
+  loteId: string;
+  loteNome: string;
+  loteDataEnvio: string;
+};
 
 const STATUS_OPTIONS = [
   'Nao emitido',
@@ -243,6 +251,19 @@ const parseExportDate = (value?: string | null) => {
   if (year < 100) year += 2000;
   const date = new Date(year, month - 1, day);
   return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const sortLoteRows = <T extends { id: string; contaId?: string; fornecedor?: string; vencimento?: string }>(rows: T[]) => {
+  return [...rows].sort((a, b) => {
+    const aDate = parseExportDate(a.vencimento ?? '');
+    const bDate = parseExportDate(b.vencimento ?? '');
+    const aTime = aDate ? aDate.getTime() : Number.MAX_SAFE_INTEGER;
+    const bTime = bDate ? bDate.getTime() : Number.MAX_SAFE_INTEGER;
+    if (aTime !== bTime) return aTime - bTime;
+    const byFornecedor = (a.fornecedor || '').localeCompare(b.fornecedor || '', 'pt-BR', { sensitivity: 'base' });
+    if (byFornecedor !== 0) return byFornecedor;
+    return (a.contaId || a.id).localeCompare(b.contaId || b.id);
+  });
 };
 
 
@@ -506,12 +527,9 @@ const loadLotes = (): LoteRegistro[] => {
             ? total
             : 0;
         const criadoEm = typeof item.criado_em === 'string' ? item.criado_em : new Date().toISOString();
-        const isLegacy = 'tipo' in item && !('resumido' in item) && !('detalhado' in item) && !('resumidoRows' in item) && !('detalhadoRows' in item);
         const rawId = typeof item.id === 'string' ? item.id : undefined;
         const normalizedId = isUuid(rawId) ? rawId : createId();
-        const key = isLegacy
-          ? `${nome}::${origem}::${total}`
-          : normalizedId;
+        const key = normalizedId;
 
         const resumidoRows = Array.isArray(item.resumidoRows)
           ? item.resumidoRows
@@ -690,12 +708,13 @@ const ContasAPagar: React.FC = () => {
   const [pendingActionConta, setPendingActionConta] = useState<ContaAPagar | null>(null);
   const [updatingStatusIds, setUpdatingStatusIds] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<string | null>(() => getState('contasAPagar_statusFilter') ?? null);
-  const [slaFilter, setSlaFilter] = useState<ContaSlaBadge | null>(null);
   const [showContaTipoModal, setShowContaTipoModal] = useState(false);
   const persistedStatusFilter = getState('contasAPagar_statusFilter') as string | null | undefined;
   const savedExportState = useMemo(() => loadExportModalState(), []);
 
   const [showNextWeekModal, setShowNextWeekModal] = useState(false);
+  const [showFinanceiroEnviosModal, setShowFinanceiroEnviosModal] = useState(false);
+  const [selectedFinanceiroEnvioMonth, setSelectedFinanceiroEnvioMonth] = useState('');
   const nextWeekModalRef = useRef<HTMLDivElement | null>(null);
   const [showExportNfModal, setShowExportNfModal] = useState(savedExportState.showExportNfModal);
   const [exportEntries, setExportEntries] = useState<Record<string, ExportEntry>>(savedExportState.exportEntries);
@@ -711,6 +730,9 @@ const ContasAPagar: React.FC = () => {
     loteId?: string;
   } | null>(null);
   const [showConsolidateLoteModal, setShowConsolidateLoteModal] = useState(false);
+  const [showBulkNaoEmitidoModal, setShowBulkNaoEmitidoModal] = useState(false);
+  const [showCloseSingleLoteModal, setShowCloseSingleLoteModal] = useState(false);
+  const [closeSingleLoteTarget, setCloseSingleLoteTarget] = useState<LoteRegistro | null>(null);
   const [consolidateSelection, setConsolidateSelection] = useState<Set<string>>(new Set());
   const [consolidateError, setConsolidateError] = useState<string | null>(null);
   const [lotes, setLotes] = useState<LoteRegistro[]>(() => loadLotes());
@@ -943,10 +965,6 @@ const ContasAPagar: React.FC = () => {
     setState('contasAPagar_statusFilter', value);
   }, [clearState, setState]);
 
-  const updateSlaFilter = useCallback((value: ContaSlaBadge | null) => {
-    setSlaFilter((prev) => (prev === value ? null : value));
-  }, []);
-
   const normalizeEmail = (value: string) => value.trim().toLowerCase();
   const defaultEmailRecipients = useMemo(
     () => DEFAULT_EMAIL_RECIPIENTS.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0),
@@ -980,6 +998,12 @@ const ContasAPagar: React.FC = () => {
     const numeric = Number(normalized);
     return Number.isFinite(numeric) ? numeric : null;
   };
+
+  const getContaValorAsText = useCallback((value: string | number | null | undefined) => {
+    const numeric = parseValorToNumber(value);
+    if (numeric === null) return '';
+    return numeric.toFixed(2);
+  }, []);
 
   const normalizeContaTipo = useCallback((value?: ContaTipo | null) => {
     if (value === 'avulsa') return 'avulsa';
@@ -1164,7 +1188,7 @@ const ContasAPagar: React.FC = () => {
     try {
       const { data: lotesData, error: lotesError } = await supabase
         .from('contas_a_pagar_lotes')
-        .select('id, nome, origem, fechado, resumido, detalhado, total, fixas_total, avulsas_total, ressarcimento_total, criado_em')
+        .select('id, nome, origem, fechado, resumido, detalhado, total, fixas_total, avulsas_total, ressarcimento_total, criado_em, updated_at')
         .order('criado_em', { ascending: false });
 
       if (lotesError) throw lotesError;
@@ -1239,6 +1263,7 @@ const ContasAPagar: React.FC = () => {
             avulsasTotal: Number(row.avulsas_total ?? 0),
             ressarcimentoTotal: Number(row.ressarcimento_total ?? 0),
             criado_em: row.criado_em ?? new Date().toISOString(),
+            updated_at: row.updated_at ?? null,
             resumido,
             detalhado,
             resumidoRows: resumidoRows.length ? resumidoRows : undefined,
@@ -1334,6 +1359,72 @@ const ContasAPagar: React.FC = () => {
   const lotesAbertos = useMemo(() => lotes.filter((lote) => !lote.fechado), [lotes]);
   const lotesCount = useMemo(() => lotesAbertos.length, [lotesAbertos]);
   const lotesFechadosCount = useMemo(() => lotesFechados.length, [lotesFechados]);
+  const getLoteDataEnvio = useCallback((lote: LoteRegistro) => {
+    const updatedAt = lote.updated_at ? new Date(lote.updated_at) : null;
+    if (updatedAt && !Number.isNaN(updatedAt.getTime())) {
+      return lote.updated_at as string;
+    }
+    return lote.criado_em;
+  }, []);
+  const contasEnvioFinanceiroMap = useMemo(() => {
+    const map = new Map<string, ContaEnvioFinanceiroVinculo>();
+    lotesFechados.forEach((lote) => {
+      const loteDataEnvio = getLoteDataEnvio(lote);
+      const contaIds = new Set<string>();
+      const rows = [...(lote.detalhadoRows ?? []), ...(lote.resumidoRows ?? [])];
+      rows.forEach((row) => {
+        const contaId = getRowContaId(row);
+        if (contaId) contaIds.add(contaId);
+      });
+
+      contaIds.forEach((contaId) => {
+        const current = map.get(contaId);
+        if (!current) {
+          map.set(contaId, { contaId, loteId: lote.id, loteNome: lote.nome, loteDataEnvio });
+          return;
+        }
+        const currentDate = new Date(current.loteDataEnvio);
+        const nextDate = new Date(loteDataEnvio);
+        if (
+          Number.isNaN(currentDate.getTime()) ||
+          (!Number.isNaN(nextDate.getTime()) && nextDate.getTime() > currentDate.getTime())
+        ) {
+          map.set(contaId, { contaId, loteId: lote.id, loteNome: lote.nome, loteDataEnvio });
+        }
+      });
+    });
+    return map;
+  }, [getLoteDataEnvio, getRowContaId, lotesFechados]);
+  const contasEnviadasFinanceiro = useMemo(() => {
+    return contas
+      .map((conta) => {
+        const vinculo = contasEnvioFinanceiroMap.get(conta.id);
+        if (!vinculo) return null;
+        return {
+          contaId: conta.id,
+          fornecedor: decodeLatin1IfNeeded(conta.fornecedor) || 'Fornecedor nao informado',
+          descricao: decodeLatin1IfNeeded(conta.descricao) || '',
+          valor: conta.valor,
+          loteId: vinculo.loteId,
+          loteNome: vinculo.loteNome,
+          loteDataEnvio: vinculo.loteDataEnvio,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  }, [contas, contasEnvioFinanceiroMap]);
+  const financeiroEnvioMonthOptions = useMemo(
+    () => Array.from(new Set(contasEnviadasFinanceiro.map((item) => getMonthKeyFromValue(item.loteDataEnvio)))).sort((a, b) => b.localeCompare(a)),
+    [contasEnviadasFinanceiro]
+  );
+  useEffect(() => {
+    if (financeiroEnvioMonthOptions.length === 0) {
+      if (selectedFinanceiroEnvioMonth) setSelectedFinanceiroEnvioMonth('');
+      return;
+    }
+    if (!financeiroEnvioMonthOptions.includes(selectedFinanceiroEnvioMonth)) {
+      setSelectedFinanceiroEnvioMonth(financeiroEnvioMonthOptions[0]);
+    }
+  }, [financeiroEnvioMonthOptions, selectedFinanceiroEnvioMonth]);
   const lotesFechadosMonthOptions = useMemo(
     () => Array.from(new Set(lotesFechados.map((lote) => getMonthKeyFromValue(lote.criado_em)))).sort((a, b) => b.localeCompare(a)),
     [lotesFechados]
@@ -1403,98 +1494,17 @@ const ContasAPagar: React.FC = () => {
     return due;
   };
 
+  const getDueDateForReferenceMonth = (day: number, baseDate: Date) => {
+    const year = baseDate.getFullYear();
+    const month = baseDate.getMonth();
+    const monthDays = getDaysInMonth(year, month);
+    const clampedDay = Math.min(Math.max(day, 1), monthDays);
+    return new Date(year, month, clampedDay);
+  };
+
   const startOfWeekSunday = (date: Date) => {
     const dayIndex = date.getDay(); // Sunday = 0
     return startOfDay(addDays(date, -dayIndex));
-  };
-
-  const isSameDate = (left: Date, right: Date) => (
-    left.getFullYear() === right.getFullYear()
-    && left.getMonth() === right.getMonth()
-    && left.getDate() === right.getDate()
-  );
-
-  const isDateOnOrAfter = (left: Date, right: Date) => {
-    const leftDate = startOfDay(left).getTime();
-    const rightDate = startOfDay(right).getTime();
-    return leftDate >= rightDate;
-  };
-
-  const isDateOnOrBefore = (left: Date, right: Date) => {
-    const leftDate = startOfDay(left).getTime();
-    const rightDate = startOfDay(right).getTime();
-    return leftDate <= rightDate;
-  };
-
-  const getPreviousWeekWednesday = (dueDate: Date) => {
-    const dayOfWeek = dueDate.getDay();
-    const mondayOffset = (dayOfWeek + 6) % 7;
-    const mondayOfCurrentWeek = addDays(startOfDay(dueDate), -mondayOffset);
-    return addDays(mondayOfCurrentWeek, -5);
-  };
-
-  const resolveStatusForDueDate = (conta: ContaAPagar, dueDate: Date) => {
-    const status = conta.status_documento || 'Nao emitido';
-    if (status === 'Nao emitido') return status;
-
-    const statusTimestampRaw = status === 'Enviado financeiro'
-      ? conta.data_envio_financeiro
-      : conta.updated_at;
-    const statusDate = statusTimestampRaw ? new Date(statusTimestampRaw) : null;
-    if (!statusDate || Number.isNaN(statusDate.getTime())) {
-      return 'Nao emitido';
-    }
-
-    // Status so vale para o ciclo atual quando atualizado dentro da janela de envio:
-    // quarta-feira da semana anterior ate o dia do vencimento.
-    const prazoEnvio = getPreviousWeekWednesday(dueDate);
-    const updatedInCycle = isDateOnOrAfter(statusDate, prazoEnvio) && isDateOnOrBefore(statusDate, dueDate);
-    return updatedInCycle ? status : 'Nao emitido';
-  };
-
-  type ContaSlaBadge = 'enviado' | 'no_prazo' | 'vence_hoje' | 'atrasado' | 'sem_vencimento';
-
-  const getContaSla = (conta: ContaAPagar, baseDate: Date): {
-    badge: ContaSlaBadge;
-    dueDate: Date | null;
-    prazoEnvio: Date | null;
-  } => {
-    const day = getDayValue(conta.vencimento ?? null);
-    if (!day) {
-      return { badge: 'sem_vencimento', dueDate: null, prazoEnvio: null };
-    }
-
-    const dueDate = getNextDueDate(day, baseDate);
-    const effectiveStatus = resolveStatusForDueDate(conta, dueDate);
-    if (effectiveStatus === 'Enviado financeiro') {
-      return { badge: 'enviado', dueDate, prazoEnvio: getPreviousWeekWednesday(dueDate) };
-    }
-
-    const prazoEnvio = getPreviousWeekWednesday(dueDate);
-    const today = startOfDay(baseDate);
-    if (today > prazoEnvio) {
-      return { badge: 'atrasado', dueDate, prazoEnvio };
-    }
-    if (isSameDate(today, prazoEnvio)) {
-      return { badge: 'vence_hoje', dueDate, prazoEnvio };
-    }
-    return { badge: 'no_prazo', dueDate, prazoEnvio };
-  };
-
-  const getSlaBadgeClasses = (badge: ContaSlaBadge) => {
-    if (badge === 'enviado') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    if (badge === 'no_prazo') return 'bg-sky-50 text-sky-700 border-sky-200';
-    if (badge === 'vence_hoje') return 'bg-amber-50 text-amber-700 border-amber-200';
-    if (badge === 'atrasado') return 'bg-red-50 text-red-700 border-red-200';
-    return 'bg-neutral-200 text-neutral-500 border-neutral-300';
-  };
-
-  const getSlaBadgeLabel = (badge: ContaSlaBadge) => {
-    if (badge === 'enviado') return 'SLA: enviado';
-    if (badge === 'no_prazo') return 'SLA: no prazo';
-    if (badge === 'vence_hoje') return 'SLA: vence hoje';
-    if (badge === 'atrasado') return 'SLA: atrasado';
-    return 'SLA: sem vencimento';
   };
 
   const toggleSort = useCallback((key: 'fornecedor' | 'status_documento' | 'valor' | 'vencimento') => {
@@ -1582,15 +1592,12 @@ const ContasAPagar: React.FC = () => {
   }, [contasByTab]);
 
   const nextWeekSuppliers = useMemo(() => {
-    const baseDate = new Date();
     const entries = nextWeekEntries.map(({ conta, dueDate }) => ({
       id: conta.id,
       fornecedor: conta.fornecedor || 'Fornecedor nao informado',
       vencimento: conta.vencimento ?? null,
       dueDate,
-      prazoEnvio: getPreviousWeekWednesday(dueDate),
-      status: resolveStatusForDueDate(conta, dueDate),
-      slaBadge: getContaSla(conta, baseDate).badge,
+      status: conta.status_documento || 'Nao emitido',
     }));
     return entries.sort((a, b) => {
       const byDueDate = a.dueDate.getTime() - b.dueDate.getTime();
@@ -1632,7 +1639,6 @@ const ContasAPagar: React.FC = () => {
   }, [pendingAction, pendingActionConta, handleDelete, requireEditPermission]);
 
   const filteredContasSorted = useMemo(() => {
-    const baseDate = new Date();
     const term = searchTerm.toLowerCase();
     let filtered = contasByTab.filter((conta) =>
       (conta.fornecedor || '').toLowerCase().includes(term) ||
@@ -1646,10 +1652,6 @@ const ContasAPagar: React.FC = () => {
     if (statusFilter) {
       filtered = filtered.filter((conta) => conta.status_documento === statusFilter);
     }
-    if (slaFilter) {
-      filtered = filtered.filter((conta) => getContaSla(conta, baseDate).badge === slaFilter);
-    }
-
     const compareValues = (aValue: string | number | null, bValue: string | number | null) => {
       if (aValue === null || aValue === undefined) return 1;
       if (bValue === null || bValue === undefined) return -1;
@@ -1688,12 +1690,56 @@ const ContasAPagar: React.FC = () => {
     }
 
     return filtered;
-  }, [contasByTab, searchTerm, slaFilter, sortConfig, statusFilter]);
+  }, [contasByTab, searchTerm, sortConfig, statusFilter]);
+
+  const handleOpenBulkNaoEmitidoModal = useCallback(() => {
+    if (!requireEditPermission()) return;
+    if (filteredContasSorted.length === 0) {
+      setToast({ type: 'error', message: 'Nenhuma conta disponivel para atualizar.' });
+      return;
+    }
+    setShowBulkNaoEmitidoModal(true);
+  }, [filteredContasSorted.length, requireEditPermission]);
+
+  const handleConfirmBulkNaoEmitido = useCallback(async () => {
+    if (!requireEditPermission()) return;
+    const contaIds = filteredContasSorted.map((conta) => conta.id);
+    if (contaIds.length === 0) {
+      setShowBulkNaoEmitidoModal(false);
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    setContas((prev) => prev.map((conta) => (
+      contaIds.includes(conta.id)
+        ? { ...conta, status_documento: 'Nao emitido', data_envio_financeiro: null, updated_at: nowIso }
+        : conta
+    )));
+
+    try {
+      const { error } = await supabase
+        .from('contas_a_pagar')
+        .update({
+          status_documento: 'Nao emitido',
+          data_envio_financeiro: null,
+          updated_at: nowIso,
+        })
+        .in('id', contaIds);
+      if (error) throw error;
+      setToast({ type: 'success', message: 'Status atualizado para Nao emitido.' });
+    } catch (error) {
+      console.error('Erro ao atualizar status em lote:', error);
+      setToast({ type: 'error', message: 'Falha ao atualizar status das contas.' });
+      fetchContas();
+    } finally {
+      setShowBulkNaoEmitidoModal(false);
+    }
+  }, [fetchContas, filteredContasSorted, requireEditPermission]);
 
   const createDefaultExportEntry = (conta: ContaAPagar) => {
     const now = new Date();
     const day = getDayValue(conta.vencimento ?? null);
-    const vencDate = day ? getNextDueDate(day, now) : null;
+    const vencDate = day ? getDueDateForReferenceMonth(day, now) : null;
     const pagamento = normalizeTipoPagto(conta.tipo_pagto) || 'BOLETO';
     const transferencia = requiresBankDetails(pagamento);
     return {
@@ -1783,7 +1829,7 @@ const ContasAPagar: React.FC = () => {
         id: conta.id,
         contaId: conta.id,
         fornecedor: entry.fornecedor ?? '',
-        valor: conta.valor === null || conta.valor === undefined ? '' : conta.valor.toString(),
+        valor: getContaValorAsText(conta.valor),
         vencimento: entry.vencimento ?? '',
         pagamento: entry.pagamento ?? '',
         empresa: entry.empresa ?? '',
@@ -1799,7 +1845,7 @@ const ContasAPagar: React.FC = () => {
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       };
     });
-  }, [exportEntries, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
+  }, [exportEntries, getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
 
   const buildResumidoRows = useCallback((): LoteRowResumido[] => {
     return sortedLoteContas.map((conta) => {
@@ -1808,14 +1854,14 @@ const ContasAPagar: React.FC = () => {
         id: conta.id,
         contaId: conta.id,
         fornecedor: entry.fornecedor ?? '',
-        valor: conta.valor === null || conta.valor === undefined ? '' : conta.valor.toString(),
+        valor: getContaValorAsText(conta.valor),
         vencimento: entry.vencimento ?? '',
         descricao: entry.descricao ?? '',
         notaFiscal: entry.notaFiscal ?? '',
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       };
     });
-  }, [exportEntries, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
+  }, [exportEntries, getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
 
   const buildDetalhadoEmailRows = useCallback((rows: LoteRowDetalhado[]) => {
     return rows.map((row) => {
@@ -2419,14 +2465,14 @@ const ContasAPagar: React.FC = () => {
         : 'fixa';
     const origem: LoteOrigem = options?.origemOverride ?? origemFromTab;
     const loteId = ensureUuid(options?.loteId ?? currentLoteId ?? createId());
-    const totalRows = rows.length;
-    const counts = getRowsCounts(rows);
+    const sortedRows = sortLoteRows(rows as Array<{ id: string; contaId?: string; fornecedor?: string; vencimento?: string }>);
+    const totalRows = sortedRows.length;
+    const counts = getRowsCounts(sortedRows as Array<LoteRowDetalhado | LoteRowResumido>);
     setCurrentLoteId(loteId);
-    let nextLote: LoteRegistro | null = null;
     setLotes((prev) => {
       const existing = prev.find((lote) => lote.id === loteId);
       if (existing) {
-        return prev.map((lote) => {
+        const nextState = prev.map((lote) => {
           if (lote.id !== loteId) return lote;
           const updated = {
             ...lote,
@@ -2439,12 +2485,13 @@ const ContasAPagar: React.FC = () => {
             ressarcimentoTotal: counts.ressarcimentos,
             resumido: tipo === 'resumido' ? true : lote.resumido,
             detalhado: tipo === 'detalhado' ? true : lote.detalhado,
-            resumidoRows: tipo === 'resumido' ? (rows as LoteRowResumido[]) : lote.resumidoRows,
-            detalhadoRows: tipo === 'detalhado' ? (rows as LoteRowDetalhado[]) : lote.detalhadoRows,
+            resumidoRows: tipo === 'resumido' ? (sortedRows as LoteRowResumido[]) : lote.resumidoRows,
+            detalhadoRows: tipo === 'detalhado' ? (sortedRows as LoteRowDetalhado[]) : lote.detalhadoRows,
           };
-          nextLote = updated;
+          void persistLoteToDb(updated, { silent: true });
           return updated;
         });
+        return nextState;
       }
 
       const novoLote: LoteRegistro = {
@@ -2459,15 +2506,12 @@ const ContasAPagar: React.FC = () => {
         ressarcimentoTotal: counts.ressarcimentos,
         resumido: tipo === 'resumido',
         detalhado: tipo === 'detalhado',
-        resumidoRows: tipo === 'resumido' ? (rows as LoteRowResumido[]) : undefined,
-        detalhadoRows: tipo === 'detalhado' ? (rows as LoteRowDetalhado[]) : undefined,
+        resumidoRows: tipo === 'resumido' ? (sortedRows as LoteRowResumido[]) : undefined,
+        detalhadoRows: tipo === 'detalhado' ? (sortedRows as LoteRowDetalhado[]) : undefined,
       };
-      nextLote = novoLote;
+      void persistLoteToDb(novoLote, { silent: true });
       return [novoLote, ...prev];
     });
-    if (nextLote) {
-      persistLoteToDb(nextLote);
-    }
     if (!options?.silentToast) {
       setToast({
         type: 'success',
@@ -2475,7 +2519,7 @@ const ContasAPagar: React.FC = () => {
       });
     }
     return true;
-  }, [activeTab, currentLoteId, getRowsCounts, persistLoteToDb]);
+  }, [activeTab, currentLoteId, getRowsCounts, persistLoteToDb, sortLoteRows]);
 
   const prepareLoteDraftEntries = useCallback(() => {
     setExportEntries((prev) => {
@@ -2561,12 +2605,14 @@ const ContasAPagar: React.FC = () => {
       return Array.from(byKey.values());
     }
 
-    const detalhadoRows = existingLote
+    const detalhadoRowsMerged = existingLote
       ? mergeRowsByKey(existingLote.detalhadoRows, incomingDetalhadoRows)
       : incomingDetalhadoRows;
-    const resumidoRows = existingLote
+    const resumidoRowsMerged = existingLote
       ? mergeRowsByKey(existingLote.resumidoRows, incomingResumidoRows)
       : incomingResumidoRows;
+    const detalhadoRows = sortLoteRows(detalhadoRowsMerged);
+    const resumidoRows = sortLoteRows(resumidoRowsMerged);
 
     const incomingOrigem: ContaTipo = activeTab === 'avulsa'
       ? 'avulsa'
@@ -2594,7 +2640,7 @@ const ContasAPagar: React.FC = () => {
       setSelectedExistingLoteId('');
       setLoteCreationMode('novo');
     }
-  }, [activeTab, buildDetalhadoRows, buildResumidoRows, currentLoteId, loteCreationMode, loteNome, lotes, requireEditPermission, selectedExistingLoteId, upsertLote]);
+  }, [activeTab, buildDetalhadoRows, buildResumidoRows, currentLoteId, loteCreationMode, loteNome, lotes, requireEditPermission, selectedExistingLoteId, sortLoteRows, upsertLote]);
 
   const handleStartEditLote = useCallback((lote: LoteRegistro, tipo: 'resumido' | 'detalhado', readOnly = false) => {
     if (!readOnly && !requireEditPermission()) return;
@@ -2701,14 +2747,16 @@ const ContasAPagar: React.FC = () => {
             tipoRegistro: resumo.tipoRegistro ?? row?.tipoRegistro,
           };
         });
-        const metadata = getLoteMetadataFromRows(detalhadoRows.length > 0 ? detalhadoRows : resumidoRows);
+        const sortedDetalhadoRows = sortLoteRows(detalhadoRows);
+        const sortedResumidoRows = sortLoteRows(resumidoRows);
+        const metadata = getLoteMetadataFromRows(sortedDetalhadoRows.length > 0 ? sortedDetalhadoRows : sortedResumidoRows);
         return {
           ...existing,
           ...metadata,
           resumido: true,
           detalhado: true,
-          resumidoRows,
-          detalhadoRows,
+          resumidoRows: sortedResumidoRows,
+          detalhadoRows: sortedDetalhadoRows,
         };
       })()
       : (() => {
@@ -2734,14 +2782,16 @@ const ContasAPagar: React.FC = () => {
             tipoRegistro: detalhado.tipoRegistro ?? row?.tipoRegistro,
           };
         });
-        const metadata = getLoteMetadataFromRows(detalhadoRows.length > 0 ? detalhadoRows : resumidoRows);
+        const sortedDetalhadoRows = sortLoteRows(detalhadoRows);
+        const sortedResumidoRows = sortLoteRows(resumidoRows);
+        const metadata = getLoteMetadataFromRows(sortedDetalhadoRows.length > 0 ? sortedDetalhadoRows : sortedResumidoRows);
         return {
           ...existing,
           ...metadata,
           resumido: true,
           detalhado: true,
-          detalhadoRows,
-          resumidoRows,
+          detalhadoRows: sortedDetalhadoRows,
+          resumidoRows: sortedResumidoRows,
         };
       })();
 
@@ -2760,6 +2810,7 @@ const ContasAPagar: React.FC = () => {
     mapResumidoToDetalhado,
     persistLoteToDb,
     requireEditPermission,
+    sortLoteRows,
   ]);
 
   const handleDeleteLote = useCallback((id: string) => {
@@ -2770,6 +2821,29 @@ const ContasAPagar: React.FC = () => {
     setToast({ type: 'success', message: 'Lote removido' });
   }, [deleteLotesFromDb, requireEditPermission]);
 
+  const handleOpenCloseSingleLoteModal = useCallback((lote: LoteRegistro) => {
+    if (!requireEditPermission()) return;
+    setCloseSingleLoteTarget(lote);
+    setShowCloseSingleLoteModal(true);
+  }, [requireEditPermission]);
+
+  const handleConfirmCloseSingleLote = useCallback(async () => {
+    if (!requireEditPermission()) return;
+    if (!closeSingleLoteTarget) return;
+    const updatedLote: LoteRegistro = {
+      ...closeSingleLoteTarget,
+      fechado: true,
+    };
+    setLotes((prev) => prev.map((lote) => (
+      lote.id === closeSingleLoteTarget.id ? updatedLote : lote
+    )));
+    await persistLoteToDb(updatedLote, { silent: true });
+    setShowCloseSingleLoteModal(false);
+    setCloseSingleLoteTarget(null);
+    setActiveTab('lotes_fechados');
+    setToast({ type: 'success', message: 'Lote fechado com sucesso' });
+  }, [closeSingleLoteTarget, persistLoteToDb, requireEditPermission]);
+
   const buildDetalhadoRowsFromContas = useCallback((items: ContaAPagar[], entryMap: Record<string, ExportEntry>) => {
     return items.map((conta) => {
       const entry = mergeExportEntryWithDefaults(conta, entryMap[conta.id]);
@@ -2777,7 +2851,7 @@ const ContasAPagar: React.FC = () => {
         id: conta.id,
         contaId: conta.id,
         fornecedor: entry.fornecedor ?? '',
-        valor: conta.valor === null || conta.valor === undefined ? '' : conta.valor.toString(),
+        valor: getContaValorAsText(conta.valor),
         vencimento: entry.vencimento ?? '',
         pagamento: entry.pagamento ?? '',
         empresa: entry.empresa ?? '',
@@ -2793,7 +2867,7 @@ const ContasAPagar: React.FC = () => {
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       };
     });
-  }, [mergeExportEntryWithDefaults, normalizeContaTipo]);
+  }, [getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo]);
 
   const buildResumidoRowsFromContas = useCallback((items: ContaAPagar[], entryMap: Record<string, ExportEntry>) => {
     return items.map((conta) => {
@@ -2802,14 +2876,14 @@ const ContasAPagar: React.FC = () => {
         id: conta.id,
         contaId: conta.id,
         fornecedor: entry.fornecedor ?? '',
-        valor: conta.valor === null || conta.valor === undefined ? '' : conta.valor.toString(),
+        valor: getContaValorAsText(conta.valor),
         vencimento: entry.vencimento ?? '',
         descricao: entry.descricao ?? '',
         notaFiscal: entry.notaFiscal ?? '',
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       };
     });
-  }, [mergeExportEntryWithDefaults, normalizeContaTipo]);
+  }, [getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo]);
 
   const handleOpenManageLoteContasModal = useCallback(() => {
     if (editingLoteReadOnly || !editingLoteId || !editingLoteType) return;
@@ -3059,6 +3133,54 @@ const ContasAPagar: React.FC = () => {
     )));
   }, []);
 
+  useEffect(() => {
+    if (editingLoteReadOnly) return;
+    if (!editingLoteId || !editingLoteType) return;
+    if (editingLoteRows.length === 0) return;
+    const timer = setTimeout(() => {
+      let draftToPersist: LoteRegistro | null = null;
+      setLotes((prev) => prev.map((lote) => {
+        if (lote.id !== editingLoteId) return lote;
+        const detalhadoRows = editingLoteType === 'detalhado'
+          ? sortLoteRows(editingLoteRows as LoteRowDetalhado[])
+          : sortLoteRows((lote.detalhadoRows && lote.detalhadoRows.length > 0)
+            ? lote.detalhadoRows
+            : mapResumidoToDetalhado(editingLoteRows as LoteRowResumido[]));
+        const resumidoRows = editingLoteType === 'resumido'
+          ? sortLoteRows(editingLoteRows as LoteRowResumido[])
+          : sortLoteRows((lote.resumidoRows && lote.resumidoRows.length > 0)
+            ? lote.resumidoRows
+            : mapDetalhadoToResumido(editingLoteRows as LoteRowDetalhado[]));
+        const metadata = getLoteMetadataFromRows(
+          detalhadoRows.length > 0 ? detalhadoRows : resumidoRows
+        );
+        const updated: LoteRegistro = {
+          ...lote,
+          ...metadata,
+          resumido: true,
+          detalhado: true,
+          resumidoRows,
+          detalhadoRows,
+        };
+        draftToPersist = updated;
+        return updated;
+      }));
+      if (draftToPersist) {
+        void persistLoteToDb(draftToPersist, { silent: true });
+      }
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [
+    editingLoteId,
+    editingLoteReadOnly,
+    editingLoteRows,
+    editingLoteType,
+    getLoteMetadataFromRows,
+    mapDetalhadoToResumido,
+    mapResumidoToDetalhado,
+    persistLoteToDb,
+  ]);
+
   const handleExportEditingLote = useCallback(async () => {
     if (!editingLoteType) return;
     const dateStamp = new Date().toISOString().slice(0, 10);
@@ -3279,6 +3401,21 @@ const ContasAPagar: React.FC = () => {
     const numeric = Number(normalized);
     return Number.isFinite(numeric) ? numeric : null;
   };
+  const contasEnviadasNoMesSelecionado = useMemo(() => {
+    if (!selectedFinanceiroEnvioMonth) return [];
+    return contasEnviadasFinanceiro
+      .filter((item) => getMonthKeyFromValue(item.loteDataEnvio) === selectedFinanceiroEnvioMonth)
+      .sort((a, b) => {
+        const byDate = new Date(a.loteDataEnvio).getTime() - new Date(b.loteDataEnvio).getTime();
+        if (byDate !== 0) return byDate;
+        return a.fornecedor.localeCompare(b.fornecedor);
+      });
+  }, [contasEnviadasFinanceiro, selectedFinanceiroEnvioMonth]);
+  const resumoFinanceiroMesSelecionado = useMemo(() => {
+    const totalContas = contasEnviadasNoMesSelecionado.length;
+    const totalValor = contasEnviadasNoMesSelecionado.reduce((acc, item) => acc + (parseValorNumber(item.valor) ?? 0), 0);
+    return { totalContas, totalValor };
+  }, [contasEnviadasNoMesSelecionado]);
 
   const getStatusColorClasses = (status: string | null) => {
     if (status === 'Nao emitido') {
@@ -3294,19 +3431,12 @@ const ContasAPagar: React.FC = () => {
   };
 
   const dashboardStats = useMemo(() => {
-    const baseDate = new Date();
     const totalCount = contasByTab.length;
     const naoEmitidoCount = contasByTab.filter((conta) => conta.status_documento === 'Nao emitido').length;
     const pendenteCount = contasByTab.filter((conta) => conta.status_documento === 'Emitido pendente assinatura').length;
     const enviadoCount = contasByTab.filter((conta) => conta.status_documento === 'Enviado financeiro').length;
     const proximosCount = nextWeekEntries.length;
     const totalValor = contasByTab.reduce((acc, conta) => acc + (parseValorNumber(conta.valor) ?? 0), 0);
-
-    const slaBadges = contasByTab.map((conta) => getContaSla(conta, baseDate).badge);
-    const noPrazoCount = slaBadges.filter((badge) => badge === 'no_prazo').length;
-    const venceHojeCount = slaBadges.filter((badge) => badge === 'vence_hoje').length;
-    const atrasadoCount = slaBadges.filter((badge) => badge === 'atrasado').length;
-    const enviadoNoCicloCount = slaBadges.filter((badge) => badge === 'enviado').length;
 
     const mainStats = [
       {
@@ -3316,10 +3446,7 @@ const ContasAPagar: React.FC = () => {
         color: 'text-primary-600',
         bgColor: 'bg-primary-100',
         description: `${totalCount} conta${totalCount !== 1 ? 's' : ''} cadastrada${totalCount !== 1 ? 's' : ''}`,
-        onClick: () => {
-          updateStatusFilter(null);
-          updateSlaFilter(null);
-        },
+        onClick: () => updateStatusFilter(null),
       },
       {
         title: 'Valor total',
@@ -3328,10 +3455,7 @@ const ContasAPagar: React.FC = () => {
         color: 'text-emerald-600',
         bgColor: 'bg-emerald-100',
         description: 'Soma de todas as contas',
-        onClick: () => {
-          updateStatusFilter(null);
-          updateSlaFilter(null);
-        },
+        onClick: () => updateStatusFilter(null),
       },
       {
         title: 'Nao emitido',
@@ -3340,10 +3464,7 @@ const ContasAPagar: React.FC = () => {
         color: 'text-red-600',
         bgColor: 'bg-red-100',
         description: `${naoEmitidoCount} pendente${naoEmitidoCount !== 1 ? 's' : ''}`,
-        onClick: () => {
-          updateStatusFilter('Nao emitido');
-          updateSlaFilter(null);
-        },
+        onClick: () => updateStatusFilter('Nao emitido'),
       },
       {
         title: 'Pendente assinatura',
@@ -3352,10 +3473,7 @@ const ContasAPagar: React.FC = () => {
         color: 'text-yellow-600',
         bgColor: 'bg-yellow-100',
         description: `${pendenteCount} aguardando`,
-        onClick: () => {
-          updateStatusFilter('Emitido pendente assinatura');
-          updateSlaFilter(null);
-        },
+        onClick: () => updateStatusFilter('Emitido pendente assinatura'),
       },
       {
         title: 'Enviado financeiro',
@@ -3364,10 +3482,7 @@ const ContasAPagar: React.FC = () => {
         color: 'text-green-600',
         bgColor: 'bg-green-100',
         description: `${enviadoCount} enviado${enviadoCount !== 1 ? 's' : ''}`,
-        onClick: () => {
-          updateStatusFilter('Enviado financeiro');
-          updateSlaFilter(null);
-        },
+        onClick: () => updateStatusFilter('Enviado financeiro'),
       },
       {
         title: 'Proximos vencimentos',
@@ -3380,63 +3495,8 @@ const ContasAPagar: React.FC = () => {
       }
     ];
 
-    const slaStats = [
-      {
-        title: 'SLA no prazo',
-        value: noPrazoCount,
-        icon: FileText,
-        color: 'text-sky-600',
-        bgColor: 'bg-sky-100',
-        description: 'Ainda dentro do prazo',
-        onClick: () => {
-          updateStatusFilter(null);
-          updateSlaFilter('no_prazo');
-        },
-        className: slaFilter === 'no_prazo' ? 'ring-2 ring-sky-300' : '',
-      },
-      {
-        title: 'SLA vence hoje',
-        value: venceHojeCount,
-        icon: FileText,
-        color: 'text-amber-600',
-        bgColor: 'bg-amber-100',
-        description: 'Prazo de envio no dia',
-        onClick: () => {
-          updateStatusFilter(null);
-          updateSlaFilter('vence_hoje');
-        },
-        className: slaFilter === 'vence_hoje' ? 'ring-2 ring-amber-300' : '',
-      },
-      {
-        title: 'SLA atrasado',
-        value: atrasadoCount,
-        icon: Ban,
-        color: 'text-red-600',
-        bgColor: 'bg-red-100',
-        description: 'Fora do prazo de envio',
-        onClick: () => {
-          updateStatusFilter(null);
-          updateSlaFilter('atrasado');
-        },
-        className: slaFilter === 'atrasado' ? 'ring-2 ring-red-300' : '',
-      },
-      {
-        title: 'SLA enviado',
-        value: enviadoNoCicloCount,
-        icon: CheckCircle,
-        color: 'text-emerald-600',
-        bgColor: 'bg-emerald-100',
-        description: 'Enviado no ciclo correto',
-        onClick: () => {
-          updateStatusFilter(null);
-          updateSlaFilter('enviado');
-        },
-        className: slaFilter === 'enviado' ? 'ring-2 ring-emerald-300' : '',
-      },
-    ];
-
-    return { mainStats, slaStats };
-  }, [contasByTab, nextWeekEntries, slaFilter, updateSlaFilter, updateStatusFilter]);
+    return { mainStats };
+  }, [contasByTab, nextWeekEntries, updateStatusFilter]);
 
   if (loading) {
     return (
@@ -3534,12 +3594,53 @@ const ContasAPagar: React.FC = () => {
             className="no-scrollbar mb-0 !gap-3"
             cardClassName="min-w-[160px] sm:min-w-[170px] lg:min-w-[180px] !p-3 sm:!p-4 border border-neutral-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
           />
-          <DashboardStats
-            stats={dashboardStats.slaStats}
-            layout="row"
-            className="no-scrollbar mb-0 !gap-3"
-            cardClassName="min-w-[160px] sm:min-w-[170px] lg:min-w-[180px] !p-3 sm:!p-4 border border-neutral-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
-          />
+        </div>
+      )}
+      {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-3 sm:p-4 shadow-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(180px,220px)_1fr_auto] sm:items-end">
+            <div>
+              <label htmlFor="financeiro-envio-mes" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                Historico de envios
+              </label>
+              <select
+                id="financeiro-envio-mes"
+                value={selectedFinanceiroEnvioMonth}
+                onChange={(event) => setSelectedFinanceiroEnvioMonth(event.target.value)}
+                className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 text-sm font-semibold uppercase text-neutral-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200"
+                disabled={financeiroEnvioMonthOptions.length === 0}
+              >
+                {financeiroEnvioMonthOptions.length === 0 ? (
+                  <option value="">Sem registros</option>
+                ) : (
+                  financeiroEnvioMonthOptions.map((month) => (
+                    <option key={month} value={month}>
+                      {getMonthLabelFromKey(month)}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-neutral-200 bg-neutral-200 p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Contas enviadas</div>
+                <div className="mt-1 text-lg font-bold text-neutral-900">{resumoFinanceiroMesSelecionado.totalContas}</div>
+              </div>
+              <div className="rounded-xl border border-neutral-200 bg-neutral-200 p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Valor total</div>
+                <div className="mt-1 text-lg font-bold text-neutral-900">{formatCurrency(resumoFinanceiroMesSelecionado.totalValor)}</div>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowFinanceiroEnviosModal(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 disabled:opacity-50"
+              disabled={contasEnviadasNoMesSelecionado.length === 0}
+              title="Visualizar detalhes do mes"
+            >
+              <Eye className="h-4 w-4" />
+              Ver detalhes
+            </button>
+          </div>
         </div>
       )}
 
@@ -3696,8 +3797,8 @@ const ContasAPagar: React.FC = () => {
                     key={lote.id}
                     className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 sm:p-5 shadow-sm transition-shadow hover:shadow-md"
                   >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="space-y-2">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
+                      <div className="space-y-2 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-sm sm:text-base font-semibold text-neutral-900 uppercase break-words">
                             {lote.nome}
@@ -3781,11 +3882,11 @@ const ContasAPagar: React.FC = () => {
                           })()}
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-col gap-2 lg:items-stretch">
                         <button
                           onClick={() => lote.resumido && handleStartEditLote(lote, 'resumido', lote.fechado)}
                           disabled={!lote.resumido}
-                          className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                          className={`w-full rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
                             lote.resumido
                               ? 'border-primary-200 text-primary-700 hover:bg-primary-50'
                               : 'border-neutral-200 text-neutral-300 cursor-not-allowed'
@@ -3796,7 +3897,7 @@ const ContasAPagar: React.FC = () => {
                         <button
                           onClick={() => lote.detalhado && handleStartEditLote(lote, 'detalhado', lote.fechado)}
                           disabled={!lote.detalhado}
-                          className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                          className={`w-full rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
                             lote.detalhado
                               ? 'border-primary-200 text-primary-700 hover:bg-primary-50'
                               : 'border-neutral-200 text-neutral-300 cursor-not-allowed'
@@ -3804,12 +3905,12 @@ const ContasAPagar: React.FC = () => {
                         >
                           Detalhado
                         </button>
-                        <div className="h-6 w-px bg-neutral-200 mx-1 hidden sm:block" />
+                        <div className="h-px w-full bg-neutral-200 my-1" />
                         {lote.fechado && (
                           <>
                             <button
                               onClick={() => void handleExportClosedLote(lote, 'detalhado')}
-                              className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                              className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
                               title="Exportar XLSX detalhado"
                             >
                               <Download className="h-3 w-3" />
@@ -3817,7 +3918,7 @@ const ContasAPagar: React.FC = () => {
                             </button>
                             <button
                               onClick={() => void handleExportClosedLote(lote, 'resumido')}
-                              className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                              className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
                               title="Exportar XLSX resumido"
                             >
                               <Download className="h-3 w-3" />
@@ -3825,7 +3926,7 @@ const ContasAPagar: React.FC = () => {
                             </button>
                             <button
                               onClick={() => handleEmailClosedLoteDetalhado(lote)}
-                              className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                              className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
                               title="Enviar detalhado por e-mail"
                             >
                               <Mail className="h-3 w-3" />
@@ -3836,7 +3937,7 @@ const ContasAPagar: React.FC = () => {
                         {!lote.fechado && (
                           <button
                             onClick={() => handleOpenManageLoteFromList(lote)}
-                            className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                            className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
                             title="Adicionar ou remover contas do lote"
                           >
                             Contas
@@ -3845,11 +3946,21 @@ const ContasAPagar: React.FC = () => {
                         {!lote.fechado && (
                           <button
                             onClick={() => handleDeleteLote(lote.id)}
-                            className="inline-flex items-center gap-1 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-600 hover:border-red-200 hover:bg-red-100"
+                            className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-600 hover:border-red-200 hover:bg-red-100"
                             title="Excluir lote"
                           >
                             <Trash2 className="h-3 w-3" />
                             Excluir
+                          </button>
+                        )}
+                        {!lote.fechado && (
+                          <button
+                            onClick={() => handleOpenCloseSingleLoteModal(lote)}
+                            className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100"
+                            title="Fechar lote"
+                          >
+                            <CheckCircle className="h-3 w-3" />
+                            Fechar Lote
                           </button>
                         )}
                       </div>
@@ -3862,7 +3973,7 @@ const ContasAPagar: React.FC = () => {
         ) : (
           <>
             <div className="p-3 sm:p-4 border-b border-neutral-200 bg-neutral-200">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                 <div className="relative flex-1 max-w-md">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
@@ -3875,9 +3986,19 @@ const ContasAPagar: React.FC = () => {
                     className="w-full rounded-xl border border-neutral-200 bg-neutral-200 pl-9 sm:pl-10 pr-3 py-2 text-xs sm:text-sm uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500 placeholder:text-neutral-400"
                   />
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-neutral-200 px-3 py-1 text-[11px] sm:text-xs text-neutral-600 uppercase">
-                  <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
-                  <span>{filteredContasSorted.length} contas</span>
+                <div className="ml-auto inline-flex items-center gap-2 self-end lg:self-auto">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-neutral-200 px-3 py-1 text-[11px] sm:text-xs text-neutral-600 uppercase">
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+                    <span>{filteredContasSorted.length} contas</span>
+                  </div>
+                  <button
+                    onClick={handleOpenBulkNaoEmitidoModal}
+                    className="inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 p-1.5 text-amber-700 hover:bg-amber-100"
+                    title="Alterar status das contas exibidas para Nao emitido"
+                    aria-label="Nao emitido"
+                  >
+                    <ArrowUpDown className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -3991,25 +4112,13 @@ const ContasAPagar: React.FC = () => {
                               </option>
                             ))}
                           </select>
-                          {(() => {
-                            const contaSla = getContaSla(conta, new Date());
-                            const envioLabel = conta.status_documento === 'Enviado financeiro'
-                              ? formatShortDate(conta.data_envio_financeiro)
-                              : 'N/A';
-                            return (
-                              <div className="mt-1 flex items-center justify-between gap-2">
-                                <span
-                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${getSlaBadgeClasses(contaSla.badge)}`}
-                                  title={`Prazo de envio: ${formatShortDate(contaSla.prazoEnvio)}`}
-                                >
-                                  {getSlaBadgeLabel(contaSla.badge)}
-                                </span>
-                                <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 whitespace-nowrap">
-                                  {envioLabel}
-                                </span>
-                              </div>
-                            );
-                          })()}
+                          <div className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
+                            {(() => {
+                              const vinculo = contasEnvioFinanceiroMap.get(conta.id);
+                              if (!vinculo) return 'Sem lote enviado';
+                              return `Enviado em: ${formatShortDate(vinculo.loteDataEnvio)}`;
+                            })()}
+                          </div>
                         </td>
                         <td className="px-2 py-2 align-top">
                           <div className="text-neutral-600 break-words whitespace-normal leading-snug">
@@ -4103,24 +4212,13 @@ const ContasAPagar: React.FC = () => {
                             </option>
                           ))}
                         </select>
-                        {(() => {
-                          const contaSla = getContaSla(conta, new Date());
-                          const envioLabel = conta.status_documento === 'Enviado financeiro'
-                            ? formatShortDate(conta.data_envio_financeiro)
-                            : 'N/A';
-                          return (
-                            <div className="mt-1 flex items-center justify-between gap-2">
-                              <span
-                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${getSlaBadgeClasses(contaSla.badge)}`}
-                              >
-                                {getSlaBadgeLabel(contaSla.badge)}
-                              </span>
-                              <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 whitespace-nowrap">
-                                {envioLabel}
-                              </span>
-                            </div>
-                          );
-                        })()}
+                        <div className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
+                          {(() => {
+                            const vinculo = contasEnvioFinanceiroMap.get(conta.id);
+                            if (!vinculo) return 'Sem lote enviado';
+                            return `Lote enviado em: ${formatShortDate(vinculo.loteDataEnvio)}`;
+                          })()}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
                         <button
@@ -5211,15 +5309,9 @@ const ContasAPagar: React.FC = () => {
                   <li key={item.id} className="border border-neutral-200 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <span className="block truncate">{item.fornecedor}</span>
-                      <span className="mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
-                        Prazo envio: {formatShortDate(item.prazoEnvio)}
-                      </span>
                     </div>
                     <div className="flex items-center gap-2 text-neutral-500">
                       <span>Dia {formatDay(item.vencimento)}</span>
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${getSlaBadgeClasses(item.slaBadge)}`}>
-                        {getSlaBadgeLabel(item.slaBadge)}
-                      </span>
                       {item.status === 'Enviado financeiro' && (
                         <CheckCircle className="h-4 w-4 text-green-600" />
                       )}
@@ -5241,6 +5333,113 @@ const ContasAPagar: React.FC = () => {
               >
                 Fechar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showBulkNaoEmitidoModal && (
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
+          <div className="bg-neutral-200 rounded-2xl p-5 w-full max-w-lg shadow-2xl border border-neutral-200">
+            <h3 className="text-lg font-semibold text-neutral-900">Confirmar alteracao de status</h3>
+            <p className="text-sm text-neutral-600 mt-2">
+              Tem certeza que deseja alterar o status de todas as contas exibidas para &quot;Nao emitido&quot;?
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowBulkNaoEmitidoModal(false);
+                }}
+                className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-200"
+              >
+                Nao
+              </button>
+              <button
+                onClick={() => void handleConfirmBulkNaoEmitido()}
+                className="px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showCloseSingleLoteModal && closeSingleLoteTarget && (
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
+          <div className="bg-neutral-200 rounded-2xl p-5 w-full max-w-lg shadow-2xl border border-neutral-200">
+            <h3 className="text-lg font-semibold text-neutral-900">Fechar lote</h3>
+            <p className="text-sm text-neutral-600 mt-2">
+              Tem certeza que deseja fechar este lote?
+            </p>
+            <p className="text-xs text-neutral-500 mt-2 uppercase">
+              {closeSingleLoteTarget.nome}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowCloseSingleLoteModal(false);
+                  setCloseSingleLoteTarget(null);
+                }}
+                className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-200"
+              >
+                Nao
+              </button>
+              <button
+                onClick={() => void handleConfirmCloseSingleLote()}
+                className="px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showFinanceiroEnviosModal && (
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 p-3 sm:p-5 lg:p-6 w-[min(96vw,1200px)] shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold">Detalhes de Envio ao Financeiro</h2>
+                <p className="text-xs sm:text-sm text-neutral-600 mt-1">
+                  {selectedFinanceiroEnvioMonth
+                    ? `Mes selecionado: ${getMonthLabelFromKey(selectedFinanceiroEnvioMonth)}`
+                    : 'Sem mes selecionado'}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowFinanceiroEnviosModal(false)}
+                className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors text-xs sm:text-sm"
+              >
+                Fechar
+              </button>
+            </div>
+            <div className="mt-4 rounded-xl border border-neutral-200 overflow-hidden">
+              <div className="grid grid-cols-12 gap-2 px-2.5 sm:px-3 py-2 bg-neutral-200 border-b border-neutral-200 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                <div className="col-span-3">Conta</div>
+                <div className="col-span-2 text-center">Data envio lote</div>
+                <div className="col-span-2 text-right">Valor</div>
+                <div className="col-span-5">Lote</div>
+              </div>
+              {contasEnviadasNoMesSelecionado.length === 0 ? (
+                <div className="px-3 py-4 text-xs text-neutral-500">Nenhuma conta enviada no mes selecionado.</div>
+              ) : (
+                <ul className="divide-y divide-neutral-200">
+                  {contasEnviadasNoMesSelecionado.map((item) => (
+                    <li key={`${item.contaId}-${item.loteId}`} className="grid grid-cols-12 gap-2 px-2.5 sm:px-3 py-2 text-[11px] sm:text-xs text-neutral-700">
+                      <div className="col-span-3 min-w-0">
+                        <div className="truncate font-semibold text-neutral-900">{item.fornecedor}</div>
+                        {item.descricao && (
+                          <div className="truncate text-neutral-500">{item.descricao}</div>
+                        )}
+                      </div>
+                      <div className="col-span-2 text-center">{formatShortDate(item.loteDataEnvio)}</div>
+                      <div className="col-span-2 text-right font-semibold text-neutral-900">{formatCurrency(item.valor)}</div>
+                      <div className="col-span-5 min-w-0 break-words" title={item.loteId}>
+                        {item.loteNome} ({item.loteId.slice(0, 8)})
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
