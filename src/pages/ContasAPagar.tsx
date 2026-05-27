@@ -6,7 +6,7 @@ import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import EditPermissionModal from '../components/EditPermissionModal';
-import { supabase } from '../lib/supabase';
+import { getSupabaseDebugMeta, supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { getLocalDateKey, getUsdBrlRate } from '../utils/usdBrlRate';
@@ -253,6 +253,13 @@ const parseExportDate = (value?: string | null) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const formatDateToIsoLocal = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const sortLoteRows = <T extends { id: string; contaId?: string; fornecedor?: string; vencimento?: string }>(rows: T[]) => {
   return [...rows].sort((a, b) => {
     const aDate = parseExportDate(a.vencimento ?? '');
@@ -477,9 +484,9 @@ const normalizeDateInput = (value?: string | null) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
     return trimmed;
   }
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
+  const parsed = parseExportDate(trimmed);
+  if (!parsed) return null;
+  return formatDateToIsoLocal(parsed);
 };
 
 const loadLotes = (): LoteRegistro[] => {
@@ -828,18 +835,38 @@ const ContasAPagar: React.FC = () => {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const fetchContas = useCallback(async () => {
+  const fetchContas = useCallback(async (options?: { reason?: string; debugContaId?: string }) => {
+    const reason = options?.reason || 'default';
+    const debugContaId = options?.debugContaId;
     try {
       setLoading(true);
+      console.log('[ContasAPagar] fetchContas:start', {
+        reason,
+        source: { schema: 'public', table: 'contas_a_pagar', orderBy: 'created_at desc' },
+        supabase: getSupabaseDebugMeta(),
+      });
       const { data, error } = await supabase
         .from('contas_a_pagar')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setContas(data || []);
+      const rows = data || [];
+      setContas(rows);
+      if (debugContaId) {
+        const listedConta = rows.find((row) => row.id === debugContaId) || null;
+        console.log('[ContasAPagar] fetchContas:debugConta', {
+          reason,
+          debugContaId,
+          listedConta,
+          totalRows: rows.length,
+        });
+      }
+      console.log('[ContasAPagar] fetchContas:end', { reason, totalRows: rows.length });
+      return rows;
     } catch (error) {
       console.error('Error fetching contas a pagar:', error);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -896,7 +923,7 @@ const ContasAPagar: React.FC = () => {
   }, [USD_UPDATE_DATE_KEY, canEditContasAPagar, contas, fetchContas, user?.id]);
 
   useEffect(() => {
-    fetchContas();
+    fetchContas({ reason: 'initial_load' });
   }, [fetchContas]);
 
   useEffect(() => {
@@ -1215,7 +1242,7 @@ const ContasAPagar: React.FC = () => {
         const mapped = lotesData.map((row) => {
           const origem = normalizeLoteOrigem(row.origem);
           const items = itemsByLote.get(row.id) ?? [];
-          const resumidoRows = items
+          const resumidoRowsRaw = items
             .filter((item) => item.tipo === 'resumido')
             .map((item) => ({
               id: typeof item.id === 'string' ? item.id : createId(),
@@ -1227,8 +1254,11 @@ const ContasAPagar: React.FC = () => {
               notaFiscal: item.nota_fiscal ?? '',
               tipoRegistro: normalizeContaTipoOptional(item.tipo_conta),
             })) as LoteRowResumido[];
+          const resumidoRows = Array.from(
+            new Map(resumidoRowsRaw.map((item) => [item.contaId || item.id, item])).values()
+          );
 
-          const detalhadoRows = items
+          const detalhadoRowsRaw = items
             .filter((item) => item.tipo === 'detalhado')
             .map((item) => ({
               id: typeof item.id === 'string' ? item.id : createId(),
@@ -1249,6 +1279,9 @@ const ContasAPagar: React.FC = () => {
               anexos: item.anexos ?? '',
               tipoRegistro: normalizeContaTipoOptional(item.tipo_conta),
             })) as LoteRowDetalhado[];
+          const detalhadoRows = Array.from(
+            new Map(detalhadoRowsRaw.map((item) => [item.contaId || item.id, item])).values()
+          );
 
           const resumido = row.resumido || resumidoRows.length > 0;
           const detalhado = row.detalhado || detalhadoRows.length > 0;
@@ -1744,7 +1777,7 @@ const ContasAPagar: React.FC = () => {
     const transferencia = requiresBankDetails(pagamento);
     return {
       fornecedor: decodeLatin1IfNeeded(conta.fornecedor) ?? '',
-      vencimento: vencDate ? vencDate.toISOString().slice(0, 10) : '',
+      vencimento: vencDate ? formatDateToIsoLocal(vencDate) : '',
       pagamento,
       empresa: 'ODONTOART',
       descricao: decodeLatin1IfNeeded(conta.descricao) ?? '',
@@ -1823,9 +1856,10 @@ const ContasAPagar: React.FC = () => {
   }, []);
 
   const buildDetalhadoRows = useCallback((): LoteRowDetalhado[] => {
-    return sortedLoteContas.map((conta) => {
+    const byContaId = new Map<string, LoteRowDetalhado>();
+    sortedLoteContas.forEach((conta) => {
       const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
-      return {
+      byContaId.set(conta.id, {
         id: conta.id,
         contaId: conta.id,
         fornecedor: entry.fornecedor ?? '',
@@ -1843,14 +1877,16 @@ const ContasAPagar: React.FC = () => {
         cpfCnpj: entry.cpfCnpj ?? '',
         anexos: entry.anexos ?? '',
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
-      };
+      });
     });
+    return Array.from(byContaId.values());
   }, [exportEntries, getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
 
   const buildResumidoRows = useCallback((): LoteRowResumido[] => {
-    return sortedLoteContas.map((conta) => {
+    const byContaId = new Map<string, LoteRowResumido>();
+    sortedLoteContas.forEach((conta) => {
       const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
-      return {
+      byContaId.set(conta.id, {
         id: conta.id,
         contaId: conta.id,
         fornecedor: entry.fornecedor ?? '',
@@ -1859,18 +1895,15 @@ const ContasAPagar: React.FC = () => {
         descricao: entry.descricao ?? '',
         notaFiscal: entry.notaFiscal ?? '',
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
-      };
+      });
     });
+    return Array.from(byContaId.values());
   }, [exportEntries, getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
 
   const buildDetalhadoEmailRows = useCallback((rows: LoteRowDetalhado[]) => {
     return rows.map((row) => {
       const valorNum = parseExportValor(row.valor ?? null);
-      let vencDate: Date | null = null;
-      if (row.vencimento) {
-        const parsedDate = new Date(row.vencimento);
-        vencDate = Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
-      }
+      const vencDate = parseExportDate(row.vencimento ?? null);
       return [
         row.fornecedor,
         valorNum ?? null,
@@ -3301,12 +3334,46 @@ const ContasAPagar: React.FC = () => {
 
   const currentItems = filteredContasSorted;
 
-  const handleFormSuccess = useCallback(() => {
-    fetchContas();
+  const handleFormSuccess = useCallback((updatedConta?: Partial<ContaAPagar> & { id: string }) => {
+    console.log('[ContasAPagar] handleFormSuccess:start');
+    if (updatedConta?.id) {
+      setContas((prev) => prev.map((conta) => (
+        conta.id === updatedConta.id
+          ? { ...conta, ...updatedConta }
+          : conta
+      )));
+    }
+    void (async () => {
+      const debugContaId = updatedConta?.id;
+      if (debugContaId) {
+        const { data: directConta, error: directContaError } = await supabase
+          .from('contas_a_pagar')
+          .select('*')
+          .eq('id', debugContaId)
+          .maybeSingle();
+        console.log('[ContasAPagar] handleFormSuccess:directReadById', {
+          source: { schema: 'public', table: 'contas_a_pagar', eqField: 'id' },
+          debugContaId,
+          directConta,
+          directContaError,
+          updatedContaFromForm: updatedConta,
+        });
+      }
+      const rows = await fetchContas({ reason: 'form_success', debugContaId });
+      if (debugContaId && rows) {
+        const fromListSource = rows.find((row) => row.id === debugContaId) || null;
+        console.log('[ContasAPagar] handleFormSuccess:compareListVsDirect', {
+          debugContaId,
+          fromListSource,
+          updatedContaFromForm: updatedConta,
+        });
+      }
+    })();
     setShowForm(false);
     setEditingConta(null);
     clearState('contasAPagar_showForm');
     clearState('contasAPagar_editingConta');
+    console.log('[ContasAPagar] handleFormSuccess:end');
   }, [fetchContas, clearState]);
 
   const handleUploadSuccess = useCallback(() => {
