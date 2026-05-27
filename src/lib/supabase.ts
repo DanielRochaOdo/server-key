@@ -11,6 +11,23 @@ const projectRef = (() => {
 })();
 const storageKey = `sb-${projectRef}-auth-token`;
 
+export const getSupabaseDebugMeta = () => {
+  const host = (() => {
+    try {
+      return new URL(supabaseUrl).host;
+    } catch {
+      return supabaseUrl;
+    }
+  })();
+  const anonFingerprint = supabaseKey ? `${supabaseKey.slice(0, 6)}...${supabaseKey.slice(-6)}` : 'missing';
+  return {
+    projectRef,
+    host,
+    url: supabaseUrl,
+    anonFingerprint,
+  };
+};
+
 const EDIT_DENIED_EVENT = 'serverkey:edit-permission-denied';
 export const MODULE_PERMISSION_CACHE_KEY = 'serverkey:module-permissions';
 
