@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
-import { getSupabaseDebugMeta, supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getLocalDateKey, getUsdBrlRate } from '../utils/usdBrlRate';
 
@@ -78,7 +78,6 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const linkInputRef = useRef<HTMLInputElement | null>(null);
   const { user, hasModuleEditAccess } = useAuth();
   const [isUsd, setIsUsd] = useState(false);
 
@@ -119,13 +118,6 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
 
   useEffect(() => {
     if (conta) {
-      const savedData = localStorage.getItem(persistenceKey);
-      if (savedData && savedData !== 'undefined') {
-        console.log('[ContasAPagarForm] edit:ignoringPersistedDraft', {
-          contaId: conta.id,
-          persistenceKey,
-        });
-      }
       const moedaConta = (conta.moeda || 'BRL').toUpperCase() === 'USD' ? 'USD' : 'BRL';
       setIsUsd(moedaConta === 'USD');
       const baseValor = moedaConta === 'USD'
@@ -154,10 +146,6 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         vencimento: conta.vencimento !== null && conta.vencimento !== undefined ? String(conta.vencimento) : '',
         observacoes: conta.observacoes || '',
         tipo_conta: contaTipo
-      });
-      console.log('[ContasAPagarForm] edit:loadContaIntoForm', {
-        contaId: conta.id,
-        linkFromConta: conta.link || '',
       });
     } else {
       const savedData = localStorage.getItem(persistenceKey);
@@ -212,12 +200,6 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    if (name === 'link') {
-      console.log('[ContasAPagarForm] link:onChange', {
-        contaId: conta?.id || null,
-        rawValue: value,
-      });
-    }
     if (name === 'valor') {
       setFormData(prev => ({
         ...prev,
@@ -226,15 +208,6 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
       return;
     }
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.currentTarget.value;
-    console.log('[ContasAPagarForm] link:onChange', {
-      contaId: conta?.id || null,
-      rawValue: value,
-    });
-    setFormData((prev) => ({ ...prev, link: value }));
   };
 
   const handleToggleUsd = () => {
@@ -282,17 +255,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         normalizedVencimento = Math.trunc(parsedDay);
       }
 
-      const rawLinkInput = formData.link ? formData.link.trim() : '';
-      const rawLinkFromRef = linkInputRef.current?.value?.trim() || '';
-      const effectiveRawLink = rawLinkInput || rawLinkFromRef;
-      if (rawLinkFromRef && rawLinkInput !== rawLinkFromRef) {
-        console.warn('[ContasAPagarForm] link:stateRefMismatch', {
-          contaId: conta?.id || null,
-          rawLinkInput,
-          rawLinkFromRef,
-        });
-      }
-      const normalizedLink = effectiveRawLink;
+      const normalizedLink = formData.link ? formData.link.trim() : '';
 
       const tipoPagto = (formData.tipo_pagto || '').trim().toUpperCase();
       if (!PAGTO_OPTIONS.includes(tipoPagto as any)) {
@@ -390,31 +353,15 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         data_envio_financeiro: baseDataToSave.data_envio_financeiro,
         updated_at: baseDataToSave.updated_at,
       };
-      console.log('[ContasAPagarForm] link:beforeUpdate', JSON.stringify({
-        contaId: conta?.id || null,
-        rawLinkInput: formData.link,
-        rawLinkFromRef,
-        effectiveRawLink,
-        normalizedLink,
-        payloadLink: updateDataToSave.link,
-      }, null, 2));
-
       let updatedContaForUi: (Partial<ContaAPagar> & { id: string }) | undefined;
 
       if (conta) {
-        console.log('[ContasAPagarForm] update:start', {
-          source: { schema: 'public', table: 'contas_a_pagar', eqField: 'id' },
-          supabase: getSupabaseDebugMeta(),
-          contaId: conta.id,
-          payload: updateDataToSave,
-        });
         const { data, error } = await supabase
           .from('contas_a_pagar')
           .update(updateDataToSave)
           .eq('id', conta.id)
           .select('id, link')
           .single();
-        console.log('[ContasAPagarForm] update:result', { data, error });
         if (error) throw error;
         if (!data || !(data as any).id) {
           throw new Error('Nenhum registro foi atualizado. Seu usuário pode estar sem permissão de edição para esta conta.');
@@ -446,12 +393,6 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
           `)
           .eq('id', conta.id)
           .single();
-        console.log('[ContasAPagarForm] update:readback', {
-          source: { schema: 'public', table: 'contas_a_pagar', eqField: 'id' },
-          contaId: conta.id,
-          persistedConta,
-          persistedContaError,
-        });
         if (persistedContaError) throw persistedContaError;
         if (!persistedConta) {
           throw new Error('Falha ao validar persistencia da conta apos salvar.');
@@ -484,11 +425,6 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
           });
           throw new Error('Os dados nao foram persistidos no banco como esperado. Tente novamente.');
         }
-        console.log('[ContasAPagarForm] update:validated', {
-          contaId: conta.id,
-          expected: { link: expectedLink, descricao: expectedDescricao, status_documento: expectedStatus },
-          persisted: { link: persistedLink, descricao: persistedDescricao, status_documento: persistedStatus },
-        });
         updatedContaForUi = {
           id: persistedConta.id as any,
           tipo_pagto: persistedConta.tipo_pagto as any,
@@ -524,7 +460,6 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
       }
 
       localStorage.removeItem(persistenceKey);
-      console.log('[ContasAPagarForm] save:success -> onSuccess()');
       onSuccess(updatedContaForUi);
     } catch (err: any) {
       console.error('Error saving contas a pagar:', err);
@@ -767,9 +702,8 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   type="text"
                   id="link"
                   name="link"
-                  ref={linkInputRef}
                   value={formData.link}
-                  onChange={handleLinkChange}
+                  onChange={handleChange}
                   className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                   placeholder="https://..."

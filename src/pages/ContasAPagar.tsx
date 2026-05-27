@@ -6,7 +6,7 @@ import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import EditPermissionModal from '../components/EditPermissionModal';
-import { getSupabaseDebugMeta, supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { getLocalDateKey, getUsdBrlRate } from '../utils/usdBrlRate';
@@ -835,38 +835,18 @@ const ContasAPagar: React.FC = () => {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const fetchContas = useCallback(async (options?: { reason?: string; debugContaId?: string }) => {
-    const reason = options?.reason || 'default';
-    const debugContaId = options?.debugContaId;
+  const fetchContas = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('[ContasAPagar] fetchContas:start', {
-        reason,
-        source: { schema: 'public', table: 'contas_a_pagar', orderBy: 'created_at desc' },
-        supabase: getSupabaseDebugMeta(),
-      });
       const { data, error } = await supabase
         .from('contas_a_pagar')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      const rows = data || [];
-      setContas(rows);
-      if (debugContaId) {
-        const listedConta = rows.find((row) => row.id === debugContaId) || null;
-        console.log('[ContasAPagar] fetchContas:debugConta', {
-          reason,
-          debugContaId,
-          listedConta,
-          totalRows: rows.length,
-        });
-      }
-      console.log('[ContasAPagar] fetchContas:end', { reason, totalRows: rows.length });
-      return rows;
+      setContas(data || []);
     } catch (error) {
       console.error('Error fetching contas a pagar:', error);
-      return null;
     } finally {
       setLoading(false);
     }
@@ -923,7 +903,7 @@ const ContasAPagar: React.FC = () => {
   }, [USD_UPDATE_DATE_KEY, canEditContasAPagar, contas, fetchContas, user?.id]);
 
   useEffect(() => {
-    fetchContas({ reason: 'initial_load' });
+    fetchContas();
   }, [fetchContas]);
 
   useEffect(() => {
@@ -3335,7 +3315,6 @@ const ContasAPagar: React.FC = () => {
   const currentItems = filteredContasSorted;
 
   const handleFormSuccess = useCallback((updatedConta?: Partial<ContaAPagar> & { id: string }) => {
-    console.log('[ContasAPagar] handleFormSuccess:start');
     if (updatedConta?.id) {
       setContas((prev) => prev.map((conta) => (
         conta.id === updatedConta.id
@@ -3343,37 +3322,11 @@ const ContasAPagar: React.FC = () => {
           : conta
       )));
     }
-    void (async () => {
-      const debugContaId = updatedConta?.id;
-      if (debugContaId) {
-        const { data: directConta, error: directContaError } = await supabase
-          .from('contas_a_pagar')
-          .select('*')
-          .eq('id', debugContaId)
-          .maybeSingle();
-        console.log('[ContasAPagar] handleFormSuccess:directReadById', {
-          source: { schema: 'public', table: 'contas_a_pagar', eqField: 'id' },
-          debugContaId,
-          directConta,
-          directContaError,
-          updatedContaFromForm: updatedConta,
-        });
-      }
-      const rows = await fetchContas({ reason: 'form_success', debugContaId });
-      if (debugContaId && rows) {
-        const fromListSource = rows.find((row) => row.id === debugContaId) || null;
-        console.log('[ContasAPagar] handleFormSuccess:compareListVsDirect', {
-          debugContaId,
-          fromListSource,
-          updatedContaFromForm: updatedConta,
-        });
-      }
-    })();
+    fetchContas();
     setShowForm(false);
     setEditingConta(null);
     clearState('contasAPagar_showForm');
     clearState('contasAPagar_editingConta');
-    console.log('[ContasAPagar] handleFormSuccess:end');
   }, [fetchContas, clearState]);
 
   const handleUploadSuccess = useCallback(() => {
