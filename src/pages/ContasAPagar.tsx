@@ -1122,11 +1122,19 @@ const ContasAPagar: React.FC = () => {
     if (!canEditContasAPagar) return;
     if (!user?.id) return;
     const loteId = ensureUuid(lote.id);
+    const { data: existingLote } = await supabase
+      .from('contas_a_pagar_lotes')
+      .select('fechado')
+      .eq('id', loteId)
+      .maybeSingle();
+    const fechadoPersisted = Boolean(existingLote?.fechado);
+    const fechadoRequested = Boolean(lote.fechado);
+    const fechadoFinal = fechadoPersisted || fechadoRequested;
     const payload = {
       id: loteId,
       nome: lote.nome,
       origem: lote.origem,
-      fechado: lote.fechado ?? false,
+      fechado: fechadoFinal,
       resumido: lote.resumido ?? false,
       detalhado: lote.detalhado ?? false,
       total: lote.total ?? 0,

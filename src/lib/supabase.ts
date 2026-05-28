@@ -131,38 +131,6 @@ const dispatchEditDenied = (moduleLabel?: string) => {
 };
 
 const wrappedFetch: typeof fetch = async (input, init) => {
-  try {
-    const requestUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-    const requestMethod = init?.method || (input instanceof Request ? input.method : undefined);
-    const isRestRequest = requestUrl.includes('/rest/v1/');
-    const isWrite = shouldInspectWrite(requestMethod);
-
-    if (isRestRequest && isWrite) {
-      const tableName = getRestTableName(requestUrl);
-      if (tableName) {
-        const moduleKey = TABLE_MODULE_KEY_MAP[tableName];
-        if (moduleKey && !hasCachedModuleEditAccess(moduleKey)) {
-          const moduleLabel = TABLE_MODULE_LABEL_MAP[tableName];
-          dispatchEditDenied(moduleLabel);
-          return new Response(
-            JSON.stringify({
-              code: 'CLIENT_EDIT_PERMISSION_DENIED',
-              message: 'User does not have edit permission for this module',
-            }),
-            {
-              status: 403,
-              headers: {
-                'content-type': 'application/json',
-              },
-            }
-          );
-        }
-      }
-    }
-  } catch {
-    // ignore fetch wrapper pre-check errors
-  }
-
   const response = await fetch(input, init);
 
   try {
