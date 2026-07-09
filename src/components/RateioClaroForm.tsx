@@ -9,6 +9,8 @@ interface RateioClaro {
   numero_linha?: string;
   responsavel_atual?: string;
   setor?: string;
+  franquia?: string;
+  up?: string;
 }
 
 interface RateioClaroFormProps {
@@ -23,6 +25,9 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
     numero_linha: '',
     responsavel_atual: '',
     setor: '',
+    franquia: '',
+    franquiaTipo: 'gb',
+    up: 'nao',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -51,16 +56,27 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
     setFormData(
       rateio
         ? {
-            nome: rateio.nome || '',
-            numero_linha: rateio.numero_linha || '',
-            responsavel_atual: rateio.responsavel_atual || '',
-            setor: rateio.setor || '',
-          }
+          nome: rateio.nome || '',
+          numero_linha: rateio.numero_linha || '',
+          responsavel_atual: rateio.responsavel_atual || '',
+          setor: rateio.setor || '',
+          franquia: (() => {
+            const raw = (rateio.franquia || '').trim().toLowerCase();
+            if (raw.endsWith(' gb')) return raw.replace(/\s+gb$/, '');
+            if (raw.endsWith(' mb')) return raw.replace(/\s+mb$/, '');
+            return '';
+          })(),
+          franquiaTipo: (rateio.franquia || '').toLowerCase().includes('mb') ? 'mb' : 'gb',
+          up: (rateio.up || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao',
+        }
         : {
             nome: '',
             numero_linha: '',
             responsavel_atual: '',
             setor: '',
+            franquia: '',
+            franquiaTipo: 'gb',
+            up: 'nao',
           }
     );
     setError('');
@@ -69,13 +85,18 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
   // Salvar dados quando formData muda
   useEffect(() => {
     // Só salvar se formData não estiver vazio
-    if (formData.nome) {
+    if (formData.nome || formData.numero_linha || formData.responsavel_atual || formData.setor || formData.franquia) {
       localStorage.setItem(persistenceKey, JSON.stringify(formData));
     }
   }, [formData, persistenceKey]);
 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -89,7 +110,14 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
 
     try {
       const dataToSave = {
-        ...formData,
+        nome: formData.nome,
+        numero_linha: formData.numero_linha,
+        responsavel_atual: formData.responsavel_atual,
+        setor: formData.setor,
+        franquia: formData.franquia
+          ? `${String(Number(formData.franquia)).replace(/\.0+$/, '')} ${formData.franquiaTipo}`.trim().toLowerCase()
+          : null,
+        up: formData.up.toLowerCase(),
         user_id: user.id,
         updated_at: new Date().toISOString(),
       };
@@ -126,7 +154,7 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
   };
 
   return (
-    <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" data-uppercase="off">
       <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-neutral-200">
           <h2 className="text-xl font-semibold text-neutral-900">
@@ -161,6 +189,7 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
                 required
                 value={formData.nome}
                 onChange={handleChange}
+                data-uppercase="off"
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
                 placeholder="Nome completo"
@@ -177,6 +206,7 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
                 name="numero_linha"
                 value={formData.numero_linha}
                 onChange={handleChange}
+                data-uppercase="off"
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
                 placeholder="Ex: (11) 99999-9999"
@@ -193,6 +223,7 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
                 name="responsavel_atual"
                 value={formData.responsavel_atual}
                 onChange={handleChange}
+                data-uppercase="off"
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
                 placeholder="Nome do responsável"
@@ -209,10 +240,60 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
                 name="setor"
                 value={formData.setor}
                 onChange={handleChange}
+                data-uppercase="off"
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={loading}
                 placeholder="Departamento ou setor"
               />
+            </div>
+
+            <div>
+              <label htmlFor="franquia" className="block text-sm font-medium text-neutral-700 mb-2">
+                Franquia
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  id="franquia"
+                  name="franquia"
+                  min="0"
+                  step="1"
+                  value={formData.franquia}
+                  onChange={handleChange}
+                  data-uppercase="off"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  disabled={loading}
+                  placeholder="Ex: 5"
+                />
+                <select
+                  id="franquiaTipo"
+                  name="franquiaTipo"
+                  value={formData.franquiaTipo}
+                  onChange={handleSelectChange}
+                  className="w-28 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  disabled={loading}
+                >
+                  <option value="mb">MB</option>
+                  <option value="gb">GB</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="up" className="block text-sm font-medium text-neutral-700 mb-2">
+                UP
+              </label>
+              <select
+                id="up"
+                name="up"
+                value={formData.up}
+                onChange={handleSelectChange}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={loading}
+              >
+                <option value="nao">Nao</option>
+                <option value="sim">Sim</option>
+              </select>
             </div>
           </div>
 

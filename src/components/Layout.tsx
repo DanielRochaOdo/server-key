@@ -142,7 +142,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const getNavigationItems = () => {
     const topItems: NavItem[] = [];
 
-    // Dashboard - nÃ£o disponÃ­vel para usuÃ¡rios nÃ­vel "usuario"
+    // Dashboard - nao disponivel para usuarios nivel "usuario"
     if (!isUsuario()) {
       topItems.push({ name: 'Dashboard', href: '/dashboard', icon: BarChart3 });
     }
@@ -158,7 +158,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       acessosItems.push({ name: 'Contas Teams', href: '/teams', icon: UserCheck });
     }
     if (hasModuleAccess('win_users')) {
-      acessosItems.push({ name: 'UsuÃ¡rios Windows', href: '/win-users', icon: Monitor });
+      acessosItems.push({ name: 'Usuarios Windows', href: '/win-users', icon: Monitor });
     }
 
     const financeiroItems: NavItem[] = [];
@@ -197,16 +197,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
 
     const configuracoesItems: NavItem[] = [];
-    configuracoesItems.push({ name: 'ConfiguraÃ§Ãµes', href: '/configuracoes', icon: Settings });
+    configuracoesItems.push({ name: 'Configuracoes', href: '/configuracoes', icon: Settings });
     if (hasModuleAccess('usuarios')) {
-      configuracoesItems.push({ name: 'UsuÃ¡rios', href: '/usuarios', icon: Users });
+      configuracoesItems.push({ name: 'Usuarios', href: '/usuarios', icon: Users });
     }
 
     const sections: NavSection[] = [
       { key: 'acessos', name: 'Acessos', icon: Key, items: acessosItems },
       { key: 'financeiro', name: 'Financeiro', icon: FileText, items: financeiroItems },
       { key: 'parque_tecnologico', name: 'Parque Tecnologico', icon: Package, items: parqueTecnologicoItems },
-      { key: 'configuracoes', name: 'ConfiguraÃ§Ãµes', icon: Settings, items: configuracoesItems },
+      { key: 'configuracoes', name: 'Configuracoes', icon: Settings, items: configuracoesItems },
     ].filter((section) => section.items.length > 0);
 
     return { topItems, sections };

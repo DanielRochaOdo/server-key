@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail, Eye } from 'lucide-react';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
@@ -47,7 +47,7 @@ const resolveXlsx = async () => {
     // ignore and try next source
   }
 
-  throw new Error('Biblioteca XLSX com estilos indisponível.');
+  throw new Error('Biblioteca XLSX com estilos indisponÃ­vel.');
 };
 
 type ContaTipo = 'fixa' | 'avulsa' | 'ressarcimento';
@@ -149,19 +149,17 @@ const requiresBankDetails = (value?: string | null) => {
 
 const XLSX_EXPORT_HEADERS = [
   'FORNECEDOR',
-  'VALOR',
+  'VALOR LÍQUIDO',
   'VENCIMENTO',
-  'PAGAMENTO',
-  'EMPRESA',
+  'FORMA DE PAGAMENTO',
   'DESCRIÇÃO',
-  'NOTA FISCAL',
-  'SETOR RESPONSÁVEL',
+  'CENTRO DE CUSTO',
   'NOME DO BANCO',
   'AGÊNCIA',
   'CONTA',
   'TIPO DE CONTA',
-  'CPF/CNPJ/CHAVE PIX',
-  'Anexos (Sim/Não)',
+  'CPF/CNPJ',
+  'DESPESA',
 ];
 
 const textDecoder = new TextDecoder('utf-8');
@@ -253,6 +251,15 @@ const parseExportDate = (value?: string | null) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const formatExportDateText = (value?: string | null) => {
+  const parsed = parseExportDate(value);
+  if (!parsed) return value ?? '';
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const year = parsed.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 const formatDateToIsoLocal = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -328,17 +335,15 @@ const EXPORT_TABLE_COLUMNS: {
   { label: 'FORNECEDOR', field: 'fornecedor', align: 'left' },
   { label: 'VALOR', readonly: true, align: 'right' },
   { label: 'VENCIMENTO', field: 'vencimento', type: 'date', align: 'center' },
-  { label: 'PAGAMENTO', field: 'pagamento', align: 'center' },
-  { label: 'EMPRESA', field: 'empresa', align: 'left' },
+  { label: 'FORMA DE PAGAMENTO', field: 'pagamento', align: 'center' },
   { label: 'DESCRIÇÃO', field: 'descricao', align: 'left' },
-  { label: 'NOTA FISCAL', field: 'notaFiscal', align: 'left' },
-  { label: 'SETOR RESPONSÁVEL', field: 'setorResponsavel', align: 'left' },
+  { label: 'CENTRO DE CUSTO', field: 'empresa', align: 'left' },
   { label: 'NOME DO BANCO', field: 'banco', align: 'left' },
   { label: 'AGÊNCIA', field: 'agencia', align: 'left' },
   { label: 'CONTA', field: 'conta', align: 'left' },
   { label: 'TIPO DE CONTA', field: 'tipoConta', align: 'left' },
-  { label: 'CPF/CNPJ/CHAVE PIX', field: 'cpfCnpj', align: 'left' },
-  { label: 'ANEXOS (SIM/NÃO)', field: 'anexos', align: 'center' },
+  { label: 'CPF/CNPJ', field: 'cpfCnpj', align: 'left' },
+  { label: 'DESPESA', field: 'setorResponsavel', align: 'left' },
 ];
 
 
@@ -353,17 +358,15 @@ const LOTE_DETALHADO_COLUMNS: {
   { label: 'FORNECEDOR', field: 'fornecedor', align: 'left' },
   { label: 'VALOR', field: 'valor', align: 'right' },
   { label: 'VENCIMENTO', field: 'vencimento', type: 'date', align: 'center' },
-  { label: 'PAGAMENTO', field: 'pagamento', align: 'center' },
-  { label: 'EMPRESA', field: 'empresa', align: 'left' },
+  { label: 'FORMA DE PAGAMENTO', field: 'pagamento', align: 'center' },
   { label: 'DESCRIÇÃO', field: 'descricao', align: 'left' },
-  { label: 'NOTA FISCAL', field: 'notaFiscal', align: 'left' },
-  { label: 'SETOR RESPONSÁVEL', field: 'setorResponsavel', align: 'left' },
+  { label: 'CENTRO DE CUSTO', field: 'empresa', align: 'left' },
   { label: 'NOME DO BANCO', field: 'banco', align: 'left' },
   { label: 'AGÊNCIA', field: 'agencia', align: 'left' },
   { label: 'CONTA', field: 'conta', align: 'left' },
   { label: 'TIPO DE CONTA', field: 'tipoConta', align: 'left' },
-  { label: 'CPF/CNPJ/CHAVE PIX', field: 'cpfCnpj', align: 'left' },
-  { label: 'ANEXOS (SIM/NÃO)', field: 'anexos', align: 'center' },
+  { label: 'CPF/CNPJ', field: 'cpfCnpj', align: 'left' },
+  { label: 'DESPESA', field: 'setorResponsavel', align: 'left' },
 ];
 
 const LOTE_RESUMIDO_COLUMNS: {
@@ -376,8 +379,7 @@ const LOTE_RESUMIDO_COLUMNS: {
   { label: 'FORNECEDOR', field: 'fornecedor', align: 'left' },
   { label: 'VALOR', field: 'valor', align: 'right' },
   { label: 'VENCIMENTO', field: 'vencimento', type: 'date', align: 'center' },
-  { label: 'DESCRIÇÃO', field: 'descricao', align: 'left' },
-  { label: 'NF', field: 'notaFiscal', align: 'left' },
+  { label: 'DESCRIÃ‡ÃƒO', field: 'descricao', align: 'left' },
 ];
 
 const EXPORT_MODAL_STORAGE_KEY = 'serverkey:contas_apagar_export_state';
@@ -1776,7 +1778,7 @@ const ContasAPagar: React.FC = () => {
       conta: transferencia ? (decodeLatin1IfNeeded(conta.conta) ?? '') : '*',
       tipoConta: transferencia ? (decodeLatin1IfNeeded(conta.tipo_de_conta) ?? '') : '*',
       cpfCnpj: transferencia ? (decodeLatin1IfNeeded(conta.cpf_cnpj) ?? '') : '*',
-      anexos: 'Não',
+      anexos: 'NÃ£o',
     };
   };
 
@@ -1863,7 +1865,6 @@ const ContasAPagar: React.FC = () => {
         conta: entry.conta ?? '',
         tipoConta: entry.tipoConta ?? '',
         cpfCnpj: entry.cpfCnpj ?? '',
-        anexos: entry.anexos ?? '',
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       });
     });
@@ -1881,7 +1882,6 @@ const ContasAPagar: React.FC = () => {
         valor: getContaValorAsText(conta.valor),
         vencimento: entry.vencimento ?? '',
         descricao: entry.descricao ?? '',
-        notaFiscal: entry.notaFiscal ?? '',
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       });
     });
@@ -1895,18 +1895,17 @@ const ContasAPagar: React.FC = () => {
       return [
         row.fornecedor,
         valorNum ?? null,
-        vencDate,
+        formatExportDateText(row.vencimento ?? null),
         row.pagamento,
         row.empresa,
         row.descricao,
-        row.notaFiscal,
         row.setorResponsavel,
         row.banco,
         row.agencia,
         row.conta,
         row.tipoConta,
         row.cpfCnpj,
-        row.anexos,
+        '',
       ];
     });
   }, []);
@@ -1929,21 +1928,19 @@ const ContasAPagar: React.FC = () => {
       id: row.id,
       contaId: row.contaId,
       fornecedor: row.fornecedor ?? '',
-      valor: row.valor ?? '',
-      vencimento: row.vencimento ?? '',
-      pagamento: '',
-      empresa: '',
-      descricao: row.descricao ?? '',
-      notaFiscal: row.notaFiscal ?? '',
-      setorResponsavel: '',
-      banco: '',
-      agencia: '',
-      conta: '',
-      tipoConta: '',
-      cpfCnpj: '',
-      anexos: '',
-      tipoRegistro: row.tipoRegistro,
-    }));
+        valor: row.valor ?? '',
+        vencimento: row.vencimento ?? '',
+        pagamento: '',
+        empresa: '',
+        descricao: row.descricao ?? '',
+        setorResponsavel: '',
+        banco: '',
+        agencia: '',
+        conta: '',
+        tipoConta: '',
+        cpfCnpj: '',
+        tipoRegistro: row.tipoRegistro,
+      }));
   }, []);
 
   const buildXlsxDataRows = useCallback((entryMap: Record<string, ExportEntry>) => {
@@ -1957,16 +1954,14 @@ const ContasAPagar: React.FC = () => {
         valorNum ?? null,
         vencDate,
         entry.pagamento,
-        entry.empresa,
         entry.descricao,
-        entry.notaFiscal,
-        entry.setorResponsavel,
+        entry.empresa || entry.setorResponsavel,
         entry.banco,
         entry.agencia,
         entry.conta,
         entry.tipoConta,
         entry.cpfCnpj,
-        entry.anexos,
+        '',
       ];
     });
   }, [filteredContasSorted, mergeExportEntryWithDefaults]);
@@ -1978,11 +1973,24 @@ const ContasAPagar: React.FC = () => {
     try {
       const XLSX = await resolveXlsx();
     // ===== base do arquivo (igual ao anexo) =====
-    const TITLE = 'PROTOCOLO FINANCEIRO';
-    const HEADERS = XLSX_EXPORT_HEADERS;
+    const TITLE = 'PROTOCOLO DE PAGAMENTO';
+    const HEADERS = [
+      'FORNECEDOR',
+      'VALOR LÍQUIDO',
+      'VENCIMENTO',
+      'FORMA DE PAGAMENTO',
+      'DESCRIÇÃO',
+      'CENTRO DE CUSTO',
+      'NOME DO BANCO',
+      'AGÊNCIA',
+      'CONTA',
+      'TIPO DE CONTA',
+      'CPF/CNPJ',
+      'DESPESA',
+    ];
 
     // larguras (igual ao arquivo anexado)
-    const COL_WIDTHS = [35.21, 15.5, 20.36, 20.93, 13.5, 63.07, 27.79, 20.36, 17.36, 13.5, 11.21, 15.21, 29.5, 17.93];
+    const COL_WIDTHS = [35.21, 15.5, 20.36, 20.93, 13.5, 63.07, 27.79, 20.36, 17.36, 13.5, 11.21, 15.21];
 
     const thin = { style: 'thin', color: { rgb: 'FFBFBFBF' } };
 
@@ -2019,20 +2027,15 @@ const ContasAPagar: React.FC = () => {
       numFmt: brlFinanceiroFmt,
     };
     const dateStamp = new Date().toISOString().slice(0, 10);
-
-    // ===== monta linhas =====
     const rows: any[][] = [];
-    rows.push([TITLE, ...Array(HEADERS.length - 1).fill(null)]);       // linha 1 (A1:N1)
-    rows.push([null, ...Array(HEADERS.length - 1).fill(null)]);        // linha 2 (A2:N2) - para manter o merge 2 linhas
-    rows.push(HEADERS);                                // linha 3 (cabeçalho)
 
     if (format === 'xlsx_resumido') {
-      const TITLE = 'PROTOCOLO FINANCEIRO';
+      const TITLE = 'PROTOCOLO DE PAGAMENTO';
 
-      const HEADERS = ['FORNECEDOR', 'VALOR', 'VENCIMENTO', 'DESCRIÇÃO', 'NF', null]; // F fica oculto
+      const HEADERS = ['FORNECEDOR', 'VALOR', 'VENCIMENTO', 'DESCRIÃ‡ÃƒO', 'NF', null]; // F fica oculto
 
-      // larguras iguais ao anexo (A..F)
-      const COL_WIDTHS = [32.21, 18.79, 20.36, 63.07, 21.93, 0.5];
+      // larguras iguais ao anexo (A..D)
+      const COL_WIDTHS = [32.21, 18.79, 20.36, 63.07, 21.93];
 
       const thin = { style: 'thin', color: { rgb: 'FFBFBFBF' } };
 
@@ -2072,25 +2075,21 @@ const ContasAPagar: React.FC = () => {
         valor?: string | number | null;
         vencimento?: string | null;
         descricao?: string;
-        notaFiscal?: string;
       }) => {
         const valorNum = parseExportValor(row.valor ?? null);
         const vencDate = parseExportDate(row.vencimento ?? null);
-        const vencCell = vencDate ?? (row.vencimento ? row.vencimento : null);
+        const vencCell = vencDate ? formatExportDateText(row.vencimento ?? null) : (row.vencimento ? row.vencimento : null);
         rows.push([
           row.fornecedor ?? '',
           valorNum ?? null,
           vencCell ?? null,
           row.descricao ?? '',
-          row.notaFiscal ?? '',
           null,
         ]);
       };
 
-      // monta AOA (1..)
-      const rows: any[][] = [];
-      rows.push([TITLE, null, null, null, null, null]);      // linha 1
-      rows.push([null, null, null, null, null, null]);       // linha 2
+      rows.push([TITLE, null, null, null, null]);      // linha 1
+      rows.push([null, null, null, null, null]);       // linha 2
       rows.push(HEADERS);                                    // linha 3
 
       // dados (linha 4+)
@@ -2104,35 +2103,34 @@ const ContasAPagar: React.FC = () => {
             valor: conta.valor,
             vencimento: entry.vencimento,
             descricao: entry.descricao,
-            notaFiscal: entry.notaFiscal,
           });
         });
       }
 
-      // TOTAL (igual ao anexo) - soma de B4 até última linha de dados
+      // TOTAL (igual ao anexo) - soma de B4 atÃ© Ãºltima linha de dados
       const firstDataRow = 4;
       const lastDataRow = rows.length; // antes de adicionar total
-      rows.push(['TOTAL', { f: `SUM(B${firstDataRow}:B${lastDataRow})` }, null, null, null, null]);
+      rows.push(['TOTAL', { f: `SUM(B${firstDataRow}:B${lastDataRow})` }, null, null, null]);
 
       const ws = XLSX.utils.aoa_to_sheet(rows, { cellDates: true });
 
-      const totalRowIndex = rows.length - 1; // índice 0-based dentro do AOA
+      const totalRowIndex = rows.length - 1; // Ã­ndice 0-based dentro do AOA
       const totalCellAddr = XLSX.utils.encode_cell({ r: totalRowIndex, c: 1 }); // coluna B
       if (ws[totalCellAddr]) {
         ws[totalCellAddr].s = styleMoney;
         ws[totalCellAddr].t = 'n';
       }
 
-      // merge título: A1:E2 (não inclui F)
+      // merge tÃ­tulo: A1:E2 (nÃ£o inclui F)
       ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 1, c: 4 } }];
 
       // larguras
       ws['!cols'] = COL_WIDTHS.map((w) => ({ wch: w }));
 
-      // estilo título (A1)
+      // estilo tÃ­tulo (A1)
       if (ws['A1']) ws['A1'].s = styleTitle;
 
-      // header linha 3 (r=2) col A..E
+      // header linha 3 (r=2) col A..D
       for (let c = 0; c <= 4; c++) {
         const addr = XLSX.utils.encode_cell({ r: 2, c });
         if (ws[addr]) ws[addr].s = styleHeader;
@@ -2140,7 +2138,7 @@ const ContasAPagar: React.FC = () => {
 
       // corpo: da linha 4 em diante (r=3..)
       for (let r = 3; r < rows.length; r++) {
-        for (let c = 0; c < 6; c++) {
+        for (let c = 0; c < 5; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
           if (!ws[addr]) continue;
 
@@ -2159,7 +2157,7 @@ const ContasAPagar: React.FC = () => {
             continue;
           }
 
-          // TOTAL (linha final) â deixa A em bold
+          // TOTAL (linha final) Ã¢Â€Â“ deixa A em bold
           if (r === rows.length - 1 && c === 0) {
             ws[addr].s = { ...styleCell, font: { bold: true, sz: 11 } };
             continue;
@@ -2177,77 +2175,88 @@ const ContasAPagar: React.FC = () => {
     }
 
     if (format === 'template') {
-      // uma linha vazia igual ao modelo (começa na linha 4)
+      // uma linha vazia igual ao modelo (come?a na linha 4)
       rows.push([
-        '',     // FORNECEDOR
-        null,   // VALOR
-        null,   // VENCIMENTO
-        'BOLETO', // PAGAMENTO
-        '',     // EMPRESA
-        '',     // DESCRIÇÃO
-        '',     // nota fiscal
-        'T.I',     // SETOR
-        '',     // BANCO
-        '',     // AGÊNCIA
-        '',     // CONTA
-        '',     // TIPO DE CONTA
-        '',     // CPF/CNPJ/CHAVE PIX
-        'Não',  // Anexos (Sim/Não)
+        null,
+        '',
+        null,
+        null,
+        'BOLETO',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
       ]);
     } else {
+      rows.push([null, ...Array(12).fill(null)]);
+      rows.push([null, TITLE, ...Array(11).fill(null)]);
+      rows.push([null, ...Array(12).fill(null)]);
+      rows.push([null, ...HEADERS]);
+
       // export real (usa o filtro atual da tela)
       const dataRows = overrides?.detalhadoRows
         ? overrides.detalhadoRows.map((row) => {
           const valorNum = parseExportValor(row.valor);
           const vencDate = parseExportDate(row.vencimento ?? null);
-          const vencCell = vencDate ?? (row.vencimento ? row.vencimento : null);
-          return [
-            row.fornecedor ?? '',
-            valorNum ?? null,
-            vencCell ?? null,
-            row.pagamento ?? '',
-            row.empresa ?? '',
-            row.descricao ?? '',
-            row.notaFiscal ?? '',
-            row.setorResponsavel ?? '',
-            row.banco ?? '',
-            row.agencia ?? '',
-            row.conta ?? '',
-            row.tipoConta ?? '',
-            row.cpfCnpj ?? '',
-            row.anexos ?? '',
-          ];
-        })
+          const vencCell = vencDate ? formatExportDateText(row.vencimento ?? null) : (row.vencimento ? row.vencimento : null);
+            return [
+              row.fornecedor ?? '',
+              valorNum ?? null,
+              vencCell ?? null,
+              row.pagamento ?? '',
+              row.descricao ?? '',
+              row.empresa ?? row.setorResponsavel ?? '',
+              row.banco ?? '',
+              row.agencia ?? '',
+              row.conta ?? '',
+              row.tipoConta ?? '',
+              row.cpfCnpj ?? '',
+              '',
+            ];
+          })
         : buildXlsxDataRows(entryMap);
-      dataRows.forEach((row) => rows.push(row));
+      dataRows.forEach((row) => rows.push([null, ...row]));
     }
 
     // ===== cria planilha =====
     const ws = XLSX.utils.aoa_to_sheet(rows, { cellDates: true });
 
-    // merge A1:N2
-    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 1, c: 13 } }];
+    // merge B2:M2
+    ws['!merges'] = [{ s: { r: 1, c: 1 }, e: { r: 1, c: 12 } }];
 
-    // larguras
-    ws['!cols'] = COL_WIDTHS.map((w) => ({ wch: w }));
+    ws['!dataValidations'] = [{
+      type: 'list',
+      allowBlank: true,
+      showErrorMessage: true,
+      showInputMessage: true,
+      sqref: 'M4:M1048576',
+      formulas: ['"Fixo,Variavel"'],
+    }];
 
-    // estilos: título (aplica em A1)
-    ws['A1'].s = styleTitle;
+    // larguras: A estreita, B:M conforme o modelo
+    ws['!cols'] = [{ wch: 3 }, ...COL_WIDTHS.map((w) => ({ wch: w }))];
 
-    // estilos: cabeçalho linha 3 (r=2)
-    for (let c = 0; c < 14; c++) {
+    // estilos: tÃ­tulo (B2)
+    if (ws['B2']) ws['B2'].s = { ...styleTitle, font: { bold: true, sz: 36 } };
+
+    // estilos: cabeÃ§alho linha 3 (r=2)
+    for (let c = 1; c < 13; c++) {
       const addr = XLSX.utils.encode_cell({ r: 2, c });
       if (ws[addr]) ws[addr].s = styleHeader;
     }
 
     // estilos: corpo (a partir da linha 4 => r=3)
     for (let r = 3; r < rows.length; r++) {
-      for (let c = 0; c < 14; c++) {
+      for (let c = 1; c < 13; c++) {
         const addr = XLSX.utils.encode_cell({ r, c });
         if (!ws[addr]) continue;
 
         // VALOR (col B)
-        if (c === 1) {
+        if (c === 2) {
           ws[addr].s = styleMoney;
           if (typeof ws[addr].v === 'number' || ws[addr].f) {
             ws[addr].t = 'n';
@@ -2266,7 +2275,7 @@ const ContasAPagar: React.FC = () => {
     }
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Planilha1');
+    XLSX.utils.book_append_sheet(wb, ws, 'PROTOCOLO DE PAGAMENTO');
 
     const filenameBase = overrides?.filenameBase ?? (format === 'template'
       ? 'PROTOCOLO_FINANCEIRO_MODELO'
@@ -2382,17 +2391,30 @@ const ContasAPagar: React.FC = () => {
         }
       );
 
-      const responseData = await response.json().catch(() => null);
+      const responseText = await response.text().catch(() => '');
+      const responseData = (() => {
+        try {
+          return responseText ? JSON.parse(responseText) : null;
+        } catch {
+          return responseText || null;
+        }
+      })();
       if (!response.ok) {
-        const errorMessage = responseData?.error || 'Falha ao enviar e-mail.';
-        console.error('Erro ao enviar e-mail:', responseData || response.statusText);
+        const errorMessage =
+          (responseData && typeof responseData === 'object' && 'error' in responseData
+            ? String((responseData as { error?: unknown }).error ?? '')
+            : '') ||
+          responseText ||
+          response.statusText ||
+          'Falha ao enviar e-mail.';
+        console.error('Erro ao enviar e-mail:', response.status, responseText);
         setToast({ type: 'error', message: errorMessage });
         return false;
       }
 
-      if (!responseData?.ok) {
-        console.error('Resposta inesperada da function:', responseData);
-        setToast({ type: 'error', message: 'Falha ao enviar e-mail.' });
+      if (!responseData || typeof responseData !== 'object' || !('ok' in responseData) || !(responseData as { ok?: unknown }).ok) {
+        console.error('Resposta inesperada da function:', responseText);
+        setToast({ type: 'error', message: responseText || 'Falha ao enviar e-mail.' });
         return false;
       }
 
@@ -2400,7 +2422,7 @@ const ContasAPagar: React.FC = () => {
       return true;
     } catch (err) {
       console.error('Erro inesperado ao enviar e-mail:', err);
-      setToast({ type: 'error', message: 'Falha ao enviar e-mail.' });
+      setToast({ type: 'error', message: err instanceof Error ? err.message : 'Falha ao enviar e-mail.' });
       return false;
     } finally {
       setSendingEmail(false);
@@ -2691,7 +2713,7 @@ const ContasAPagar: React.FC = () => {
     if (lote.fechado) return;
     const tipo: 'resumido' | 'detalhado' | null = lote.detalhado ? 'detalhado' : lote.resumido ? 'resumido' : null;
     if (!tipo) {
-      setToast({ type: 'error', message: 'Lote sem estrutura para edição.' });
+      setToast({ type: 'error', message: 'Lote sem estrutura para ediÃ§Ã£o.' });
       return;
     }
     handleStartEditLote(lote, tipo, false);
@@ -3121,10 +3143,10 @@ const ContasAPagar: React.FC = () => {
       await persistLoteToDb(novoLote, { silent: true });
       setContas((prev) => prev.filter((conta) => !ids.includes(conta.id)));
       localStorage.setItem(MONTH_CLOSE_STORAGE_KEY, currentMonthKey);
-      setToast({ type: 'success', message: 'Lotes avulsos e ressarcimentos do mês anterior foram fechados.' });
+      setToast({ type: 'success', message: 'Lotes avulsos e ressarcimentos do mÃªs anterior foram fechados.' });
     } catch (error) {
-      console.error('Erro ao fechar mês automaticamente:', error);
-      setToast({ type: 'error', message: 'Falha ao fechar contas do mês anterior.' });
+      console.error('Erro ao fechar mÃªs automaticamente:', error);
+      setToast({ type: 'error', message: 'Falha ao fechar contas do mÃªs anterior.' });
     } finally {
       setIsMonthClosing(false);
     }
@@ -3851,13 +3873,13 @@ const ContasAPagar: React.FC = () => {
                             Itens:
                             <strong className="font-semibold text-neutral-700">{lote.total}</strong>
                           </span>
-                          <span className="hidden sm:inline text-neutral-300">•</span>
+                          <span className="hidden sm:inline text-neutral-300">â€¢</span>
                           <span>
                             Criado em: <strong className="font-semibold text-neutral-700">{formatDateTime(lote.criado_em)}</strong>
                           </span>
                           {closedLoteOps[lote.id]?.ultimoExportDetalhadoEm && (
                             <>
-                              <span className="hidden sm:inline text-neutral-300">â€¢</span>
+                              <span className="hidden sm:inline text-neutral-300">Ã¢â‚¬Â¢</span>
                               <span>
                                 Det. exportado: <strong className="font-semibold text-neutral-700">{formatDateTime(closedLoteOps[lote.id]?.ultimoExportDetalhadoEm as string)}</strong>
                               </span>
@@ -3865,7 +3887,7 @@ const ContasAPagar: React.FC = () => {
                           )}
                           {closedLoteOps[lote.id]?.ultimoExportResumidoEm && (
                             <>
-                              <span className="hidden sm:inline text-neutral-300">â€¢</span>
+                              <span className="hidden sm:inline text-neutral-300">Ã¢â‚¬Â¢</span>
                               <span>
                                 Res. exportado: <strong className="font-semibold text-neutral-700">{formatDateTime(closedLoteOps[lote.id]?.ultimoExportResumidoEm as string)}</strong>
                               </span>
@@ -3873,7 +3895,7 @@ const ContasAPagar: React.FC = () => {
                           )}
                           {closedLoteOps[lote.id]?.ultimoEmailDetalhadoEm && (
                             <>
-                              <span className="hidden sm:inline text-neutral-300">â€¢</span>
+                              <span className="hidden sm:inline text-neutral-300">Ã¢â‚¬Â¢</span>
                               <span>
                                 E-mail det.: <strong className="font-semibold text-neutral-700">{formatDateTime(closedLoteOps[lote.id]?.ultimoEmailDetalhadoEm as string)}</strong>
                               </span>
@@ -3892,7 +3914,7 @@ const ContasAPagar: React.FC = () => {
                             const counts = getLoteCounts(lote);
                             return (
                               <>
-                                <span className="hidden sm:inline text-neutral-300">•</span>
+                                <span className="hidden sm:inline text-neutral-300">â€¢</span>
                                 <span className="inline-flex items-center gap-1">
                                   Fixas:
                                   <strong className="font-semibold text-neutral-700">{counts.fixas}</strong>
@@ -4588,10 +4610,10 @@ const ContasAPagar: React.FC = () => {
                                 : null;
                             const sortIndicator = sortField && loteSortConfig.key === sortField
                               ? loteSortConfig.direction === 'asc'
-                                ? '↑'
-                                : '↓'
+                                ? 'â†‘'
+                                : 'â†“'
                               : sortField
-                                ? '↕'
+                                ? 'â†•'
                                 : '';
                             const headerAlignClass =
                               column.align === 'center'
@@ -4758,7 +4780,7 @@ const ContasAPagar: React.FC = () => {
                               disabled={sendingEmail}
                               aria-label={`Remover ${recipient}`}
                             >
-                              ×
+                              Ã—
                             </button>
                           )}
                         </span>
@@ -4877,9 +4899,9 @@ const ContasAPagar: React.FC = () => {
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-neutral-500">
                           <span>Itens: <strong className="font-semibold text-neutral-700">{lote.total}</strong></span>
-                          <span className="text-neutral-300">•</span>
+                          <span className="text-neutral-300">â€¢</span>
                           <span>Criado em: <strong className="font-semibold text-neutral-700">{formatDateTime(lote.criado_em)}</strong></span>
-                          <span className="text-neutral-300">•</span>
+                          <span className="text-neutral-300">â€¢</span>
                           <span className="inline-flex items-center gap-2">
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
                               hasResumido ? 'bg-primary-50 text-primary-700' : 'bg-neutral-200 text-neutral-400'
@@ -4896,7 +4918,7 @@ const ContasAPagar: React.FC = () => {
                             const counts = getLoteCounts(lote);
                             return (
                               <>
-                                <span className="text-neutral-300">•</span>
+                                <span className="text-neutral-300">â€¢</span>
                                 <span>Fixas: <strong className="font-semibold text-neutral-700">{counts.fixas}</strong></span>
                                 <span>Avulsas: <strong className="font-semibold text-neutral-700">{counts.avulsas}</strong></span>
                                 <span>Ressarcimento: <strong className="font-semibold text-neutral-700">{counts.ressarcimentos}</strong></span>
@@ -5090,7 +5112,7 @@ const ContasAPagar: React.FC = () => {
                             >
                               {isReadOnlyColumn ? (
                                 <span className="inline-flex min-h-[26px] items-center px-2 text-[10px] sm:text-[11px] lg:text-xs text-neutral-700 uppercase">
-                                  {value || '—'}
+                                  {value || 'â€”'}
                                 </span>
                               ) : (
                                 <input
@@ -5477,3 +5499,4 @@ const ContasAPagar: React.FC = () => {
 };
 
 export default ContasAPagar;
+

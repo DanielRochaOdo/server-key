@@ -131,7 +131,7 @@ const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-Deno.serve(async (req) => {
+const handleRequest = async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -176,13 +176,24 @@ Deno.serve(async (req) => {
   const smtpFrom = Deno.env.get("SMTP_FROM");
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("Missing Supabase environment variables.");
-    return jsonResponse({ ok: false, error: "Server configuration error" }, 500);
+    const missing = [
+      !supabaseUrl ? "SUPABASE_URL" : null,
+      !supabaseServiceKey ? "SUPABASE_SERVICE_ROLE_KEY" : null,
+    ].filter(Boolean);
+    console.error("Missing Supabase environment variables:", missing);
+    return jsonResponse({ ok: false, error: `Server configuration error: missing ${missing.join(", ")}` }, 500);
   }
 
   if (!smtpHost || !smtpPortValue || !smtpUser || !smtpPass || !smtpFrom) {
-    console.error("Missing SMTP environment variables.");
-    return jsonResponse({ ok: false, error: "Server configuration error" }, 500);
+    const missing = [
+      !smtpHost ? "SMTP_HOST" : null,
+      !smtpPortValue ? "SMTP_PORT" : null,
+      !smtpUser ? "SMTP_USER" : null,
+      !smtpPass ? "SMTP_PASS" : null,
+      !smtpFrom ? "SMTP_FROM" : null,
+    ].filter(Boolean);
+    console.error("Missing SMTP environment variables:", missing);
+    return jsonResponse({ ok: false, error: `Server configuration error: missing ${missing.join(", ")}` }, 500);
   }
 
   const smtpPort = Number(smtpPortValue);
@@ -338,9 +349,25 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error("SMTP send error:", error);
-    return jsonResponse({ ok: false, error: "Failed to send email" }, 500);
+    return jsonResponse({ ok: false, error: `Failed to send email: ${error instanceof Error ? error.message : "unknown error"}` }, 500);
   }
 
   console.log("send-contas-a-pagar-xlsx-email: done");
   return jsonResponse({ ok: true }, 200);
+};
+
+Deno.serve(async (req) => {
+  try {
+    return await handleRequest(req);
+  } catch (error) {
+    console.error("Unhandled send-contas-a-pagar-xlsx-email error:", error);
+    return jsonResponse(
+      {
+        ok: false,
+        error: "Unhandled server error",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      500
+    );
+  }
 });

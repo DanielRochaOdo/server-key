@@ -18,6 +18,8 @@ type HubRow = {
   id: string;
   nome: string | null;
   numero_linha: string | null;
+  franquia?: string | null;
+  up?: string | null;
   status?: string | null;
 };
 
@@ -671,14 +673,14 @@ Deno.serve(async (req) => {
   let hubRows: HubRow[] = [];
   const { data: hubRowsWithStatus, error: hubError } = await supabase
     .from("rateio_claro")
-    .select("id, nome, numero_linha, status");
+    .select("id, nome, numero_linha, franquia, up, status");
 
   if (hubError) {
     if (hubError.code === "42703") {
       statusSupported = false;
       const { data: hubRowsNoStatus, error: hubErrorNoStatus } = await supabase
         .from("rateio_claro")
-        .select("id, nome, numero_linha");
+        .select("id, nome, numero_linha, franquia, up");
       if (hubErrorNoStatus) {
         console.error("Error fetching rateio_claro without status:", hubErrorNoStatus);
         return jsonResponse({ ok: false, error: "Failed to load hub data" }, 500);
@@ -815,6 +817,8 @@ Deno.serve(async (req) => {
     .map((diff) => ({
       nome: diff.planilha?.nome ?? "",
       numero_linha: diff.numero_da_linha,
+      franquia: null,
+      up: "nao",
       user_id: authData.user.id,
       status: "active",
       created_at: now,
@@ -826,6 +830,8 @@ Deno.serve(async (req) => {
     .map((diff) => ({
       id: diff.hub?.id,
       nome: diff.planilha?.nome ?? "",
+      franquia: diff.hub?.franquia ?? null,
+      up: diff.hub?.up ?? "nao",
       status: "active",
       updated_at: now,
     }));

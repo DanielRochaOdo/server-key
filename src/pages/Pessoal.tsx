@@ -5,6 +5,7 @@ import PessoalFileUpload from '../components/PessoalFileUpload';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { useClipboardCopy } from '../hooks/useClipboardCopy';
@@ -27,6 +28,7 @@ interface Pessoal {
 }
 
 const Pessoal: React.FC = () => {
+  const { user } = useAuth();
   const [pessoais, setPessoais] = useState<Pessoal[]>([]);
   const [loading, setLoading] = useState(true);
   const { getState, setState, clearState } = usePersistence();
