@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Phone, Download, Search, Edit, Trash2, Building, RefreshCw, Copy } from 'lucide-react';
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Phone, Download, Search, Edit, Trash2, Building, Copy } from 'lucide-react';
 import RateioClaroForm from '../components/RateioClaroForm';
 import RateioClaroFileUpload from '../components/RateioClaroFileUpload';
-import RateioClaroSyncModal from '../components/RateioClaroSyncModal';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
-import * as XLSX from 'xlsx';
 
 interface RateioClaro {
   id: string;
@@ -17,8 +15,27 @@ interface RateioClaro {
   numero_linha?: string;
   responsavel_atual?: string;
   setor?: string;
+  franquia?: string | null;
+  up?: string | null;
   created_at: string;
 }
+
+const FRAQUIA_TETO_GB = 400;
+
+const parseFranquiaToGb = (value?: string | null) => {
+  if (!value) return 0;
+  const normalized = value.toString().trim().toLowerCase();
+  const match = normalized.match(/^(\d+(?:[.,]\d+)?)\s*(mb|gb)$/);
+  if (!match) return 0;
+  const amount = Number(match[1].replace(',', '.'));
+  if (!Number.isFinite(amount)) return 0;
+  return match[2] === 'mb' ? amount / 1024 : amount;
+};
+
+const formatGbValue = (value: number) => {
+  const rounded = Math.round(value * 100) / 100;
+  return `${rounded.toLocaleString('pt-BR')} GB`;
+};
 
 const RateioClaro: React.FC = () => {
   const [rateios, setRateios] = useState<RateioClaro[]>([]);
@@ -37,10 +54,9 @@ const RateioClaro: React.FC = () => {
   const [showActionPasswordModal, setShowActionPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view' | 'edit' | 'delete' | null>(null);
   const [pendingActionRateio, setPendingActionRateio] = useState<RateioClaro | null>(null);
-  const [showSync, setShowSync] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { hasModuleEditAccess } = useAuth();
+  const { hasModuleAccess, hasModuleEditAccess } = useAuth();
 
   const itemsPerPage = 10;
 
@@ -49,7 +65,7 @@ const RateioClaro: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('rateio_claro')
-        .select('id, nome, numero_linha, responsavel_atual, setor, created_at')
+        .select('id, nome, numero_linha, responsavel_atual, setor, franquia, up, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -207,7 +223,9 @@ const RateioClaro: React.FC = () => {
         nome: '',
         numero_linha: '',
         responsavel_atual: '',
-        setor: ''
+        setor: '',
+        franquia: '',
+        up: 'nao',
       }];
       const ws = XLSX.utils.json_to_sheet(templateData);
       const wb = XLSX.utils.book_new();
@@ -215,12 +233,16 @@ const RateioClaro: React.FC = () => {
       XLSX.writeFile(wb, 'template_rateio_claro.xlsx', { bookType: 'xlsx' });
     } else {
       // Usar dados filtrados em vez de todos os dados
-      const dataToExport = filteredRateiosSorted.map(({ id, created_at, ...rest }) => rest);
+      const dataToExport = filteredRateiosSorted.map(({ id, created_at, franquia, up, ...rest }) => ({
+        ...rest,
+        franquia: franquia || '',
+        up: up || 'nao',
+      }));
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'RateioClaro');
       
-      // Incluir informações sobre filtros no nome do arquivo
+      // Incluir informaÃ§Ãµes sobre filtros no nome do arquivo
       const filterInfo = (searchTerm || selectedSetor) ? `_filtrado` : '';
       const filename = `rateio_claro${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
       
@@ -254,10 +276,6 @@ const RateioClaro: React.FC = () => {
     clearState('rateioClaro_showUpload');
   }, [fetchRateios]);
 
-  const handleSyncSuccess = useCallback(async () => {
-    await fetchRateios();
-  }, [fetchRateios]);
-
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingRateio(null);
@@ -282,20 +300,30 @@ const RateioClaro: React.FC = () => {
     const setorBlockValue = selectedSetor === '' 
       ? filteredRateiosSorted.length 
       : filteredRateiosSorted.filter(r => r.setor === selectedSetor).length;
+    const franquiaTotalGb = filteredRateiosSorted.reduce((acc, rateio) => acc + parseFranquiaToGb(rateio.franquia), 0);
     
-    return [{
-      title: setorBlockTitle,
-      value: setorBlockValue,
-      icon: Building,
-      color: 'text-primary-600',
-      bgColor: 'bg-primary-100',
-      description: `${setorBlockValue} rateio${setorBlockValue !== 1 ? 's' : ''}`
-    }];
+    return [
+      {
+        title: setorBlockTitle,
+        value: setorBlockValue,
+        icon: Building,
+        color: 'text-primary-600',
+        bgColor: 'bg-primary-100',
+        description: `${setorBlockValue} rateio${setorBlockValue !== 1 ? 's' : ''}`,
+      },
+      {
+        title: 'Franquia',
+        value: formatGbValue(franquiaTotalGb),
+        icon: Phone,
+        color: franquiaTotalGb > FRAQUIA_TETO_GB ? 'text-red-600' : 'text-emerald-600',
+        bgColor: franquiaTotalGb > FRAQUIA_TETO_GB ? 'bg-red-100' : 'bg-emerald-100',
+        description: `${formatGbValue(franquiaTotalGb)} de ${FRAQUIA_TETO_GB} GB`,
+      },
+    ];
   }, [filteredRateiosSorted]);
 
+  const canViewRateioClaro = hasModuleAccess('rateio_claro');
   const canEditRateioClaro = hasModuleEditAccess('rateio_claro');
-  const canSync = canEditRateioClaro;
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -311,53 +339,36 @@ const RateioClaro: React.FC = () => {
         title="Rateio Claro"
         subtitle="Gerenciamento de rateio de linhas Claro"
         actions={(
-          <>
-            {canSync && (
-              <button
-                onClick={() => setShowSync(true)}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
-              >
-                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
-                Sincronizar
-              </button>
-            )}
-            <div className="relative">
-              <button
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
-              >
-                <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-                Exportar ({filteredRateiosSorted.length})
-              </button>
-              {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-10 border border-neutral-200">
-                  <div className="py-1">
-                    <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
-                      {(searchTerm || selectedSetor) ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
-                    </div>
-                    <button
-                      onClick={() => exportData('csv')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-200"
-                    >
-                      Exportar como CSV
-                    </button>
-                    <button
-                      onClick={() => exportData('xlsx')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-200"
-                    >
-                      Exportar como XLSX
-                    </button>
-                    <button
-                      onClick={() => exportData('template')}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-200 border-t border-neutral-200"
-                    >
-                      Baixar Modelo
-                    </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+            >
+              <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+              Exportar ({filteredRateiosSorted.length})
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-10 border border-neutral-200">
+                <div className="py-1">
+                  <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
+                    {(searchTerm || selectedSetor) ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
                   </div>
+                  <button
+                    onClick={() => exportData('csv')}
+                    className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-200"
+                  >
+                    Exportar como CSV
+                  </button>
+                  <button
+                    onClick={() => exportData('xlsx')}
+                    className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-200"
+                  >
+                    Exportar como XLSX
+                  </button>
                 </div>
-              )}
-            </div>
-          </>
+              </div>
+            )}
+          </div>
         )}
       />
 
@@ -417,15 +428,17 @@ const RateioClaro: React.FC = () => {
                   <div className="flex items-center">
                    Nome completo
                     <span className="ml-1 sm:ml-2">
-                      {sortOrder === 'asc' ? '▲' : sortOrder === 'desc' ? '▼' : '⇅'}
+                      {sortOrder === 'asc' ? 'desc' : sortOrder === 'desc' ? '▲' : '▼'}
                     </span>
                   </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Número da Linha</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Responsável Atual</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Numero da Linha</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Responsavel Atual</th>
                 <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Setor</th>
-                {canEditRateioClaro && (
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
+                <th className="hidden md:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Franquia</th>
+                <th className="hidden md:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">UP</th>
+                {canViewRateioClaro && (
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Acoes</th>
                 )}
               </tr>
             </thead>
@@ -454,7 +467,9 @@ const RateioClaro: React.FC = () => {
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px] sm:max-w-none">{rateio.responsavel_atual || '-'}</td>
                   <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[150px]">{rateio.setor || '-'}</td>
-                  {canEditRateioClaro && (
+                  <td className="hidden md:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 truncate max-w-[120px]">{rateio.franquia || '-'}</td>
+                  <td className="hidden md:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600 capitalize">{rateio.up || 'nao'}</td>
+                  {canViewRateioClaro && (
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                       <div className="flex items-center space-x-1 sm:space-x-2">
                         <button 
@@ -468,6 +483,7 @@ const RateioClaro: React.FC = () => {
                           onClick={() => requestActionVerification('edit', rateio)} 
                           className="text-primary-600 hover:text-primary-900"
                           title="Editar"
+                          disabled={!canEditRateioClaro}
                         >
                           <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                         </button>
@@ -475,6 +491,7 @@ const RateioClaro: React.FC = () => {
                           onClick={() => requestActionVerification('delete', rateio)} 
                           className="text-red-600 hover:text-red-900"
                           title="Excluir"
+                          disabled={!canEditRateioClaro}
                         >
                           <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                         </button>
@@ -498,31 +515,31 @@ const RateioClaro: React.FC = () => {
         </div>
 
         {totalPages > 1 && (
-          <div className="flex justify-between items-center p-3 sm:p-4 border-t border-neutral-200">
+          <div className="flex flex-col gap-3 p-3 sm:p-4 border-t border-neutral-200 sm:flex-row sm:items-center sm:justify-between">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
+              className={`inline-flex items-center justify-center px-4 py-2 rounded-full transition-colors text-xs sm:text-sm font-semibold ${
                 currentPage === 1 
                   ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
                   : 'bg-primary-600 text-white hover:bg-primary-700'
               }`}
             >
-              ← Anterior
+              Anterior
             </button>
-            <span className="text-xs sm:text-sm text-neutral-600">
+            <span className="text-center text-xs sm:text-sm text-neutral-600">
               Página {currentPage} de {totalPages}
             </span>
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className={`px-2 sm:px-3 py-1 rounded transition-colors text-xs sm:text-sm ${
+              className={`inline-flex items-center justify-center px-4 py-2 rounded-full transition-colors text-xs sm:text-sm font-semibold ${
                 currentPage === totalPages 
                   ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
                   : 'bg-primary-600 text-white hover:bg-primary-700'
               }`}
             >
-              Próxima →
+              Próxima
             </button>
           </div>
         )}
@@ -544,22 +561,14 @@ const RateioClaro: React.FC = () => {
         />
       )}
 
-      {showSync && (
-        <RateioClaroSyncModal
-          isOpen={showSync}
-          onClose={() => setShowSync(false)}
-          onSuccess={handleSyncSuccess}
-        />
-      )}
-
       {viewingRateio && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-neutral-200 rounded-2xl border border-neutral-200 p-4 sm:p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Detalhes do Rateio</h2>
             <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-neutral-700">
               <div><strong>nome:</strong> {viewingRateio.nome}</div>
-              <div><strong>Número da Linha:</strong> {viewingRateio.numero_linha || '-'}</div>
-              <div><strong>Responsável Atual:</strong> {viewingRateio.responsavel_atual || '-'}</div>
+              <div><strong>NÃºmero da Linha:</strong> {viewingRateio.numero_linha || '-'}</div>
+              <div><strong>ResponsÃ¡vel Atual:</strong> {viewingRateio.responsavel_atual || '-'}</div>
               <div><strong>Setor:</strong> {viewingRateio.setor || '-'}</div>
             </div>
             <div className="mt-4 sm:mt-6 text-right">
@@ -592,15 +601,17 @@ const RateioClaro: React.FC = () => {
         }
       />
 
-      {/* Overlay para fechar menu de exportação */}
       {showExportMenu && (
-        <div 
-          className="fixed inset-0 z-5" 
+        <div
+          className="fixed inset-0 z-5"
           onClick={() => setShowExportMenu(false)}
         />
       )}
+
     </div>
   );
 };
 
 export default RateioClaro;
+
+
