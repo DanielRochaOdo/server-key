@@ -8,6 +8,7 @@ import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
+import { writeExportFile } from '../utils/xlsxExport';
 
 interface RateioClaro {
   id: string;
@@ -216,42 +217,17 @@ const RateioClaro: React.FC = () => {
     return filtered;
   }, [rateios, searchTerm, selectedSetor, sortOrder]);
 
-  const exportData = useCallback((format: 'csv' | 'xlsx') => {
-    if (format === 'template') {
-      // Create template with headers only
-      const templateData = [{
-        nome: '',
-        numero_linha: '',
-        responsavel_atual: '',
-        setor: '',
-        franquia: '',
-        up: 'nao',
-      }];
-      const ws = XLSX.utils.json_to_sheet(templateData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Template');
-      XLSX.writeFile(wb, 'template_rateio_claro.xlsx', { bookType: 'xlsx' });
-    } else {
-      // Usar dados filtrados em vez de todos os dados
-      const dataToExport = filteredRateiosSorted.map(({ id, created_at, franquia, up, ...rest }) => ({
-        ...rest,
-        franquia: franquia || '',
-        up: up || 'nao',
-      }));
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'RateioClaro');
-      
-      // Incluir informaÃ§Ãµes sobre filtros no nome do arquivo
-      const filterInfo = (searchTerm || selectedSetor) ? `_filtrado` : '';
-      const filename = `rateio_claro${filterInfo}_${new Date().toISOString().slice(0,10)}.${format}`;
-      
-      if (format === 'csv') {
-        XLSX.writeFile(wb, filename, { bookType: 'csv' });
-      } else {
-        XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
-      }
-    }
+  const exportData = useCallback(async (format: 'csv' | 'xlsx') => {
+    const dataToExport = filteredRateiosSorted.map(({ id, created_at, franquia, up, ...rest }) => ({
+      ...rest,
+      franquia: franquia || '',
+      up: up || 'nao',
+    }));
+
+    const filterInfo = (searchTerm || selectedSetor) ? '_filtrado' : '';
+    const filename = `rateio_claro${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
+
+    await writeExportFile(dataToExport, 'RateioClaro', filename, format);
     setShowExportMenu(false);
   }, [filteredRateiosSorted, searchTerm, selectedSetor]);
 
