@@ -98,7 +98,7 @@ const getModulesByRole = (role: string): string[] => {
 
 
 
-      return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'rateio_mkm', 'contas_a_pagar', 'custos_clinicas', 'controle_empresas', 'controle_uber', 'visitas_clinicas', 'pedidos_de_compra']
+      return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'rateio_mkm', 'contas_a_pagar', 'controle_empresas', 'controle_uber', 'visitas_clinicas', 'pedidos_de_compra']
 
 
 
@@ -106,7 +106,7 @@ const getModulesByRole = (role: string): string[] => {
 
 
 
-      return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'rateio_mkm', 'contas_a_pagar', 'custos_clinicas', 'controle_empresas', 'controle_uber', 'visitas_clinicas']
+      return ['usuarios', 'acessos', 'pessoal', 'teams', 'win_users', 'rateio_claro', 'rateio_google', 'rateio_mkm', 'contas_a_pagar', 'controle_empresas', 'controle_uber', 'visitas_clinicas']
 
 
 
@@ -114,7 +114,7 @@ const getModulesByRole = (role: string): string[] => {
 
 
 
-      return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas', 'custos_clinicas', 'contas_a_pagar', 'pedidos_de_compra', 'controle_uber']
+      return ['rateio_claro', 'rateio_google', 'rateio_mkm', 'controle_empresas', 'visitas_clinicas', 'contas_a_pagar', 'pedidos_de_compra', 'controle_uber']
 
 
 

@@ -7,6 +7,7 @@ import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { usePersistence } from '../contexts/PersistenceContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useClipboardCopy } from '../hooks/useClipboardCopy';
 import { useProtectedVisibility } from '../hooks/useProtectedVisibility';
 import { decryptPassword } from '../utils/encryption';
@@ -29,6 +30,8 @@ interface Access {
 const Acessos: React.FC = () => {
   const [acessos, setAcessos] = useState<Access[]>([]);
   const [loading, setLoading] = useState(true);
+  const { hasModuleEditAccess } = useAuth();
+  const canEditAcessos = hasModuleEditAccess('acessos');
   const { getState, setState, clearState } = usePersistence();
   
   const [showForm, setShowForm] = useState(() => getState('acessos_showForm') || false);
@@ -121,10 +124,11 @@ const Acessos: React.FC = () => {
   }, []);
 
   const requestActionVerification = useCallback((action: 'view' | 'edit' | 'delete', acesso: Access) => {
+    if (action !== 'view' && !canEditAcessos) return;
     setPendingAction(action);
     setPendingActionAccess(acesso);
     setShowActionPasswordModal(true);
-  }, []);
+  }, [canEditAcessos]);
 
   const handleActionPasswordVerified = useCallback(async () => {
     if (!pendingAction || !pendingActionAccess) return;
@@ -269,13 +273,15 @@ const Acessos: React.FC = () => {
         subtitle="Gerenciamento de acessos aos sistemas da empresa"
         actions={(
           <>
-            <button
-              onClick={() => setShowUpload(true)}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
-            >
-              <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
-              Importar
-            </button>
+            {canEditAcessos && (
+              <button
+                onClick={() => setShowUpload(true)}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 sm:w-auto"
+              >
+                <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+                Importar
+              </button>
+            )}
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
@@ -312,13 +318,15 @@ const Acessos: React.FC = () => {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => setShowForm(true)}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
-            >
-              <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-              Novo Acesso
-            </button>
+            {canEditAcessos && (
+              <button
+                onClick={() => setShowForm(true)}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-button px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-button-hover sm:w-auto"
+              >
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                Novo Acesso
+              </button>
+            )}
           </>
         )}
       />
@@ -453,20 +461,24 @@ const Acessos: React.FC = () => {
                       >
                         <Search className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
-                      <button 
-                        onClick={() => requestActionVerification('edit', acesso)} 
-                        className="text-primary-600 hover:text-primary-900"
-                        title="Editar"
-                      >
-                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </button>
-                      <button 
-                        onClick={() => requestActionVerification('delete', acesso)} 
-                        className="text-red-600 hover:text-red-900"
-                        title="Excluir"
-                      >
-                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </button>
+                      {canEditAcessos && (
+                        <>
+                          <button
+                            onClick={() => requestActionVerification('edit', acesso)}
+                            className="text-primary-600 hover:text-primary-900"
+                            title="Editar"
+                          >
+                            <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                          </button>
+                          <button
+                            onClick={() => requestActionVerification('delete', acesso)}
+                            className="text-red-600 hover:text-red-900"
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -517,7 +529,7 @@ const Acessos: React.FC = () => {
       </div>
 
       {/* Modals */}
-      {showForm && (
+      {showForm && canEditAcessos && (
         <AccessForm
           access={editingAccess}
           onSuccess={handleFormSuccess}
@@ -525,7 +537,7 @@ const Acessos: React.FC = () => {
         />
       )}
 
-      {showUpload && (
+      {showUpload && canEditAcessos && (
         <FileUpload
           onSuccess={handleUploadSuccess}
           onCancel={handleCancelUpload}

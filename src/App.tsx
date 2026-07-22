@@ -21,9 +21,6 @@ import PedidosDeCompra from './pages/PedidosDeCompra';
 import ControleEmpresas from './pages/ControleEmpresas';
 import ControleUber from './pages/ControleUber';
 import VisitasClinicas from './pages/VisitasClinicas';
-import CustosClinicas from './pages/CustosClinicas';
-import ParqueTecnologicoEstoque from './pages/ParqueTecnologicoEstoque';
-import ParqueTecnologicoInventario from './pages/ParqueTecnologicoInventario';
 import GlobalEditPermissionModal from './components/GlobalEditPermissionModal';
 import { useGlobalUppercaseInput } from './hooks/useGlobalUppercaseInput';
 
@@ -155,14 +152,6 @@ function App() {
                   }
                 />
                 <Route
-                  path="/custos-clinicas"
-                  element={
-                    <ProtectedRoute requiredModule="custos_clinicas">
-                      <CustosClinicas />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
                   path="/visitas-clinicas"
                   element={
                     <ProtectedRoute requiredModule="visitas_clinicas">
@@ -170,23 +159,6 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/parque-tecnologico/estoque"
-                  element={
-                    <ProtectedRoute requiredModule="parque_tecnologico">
-                      <ParqueTecnologicoEstoque />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/parque-tecnologico/inventario"
-                  element={
-                    <ProtectedRoute requiredModule="parque_tecnologico">
-                      <ParqueTecnologicoInventario />
-                    </ProtectedRoute>
-                  }
-                />
-
                 <Route
                   path="/configuracoes"
                   element={

@@ -436,6 +436,15 @@ function buildProtocolItemMutation(draft: ProtocoloItemDraft) {
     };
 }
 
+function buildProtocolName(protocolo: Protocolo, titulo: string) {
+    const existingSuffix = protocolo.nome.match(/_(\d{2}-\d{2}-\d{4})$/)?.[1];
+    const createdAt = new Date(protocolo.created_at);
+    const fallbackSuffix = Number.isNaN(createdAt.getTime())
+        ? "01-01-2026"
+        : createdAt.toLocaleDateString("pt-BR").replaceAll("/", "-");
+    return `${titulo.trim()}_${existingSuffix ?? fallbackSuffix}`;
+}
+
 export default function PedidosDeCompra() {
     const { ano: anoNow, mes: mesNow } = getNowYM();
     const { hasModuleAccess, hasModuleEditAccess, isFinanceiro, loadingProfile } = useAuth();
@@ -502,6 +511,11 @@ export default function PedidosDeCompra() {
     const [observacoesModalProtocoloId, setObservacoesModalProtocoloId] = useState<string | null>(null);
     const [observacoesSaving, setObservacoesSaving] = useState(false);
     const [observacoesError, setObservacoesError] = useState<string | null>(null);
+    const [editProtocolo, setEditProtocolo] = useState<Protocolo | null>(null);
+    const [editProtocoloTitulo, setEditProtocoloTitulo] = useState("");
+    const [editProtocoloAno, setEditProtocoloAno] = useState(anoNow);
+    const [editProtocoloMes, setEditProtocoloMes] = useState(mesNow);
+    const [editProtocoloSaving, setEditProtocoloSaving] = useState(false);
     const [protocolosPanelWidth, setProtocolosPanelWidth] = useState<number>(() => loadProtocolosPanelWidth());
     const protocoloLayoutRef = useRef<HTMLDivElement | null>(null);
 
@@ -1045,6 +1059,114 @@ export default function PedidosDeCompra() {
         await loadProtocolos();
         setProtocoloSel(data as Protocolo);
         setProtocoloSelId((data as Protocolo).id);
+    }
+
+    function openEditProtocolo(protocolo: Protocolo) {
+        if (!requireEditPermission()) return;
+        setEditProtocolo(protocolo);
+        setEditProtocoloTitulo(protocolo.titulo);
+        setEditProtocoloAno(protocolo.ano);
+        setEditProtocoloMes(protocolo.mes);
+    }
+
+    async function saveProtocoloMetadata() {
+        if (!editProtocolo || editProtocoloSaving) return;
+        if (!requireEditPermission()) return;
+
+        const titulo = editProtocoloTitulo.trim().toUpperCase();
+        if (!titulo) {
+            setToast({ type: "error", message: "Informe o titulo do protocolo." });
+            return;
+        }
+        if (!Number.isInteger(editProtocoloAno) || editProtocoloAno < 2000 || editProtocoloAno > 2100) {
+            setToast({ type: "error", message: "Informe um ano valido." });
+            return;
+        }
+        if (!Number.isInteger(editProtocoloMes) || editProtocoloMes < 1 || editProtocoloMes > 12) {
+            setToast({ type: "error", message: "Informe um mes valido." });
+            return;
+        }
+
+        setEditProtocoloSaving(true);
+        const { data, error } = await supabase
+            .from("pc_protocolos")
+            .update({
+                titulo,
+                nome: buildProtocolName(editProtocolo, titulo),
+                ano: editProtocoloAno,
+                mes: editProtocoloMes,
+            })
+            .eq("id", editProtocolo.id)
+            .select("*")
+            .single();
+        setEditProtocoloSaving(false);
+
+        if (error) {
+            console.error("Erro editar protocolo:", error.message);
+            setToast({ type: "error", message: "Nao foi possivel editar o protocolo." });
+            return;
+        }
+
+        const updated = data as Protocolo;
+        setEditProtocolo(null);
+        setProtocoloSel(updated);
+        setProtocoloSelId(updated.id);
+        setAno(updated.ano);
+        setMes(updated.mes);
+        setToast({
+            type: "success",
+            message: `Protocolo atualizado para ${String(updated.mes).padStart(2, "0")}/${updated.ano}.`,
+        });
+    }
+
+    async function deleteProtocolo(protocolo: Protocolo) {
+        if (!requireEditPermission()) return;
+
+        const { count, error: countError } = await supabase
+            .from("pc_protocolo_itens")
+            .select("id", { count: "exact", head: true })
+            .eq("protocolo_id", protocolo.id);
+
+        if (countError) {
+            console.error("Erro verificando itens do protocolo:", countError.message);
+            setToast({ type: "error", message: "Nao foi possivel verificar o protocolo." });
+            return;
+        }
+
+        const itemCount = count ?? 0;
+        if (protocolo.status !== "RASCUNHO" && itemCount > 0) {
+            setToast({
+                type: "error",
+                message: "Protocolo salvo com itens nao pode ser excluido.",
+            });
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Excluir o protocolo "${protocolo.nome}"${itemCount > 0 ? ` e seus ${itemCount} item(ns)` : ""}?`
+        );
+        if (!confirmed) return;
+
+        const { error } = await supabase.from("pc_protocolos").delete().eq("id", protocolo.id);
+        if (error) {
+            console.error("Erro excluir protocolo:", error.message);
+            const blocked = error.message.toLowerCase().includes("salvo com itens");
+            setToast({
+                type: "error",
+                message: blocked
+                    ? "Protocolo salvo com itens nao pode ser excluido."
+                    : "Nao foi possivel excluir o protocolo.",
+            });
+            return;
+        }
+
+        if (protocoloSelId === protocolo.id) {
+            setProtocoloSel(null);
+            setProtocoloSelId(null);
+            setItens([]);
+        }
+        await Promise.all([loadProtocolos(), loadMensal()]);
+        setToast({ type: "success", message: "Protocolo excluido." });
     }
 
     function startEdit(i: ProtocoloItem) {
@@ -1713,9 +1835,17 @@ export default function PedidosDeCompra() {
                                     : "Sem observações";
 
                                 return (
-                                    <button
+                                    <div
                                         key={p.id}
+                                        role="button"
+                                        tabIndex={0}
                                         onClick={() => {
+                                            setProtocoloSel(p);
+                                            setProtocoloSelId(p.id);
+                                        }}
+                                        onKeyDown={(event) => {
+                                            if (event.key !== "Enter" && event.key !== " ") return;
+                                            event.preventDefault();
                                             setProtocoloSel(p);
                                             setProtocoloSelId(p.id);
                                         }}
@@ -1758,9 +1888,37 @@ export default function PedidosDeCompra() {
                                                 >
                                                     <FileText className="h-4 w-4" />
                                                 </div>
+                                                {canEditPedidos && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                openEditProtocolo(p);
+                                                            }}
+                                                            className="flex items-center rounded-full border border-white/10 bg-neutral-200/5 p-1.5 text-white/70 transition hover:border-white/40 hover:text-white"
+                                                            aria-label="Editar protocolo"
+                                                            title="Editar titulo e competencia"
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                void deleteProtocolo(p);
+                                                            }}
+                                                            className="flex items-center rounded-full border border-red-500/20 bg-red-500/5 p-1.5 text-red-300 transition hover:border-red-400/60 hover:bg-red-500/15"
+                                                            aria-label="Excluir protocolo"
+                                                            title="Excluir protocolo vazio ou em rascunho"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
-                                    </button>
+                                    </div>
                                 );
                             })}
 
@@ -2290,6 +2448,102 @@ export default function PedidosDeCompra() {
                 </div>
             )}
         </div>
+
+            {editProtocolo && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 px-4 backdrop-blur-sm"
+                    onClick={() => {
+                        if (!editProtocoloSaving) setEditProtocolo(null);
+                    }}
+                >
+                    <div
+                        className="w-full max-w-lg rounded-3xl border border-neutral-800 bg-neutral-950/95 p-6 text-white shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-bold">Editar protocolo</h3>
+                                <p className="mt-1 text-xs text-neutral-400">
+                                    Altere o titulo e o mes de referencia do protocolo.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={editProtocoloSaving}
+                                onClick={() => setEditProtocolo(null)}
+                                className="rounded-2xl border border-neutral-800 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-neutral-600 disabled:opacity-50"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+
+                        <div className="mt-5 space-y-4">
+                            <label className="block">
+                                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                                    Titulo
+                                </span>
+                                <input
+                                    value={editProtocoloTitulo}
+                                    onChange={(event) => setEditProtocoloTitulo(event.target.value.toUpperCase())}
+                                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary-500 focus:outline-none"
+                                />
+                            </label>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <label className="block">
+                                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                                        Mes
+                                    </span>
+                                    <select
+                                        value={editProtocoloMes}
+                                        onChange={(event) => setEditProtocoloMes(Number(event.target.value))}
+                                        className="w-full rounded-2xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary-500 focus:outline-none"
+                                    >
+                                        {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                                            <option key={month} value={month}>
+                                                {String(month).padStart(2, "0")}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <label className="block">
+                                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                                        Ano
+                                    </span>
+                                    <input
+                                        type="number"
+                                        min={2000}
+                                        max={2100}
+                                        value={editProtocoloAno}
+                                        onChange={(event) => setEditProtocoloAno(Number(event.target.value))}
+                                        className="w-full rounded-2xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary-500 focus:outline-none"
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                disabled={editProtocoloSaving}
+                                onClick={() => setEditProtocolo(null)}
+                                className="rounded-2xl border border-neutral-800 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-neutral-600 disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                disabled={editProtocoloSaving}
+                                onClick={() => void saveProtocoloMetadata()}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-button px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white hover:bg-button-hover disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {editProtocoloSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                Salvar alteracoes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {observacoesModalOpen && (
                 <div

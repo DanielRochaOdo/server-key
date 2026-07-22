@@ -22,9 +22,6 @@ import {
   Building2,
   Car,
   Calendar,
-  Table,
-  Package,
-  Container,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -47,7 +44,7 @@ interface NavItem {
 }
 
 interface NavSection {
-  key: 'acessos' | 'financeiro' | 'parque_tecnologico' | 'configuracoes';
+  key: 'acessos' | 'financeiro' | 'configuracoes';
   name: string;
   icon: React.ElementType;
   items: NavItem[];
@@ -63,7 +60,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [openSections, setOpenSections] = useState<Record<NavSection['key'], boolean>>(() => ({
     acessos: false,
     financeiro: false,
-    parque_tecnologico: false,
     configuracoes: false,
   }));
 
@@ -104,7 +100,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const closeAllSections = () => {
-    setOpenSections({ acessos: false, financeiro: false, parque_tecnologico: false, configuracoes: false });
+    setOpenSections({ acessos: false, financeiro: false, configuracoes: false });
   };
 
   React.useEffect(() => {
@@ -114,7 +110,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const handleClickOutside = (event: MouseEvent) => {
       if (!navRef.current) return;
       if (navRef.current.contains(event.target as Node)) return;
-      setOpenSections({ acessos: false, financeiro: false, parque_tecnologico: false, configuracoes: false });
+      setOpenSections({ acessos: false, financeiro: false, configuracoes: false });
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -187,15 +183,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       financeiroItems.push({ name: 'Pedidos de Compra', href: '/pedidos-de-compra', icon: ShoppingCart });
     }
 
-    const parqueTecnologicoItems: NavItem[] = [];
-    if (hasModuleAccess('parque_tecnologico')) {
-      parqueTecnologicoItems.push({ name: 'Estoque', href: '/parque-tecnologico/estoque', icon: Container });
-      parqueTecnologicoItems.push({ name: 'Inventario', href: '/parque-tecnologico/inventario', icon: Table });
-    }
-    if (hasModuleAccess('custos_clinicas')) {
-      parqueTecnologicoItems.push({ name: 'Custos das Clinicas', href: '/custos-clinicas', icon: BarChart3 });
-    }
-
     const configuracoesItems: NavItem[] = [];
     configuracoesItems.push({ name: 'Configuracoes', href: '/configuracoes', icon: Settings });
     if (hasModuleAccess('usuarios')) {
@@ -205,7 +192,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const sections: NavSection[] = [
       { key: 'acessos', name: 'Acessos', icon: Key, items: acessosItems },
       { key: 'financeiro', name: 'Financeiro', icon: FileText, items: financeiroItems },
-      { key: 'parque_tecnologico', name: 'Parque Tecnologico', icon: Package, items: parqueTecnologicoItems },
       { key: 'configuracoes', name: 'Configuracoes', icon: Settings, items: configuracoesItems },
     ].filter((section) => section.items.length > 0);
 
@@ -315,7 +301,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       return {
                         acessos: false,
                         financeiro: false,
-                        parque_tecnologico: false,
                         configuracoes: false,
                         [section.key]: shouldOpen,
                       };
