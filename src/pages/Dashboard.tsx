@@ -30,7 +30,6 @@ type ModuleKey =
   | 'controle_empresas'
   | 'controle_uber'
   | 'visitas_clinicas'
-  | 'custos_clinicas'
   | 'pc_protocolos'
   | 'pc_mensal';
 
@@ -146,14 +145,6 @@ const MODULE_CONFIG: Record<ModuleKey, Omit<ModuleSummary, 'total' | 'recent'>> 
     bgColor: 'bg-sky-100',
     description: 'Agenda de visitas',
   },
-  custos_clinicas: {
-    key: 'custos_clinicas',
-    label: 'Custos das Clinicas',
-    icon: BarChart3,
-    color: 'text-teal-600',
-    bgColor: 'bg-teal-100',
-    description: 'Movimentacoes registradas',
-  },
   pc_protocolos: {
     key: 'pc_protocolos',
     label: 'Pedidos de Compra (Protocolos)',
@@ -184,7 +175,6 @@ const MODULE_ORDER: ModuleKey[] = [
   'controle_empresas',
   'controle_uber',
   'visitas_clinicas',
-  'custos_clinicas',
   'pc_protocolos',
   'pc_mensal',
 ];
@@ -227,7 +217,7 @@ const MODULE_GROUPS: Array<{
     color: 'text-amber-700',
     bgColor: 'bg-amber-100',
     gradient: 'from-amber-50 via-white to-orange-50',
-    modules: ['controle_empresas', 'controle_uber', 'visitas_clinicas', 'custos_clinicas'],
+    modules: ['controle_empresas', 'controle_uber', 'visitas_clinicas'],
   },
   {
     key: 'compras',
@@ -289,7 +279,6 @@ const Dashboard: React.FC = () => {
     controle_empresas: 'controle_empresas',
     controle_uber: 'controle_uber',
     visitas_clinicas: 'visitas_clinicas',
-    custos_clinicas: 'custos_clinicas',
     pc_protocolos: 'pedidos_de_compra',
     pc_mensal: 'pedidos_de_compra',
   };
@@ -551,27 +540,6 @@ const Dashboard: React.FC = () => {
               subtitle: row.clinica ? `Clinica: ${row.clinica}` : undefined,
               created_at: row.created_at || row.data,
               created_by_id: row.user_id,
-            }),
-            orderBy: 'created_at',
-          })
-        );
-      }
-
-      if (canViewModule('custos_clinicas')) {
-        tasks.push(
-          fetchModule({
-            key: 'custos_clinicas',
-            table: 'custos_clinicas_movements',
-            select: 'id, product, clinic, total_cost, created_at, created_by',
-            mapRow: (row) => ({
-              id: row.id,
-              module: 'custos_clinicas',
-              title: row.product || 'Movimentacao',
-              subtitle: row.clinic
-                ? `Clinica: ${row.clinic} - ${formatCurrency(row.total_cost)}`
-                : `Total: ${formatCurrency(row.total_cost)}`,
-              created_at: row.created_at,
-              created_by_id: row.created_by,
             }),
             orderBy: 'created_at',
           })

@@ -36,7 +36,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { user } = useAuth();
+  const { user, hasModuleEditAccess } = useAuth();
   
   // Persistência de dados do formulário
   const persistenceKey = access ? `accessForm_edit_${access.id}` : 'accessForm_new';
@@ -82,7 +82,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
           }
     );
     setError('');
-  }, [access?.id, persistenceKey]); // Usar access.id em vez de access completo
+  }, [access, persistenceKey]);
   
   // Salvar dados quando formData muda
   useEffect(() => {
@@ -105,6 +105,11 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
     e.preventDefault();
     if (!user) return;
 
+    if (!hasModuleEditAccess('acessos')) {
+      setError('Você não tem permissão para editar este módulo.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -115,7 +120,6 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
       const dataToSave = {
         ...formData,
         senha: processedPassword,
-        user_id: user.id,
         updated_at: new Date().toISOString(),
       };
 
@@ -131,7 +135,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
       } else {
         const { error } = await supabase
           .from('acessos')
-          .insert([{ ...dataToSave, created_at: new Date().toISOString() }]);
+          .insert([{ ...dataToSave, user_id: user.id, created_at: new Date().toISOString() }]);
         if (error) {
           console.error('Insert error:', error);
           throw error;
@@ -141,9 +145,9 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
       // Limpar dados persistidos após sucesso
       localStorage.removeItem(persistenceKey);
       onSuccess();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error saving access:', err);
-      setError(err.message || 'Erro ao salvar acesso');
+      setError(err instanceof Error ? err.message : 'Erro ao salvar acesso');
     } finally {
       setLoading(false);
     }
