@@ -48,6 +48,7 @@ const RateioClaro: React.FC = () => {
   const [editingRateio, setEditingRateio] = useState<RateioClaro | null>(() => getState('rateioClaro_editingRateio') || null);
   const [searchTerm, setSearchTerm] = useState(() => getState('rateioClaro_searchTerm') || '');
   const [selectedSetor, setSelectedSetor] = useState(() => getState('rateioClaro_selectedSetor') || '');
+  const [selectedUp, setSelectedUp] = useState(() => getState('rateioClaro_selectedUp') || '');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingRateio, setViewingRateio] = useState<RateioClaro | null>(() => getState('rateioClaro_viewingRateio') || null);
@@ -108,8 +109,12 @@ const RateioClaro: React.FC = () => {
   }, [selectedSetor, setState]);
 
   useEffect(() => {
+    setState('rateioClaro_selectedUp', selectedUp);
+  }, [selectedUp, setState]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedSetor]);
+  }, [searchTerm, selectedSetor, selectedUp]);
 
   const toggleSortOrder = useCallback(() => {
     setSortOrder((prev) => {
@@ -204,8 +209,9 @@ const RateioClaro: React.FC = () => {
         rateio.responsavel_atual?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesSetor = selectedSetor === '' || rateio.setor === selectedSetor;
+      const matchesUp = selectedUp === '' || (rateio.up || 'nao').toLowerCase() === selectedUp;
 
-      return matchesSearch && matchesSetor;
+      return matchesSearch && matchesSetor && matchesUp;
     });
 
     if (sortOrder === 'asc') {
@@ -215,7 +221,7 @@ const RateioClaro: React.FC = () => {
     }
 
     return filtered;
-  }, [rateios, searchTerm, selectedSetor, sortOrder]);
+  }, [rateios, searchTerm, selectedSetor, selectedUp, sortOrder]);
 
   const exportData = useCallback(async (format: 'csv' | 'xlsx') => {
     const dataToExport = filteredRateiosSorted.map(({ id, created_at, franquia, up, ...rest }) => ({
@@ -224,7 +230,7 @@ const RateioClaro: React.FC = () => {
       up: up || 'nao',
     }));
 
-    const filterInfo = (searchTerm || selectedSetor) ? '_filtrado' : '';
+    const filterInfo = (searchTerm || selectedSetor || selectedUp) ? '_filtrado' : '';
     const filename = `rateio_claro${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
 
     await writeExportFile(dataToExport, 'RateioClaro', filename, format);
@@ -327,7 +333,7 @@ const RateioClaro: React.FC = () => {
               <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-10 border border-neutral-200">
                 <div className="py-1">
                   <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
-                    {(searchTerm || selectedSetor) ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
+                    {(searchTerm || selectedSetor || selectedUp) ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
                   </div>
                   <button
                     onClick={() => exportData('csv')}
@@ -383,6 +389,19 @@ const RateioClaro: React.FC = () => {
                     {setor}
                   </option>
                 ))}
+              </select>
+              <label htmlFor="filter-up" className="text-xs sm:text-sm font-medium text-neutral-700 whitespace-nowrap">
+                UP:
+              </label>
+              <select
+                id="filter-up"
+                className="border border-neutral-300 rounded-lg px-2 sm:px-3 py-1 text-xs sm:text-sm"
+                value={selectedUp}
+                onChange={(e) => setSelectedUp(e.target.value)}
+              >
+                <option value="">Todos</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
               </select>
             </div>
 
