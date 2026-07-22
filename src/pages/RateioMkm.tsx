@@ -323,15 +323,6 @@ const RateioMkm: React.FC = () => {
         )}
       />
 
-      <div className="bg-neutral-200 rounded-xl shadow-md p-4 sm:p-5">
-        <p className="text-sm font-semibold text-neutral-700 mb-2">Legenda</p>
-        <div className="text-sm text-neutral-600 space-y-1">
-          <div>COBRANCA: Atualizacao de cartao + Disparo antes do vencimento</div>
-          <div>Call Center: Odontoart</div>
-          <div>Administrativo: Comercial Disparo</div>
-        </div>
-      </div>
-
       <div className="bg-neutral-200 rounded-xl shadow-md p-4 sm:p-6">
         {layoutLoading ? (
           <div className="flex items-center justify-center min-h-48">
@@ -384,7 +375,17 @@ const RateioMkm: React.FC = () => {
 
       {showForm && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-4xl flex-col gap-3">
+            <div className="shrink-0 rounded-xl border border-neutral-200 bg-neutral-200 p-4 shadow-md sm:p-5">
+              <p className="mb-2 text-sm font-semibold text-neutral-700">Legenda</p>
+              <div className="space-y-1 text-sm text-neutral-600">
+                <div>COBRANCA: Atualizacao de cartao + Disparo antes do vencimento</div>
+                <div>Call Center: Odontoart</div>
+                <div>Administrativo: Comercial Disparo</div>
+              </div>
+            </div>
+
+          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-2xl w-full min-h-0 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-3 sm:p-4 border-b border-neutral-200">
               <h2 className="text-base sm:text-lg font-semibold text-neutral-900">
                 {formMode === 'edit' ? 'Editar Rateio MKM' : 'Novo Rateio MKM'}
@@ -397,7 +398,7 @@ const RateioMkm: React.FC = () => {
                 Fechar
               </button>
             </div>
-            <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 flex-1">
+            <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 flex-1 overflow-y-auto">
               {formError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
                   {formError}
@@ -489,6 +490,7 @@ const RateioMkm: React.FC = () => {
                 {saving ? 'Salvando...' : formMode === 'edit' ? 'Salvar edicao' : 'Salvar rateio'}
               </button>
             </div>
+          </div>
           </div>
         </div>
       )}
