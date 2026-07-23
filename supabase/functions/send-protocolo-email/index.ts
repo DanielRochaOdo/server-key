@@ -1,9 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
-import nodemailer from "npm:nodemailer@6.9.8";
+import { getPublicEmailError } from "../_shared/email-public-error.ts";
+import { resolveRecipients, sendEmailWithResend } from "../_shared/resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -30,12 +32,24 @@ const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 const numberFormatter = new Intl.NumberFormat("pt-BR");
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
+const validationErrorResponse = () =>
+  jsonResponse(
+    {
+      success: false,
+      code: "VALIDATION_ERROR",
+      message: "Os dados informados para o envio são inválidos.",
+    },
+    400,
+  );
 
 const escapeHtml = (value: string) =>
   value
@@ -68,7 +82,9 @@ const sanitizeUrl = (value?: string | null) => {
   const parseHttpUrl = (candidate: string) => {
     try {
       const parsed = new URL(candidate);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return "";
+      }
       return parsed.toString();
     } catch {
       return "";
@@ -86,90 +102,110 @@ const sanitizeUrl = (value?: string | null) => {
   return "";
 };
 
-Deno.serve(async (req) => {
+const handleRequest = async (req: Request) => {
+  const requestId = crypto.randomUUID();
+  const requestStartedAt = performance.now();
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
+    return jsonResponse(
+      {
+        success: false,
+        code: "METHOD_NOT_ALLOWED",
+        message: "Método não permitido.",
+      },
+      405,
+    );
   }
 
-  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+  const authHeader = req.headers.get("authorization") ||
+    req.headers.get("Authorization");
   if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
-    return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+    return jsonResponse(
+      {
+        success: false,
+        code: "UNAUTHORIZED",
+        message: "É necessário estar autenticado para enviar este e-mail.",
+      },
+      401,
+    );
   }
 
   const token = authHeader.slice(7).trim();
   if (!token) {
-    return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+    return jsonResponse(
+      {
+        success: false,
+        code: "UNAUTHORIZED",
+        message: "É necessário estar autenticado para enviar este e-mail.",
+      },
+      401,
+    );
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const smtpHost = Deno.env.get("SMTP_HOST");
-  const smtpPortValue = Deno.env.get("SMTP_PORT");
-  const smtpUser = Deno.env.get("SMTP_USER");
-  const smtpPass = Deno.env.get("SMTP_PASS");
-  const smtpFrom = Deno.env.get("SMTP_FROM");
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("Missing Supabase environment variables.");
-    return jsonResponse({ ok: false, error: "Server configuration error" }, 500);
+    console.error("email_send_configuration_error", {
+      requestId,
+      functionName: "send-protocolo-email",
+      configuration: "supabase",
+    });
+    return jsonResponse(
+      {
+        success: false,
+        code: "INTERNAL_ERROR",
+        message: "Não foi possível processar a solicitação.",
+      },
+      500,
+    );
   }
 
-  if (!smtpHost || !smtpPortValue || !smtpUser || !smtpPass || !smtpFrom) {
-    console.error("Missing SMTP environment variables.");
-    return jsonResponse({ ok: false, error: "Server configuration error" }, 500);
-  }
-
-  const smtpPort = Number(smtpPortValue);
-  if (!Number.isFinite(smtpPort)) {
-    console.error("Invalid SMTP port.");
-    return jsonResponse({ ok: false, error: "Server configuration error" }, 500);
-  }
-
-  let body: { protocoloId?: string; recipients?: string[] };
+  let body: {
+    protocoloId?: unknown;
+    recipients?: unknown;
+  };
   try {
     body = await req.json();
-  } catch (error) {
-    console.error("Invalid JSON body:", error);
-    return jsonResponse({ ok: false, error: "Invalid request body" }, 400);
+  } catch {
+    console.warn("email_send_validation_error", {
+      requestId,
+      functionName: "send-protocolo-email",
+      reason: "invalid_json",
+    });
+    return validationErrorResponse();
   }
 
-  const protocoloId = typeof body?.protocoloId === "string" ? body.protocoloId.trim() : "";
-  if (!protocoloId) {
-    return jsonResponse({ ok: false, error: "Missing protocoloId" }, 400);
-  }
-
-  const normalizeEmail = (value: string) => value.trim().toLowerCase();
-  const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-  const defaultRecipients = ["daniel.rocha@odontoart.com", "ryanmendes@odontoart.com"];
-  const providedRecipients = Array.isArray(body?.recipients)
-    ? body.recipients
-        .map((recipient) => (typeof recipient === "string" ? normalizeEmail(recipient) : ""))
-        .filter((recipient) => recipient.length > 0)
-    : [];
-  const uniqueRecipients = Array.from(new Set(providedRecipients)).filter(isValidEmail);
-  const recipients = uniqueRecipients.length > 0 ? uniqueRecipients : defaultRecipients;
-
+  const protocoloId = typeof body?.protocoloId === "string"
+    ? body.protocoloId.trim()
+    : "";
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
-    global: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
   });
 
-  console.log("send-protocolo-email: validating user");
-  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
+  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(
+    token,
+  );
   if (authError || !authData?.user) {
-    console.error("Auth error:", authError);
-    return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+    console.warn("email_send_authentication_failed", {
+      requestId,
+      functionName: "send-protocolo-email",
+    });
+    return jsonResponse(
+      {
+        success: false,
+        code: "UNAUTHORIZED",
+        message: "É necessário estar autenticado para enviar este e-mail.",
+      },
+      401,
+    );
   }
 
   const { data: profile, error: profileError } = await supabaseAdmin
@@ -179,21 +215,76 @@ Deno.serve(async (req) => {
     .single();
 
   if (profileError || !profile) {
-    console.error("Profile error:", profileError);
-    return jsonResponse({ ok: false, error: "Forbidden" }, 403);
+    console.warn("email_send_authorization_failed", {
+      requestId,
+      functionName: "send-protocolo-email",
+      userId: authData.user.id,
+      reason: "profile_unavailable",
+    });
+    return jsonResponse(
+      {
+        success: false,
+        code: "FORBIDDEN",
+        message: "Você não possui permissão para enviar este e-mail.",
+      },
+      403,
+    );
   }
 
   const role = normalizeRole(profile.role);
   const modules = Array.isArray(profile.modules) ? profile.modules : [];
-  const hasAccess =
-    profile.is_active === true &&
-    (role === "admin" || role === "owner" || modules.includes("pedidos_de_compra"));
+  const hasAccess = profile.is_active === true &&
+    (role === "admin" || role === "owner" ||
+      modules.includes("pedidos_de_compra"));
   if (!hasAccess) {
-    console.error("Access denied for user:", authData.user.id);
-    return jsonResponse({ ok: false, error: "Forbidden" }, 403);
+    console.warn("email_send_authorization_failed", {
+      requestId,
+      functionName: "send-protocolo-email",
+      userId: authData.user.id,
+      reason: "insufficient_permissions",
+    });
+    return jsonResponse(
+      {
+        success: false,
+        code: "FORBIDDEN",
+        message: "Você não possui permissão para enviar este e-mail.",
+      },
+      403,
+    );
   }
 
-  console.log("send-protocolo-email: loading protocolo", protocoloId);
+  if (!UUID_PATTERN.test(protocoloId)) {
+    return validationErrorResponse();
+  }
+
+  const defaultRecipients = [
+    "daniel.rocha@odontoart.com",
+    "ryanmendes@odontoart.com",
+  ];
+  const recipientsResult = resolveRecipients(
+    body?.recipients,
+    defaultRecipients,
+  );
+  if (!recipientsResult.success) {
+    return validationErrorResponse();
+  }
+  const recipients = recipientsResult.recipients;
+
+  console.log("email_send_started", {
+    requestId,
+    functionName: "send-protocolo-email",
+    emailType: "pedido_compra",
+    recordId: protocoloId,
+  });
+
+  console.log("email_send_user_validated", {
+    requestId,
+    functionName: "send-protocolo-email",
+    userId: authData.user.id,
+    emailType: "pedido_compra",
+    recordId: protocoloId,
+  });
+
   const { data: protocolo, error: protocoloError } = await supabaseAdmin
     .from("pc_protocolos")
     .select("id, titulo, valor_final, observacoes")
@@ -201,19 +292,38 @@ Deno.serve(async (req) => {
     .single();
 
   if (protocoloError || !protocolo) {
-    console.error("Protocolo error:", protocoloError);
-    return jsonResponse({ ok: false, error: "Protocolo not found" }, 404);
+    console.warn("email_send_validation_error", {
+      requestId,
+      functionName: "send-protocolo-email",
+      reason: "record_not_found",
+      recordId: protocoloId,
+    });
+    return validationErrorResponse();
   }
 
   const { data: itens, error: itensError } = await supabaseAdmin
     .from("pc_protocolo_itens")
-    .select("loja, produto, prioridade, quantidade, valor_unit, frete, valor_total, link")
+    .select(
+      "loja, produto, prioridade, quantidade, valor_unit, frete, valor_total, link",
+    )
     .eq("protocolo_id", protocoloId)
     .order("created_at", { ascending: true });
 
   if (itensError) {
-    console.error("Itens error:", itensError);
-    return jsonResponse({ ok: false, error: "Failed to load itens" }, 500);
+    console.error("email_send_data_error", {
+      requestId,
+      functionName: "send-protocolo-email",
+      operation: "load_items",
+      recordId: protocoloId,
+    });
+    return jsonResponse(
+      {
+        success: false,
+        code: "INTERNAL_ERROR",
+        message: "Não foi possível processar a solicitação.",
+      },
+      500,
+    );
   }
 
   const items = (itens ?? []) as ProtocoloItemRow[];
@@ -232,8 +342,8 @@ Deno.serve(async (req) => {
     new Set(
       items
         .map((item) => (item.prioridade || "").toString().trim())
-        .filter(Boolean)
-    )
+        .filter(Boolean),
+    ),
   ).join(", ");
 
   const rows = items
@@ -248,7 +358,9 @@ Deno.serve(async (req) => {
       const valorTotal = valorBase + frete;
       const link = sanitizeUrl(item.link);
       const linkCell = link
-        ? `<a href="${escapeHtml(link)}" target="_blank" rel="noreferrer">Abrir</a>`
+        ? `<a href="${
+          escapeHtml(link)
+        }" target="_blank" rel="noreferrer">Abrir</a>`
         : "&mdash;";
 
       return `
@@ -287,47 +399,105 @@ Deno.serve(async (req) => {
   `;
 
   const titulo = ((protocolo as ProtocoloRow).titulo || "").toString();
-  const observacoes = String((protocolo as ProtocoloRow).observacoes || "").trim();
+  const observacoes = String((protocolo as ProtocoloRow).observacoes || "")
+    .trim();
   const subjectDate = formatDateBr(new Date());
   const htmlBody = `
     <p>Ol&aacute;,</p>
     <p>Segue abaixo pedido de compra:</p>
-    <p><strong>${escapeHtml(titulo)}</strong> &mdash; Valor total: ${currencyFormatter.format(totalBase)}</p>
-    ${observacoes ? `<p><strong>Observa&ccedil;&atilde;o:</strong> ${escapeHtml(observacoes)}</p>` : ""}
+    <p><strong>${escapeHtml(titulo)}</strong> &mdash; Valor total: ${
+    currencyFormatter.format(totalBase)
+  }</p>
+    ${
+    observacoes
+      ? `<p><strong>Observa&ccedil;&atilde;o:</strong> ${
+        escapeHtml(observacoes)
+      }</p>`
+      : ""
+  }
     <p>Prioridades: ${escapeHtml(priorities || "N/D")}</p>
     ${htmlTable}
-    <p style="margin-top:16px;"><strong>Valor final:</strong> ${currencyFormatter.format(totalBase)}</p>
+    <p style="margin-top:16px;"><strong>Valor final:</strong> ${
+    currencyFormatter.format(totalBase)
+  }</p>
   `;
 
-  const subject = `Pedido de Compra - ${titulo} | ${subjectDate}`.replace(/[\r\n]+/g, " ").trim();
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
+  const subject = `Pedido de Compra - ${titulo} | ${subjectDate}`.replace(
+    /[\r\n]+/g,
+    " ",
+  ).trim();
+
+  const sendResult = await sendEmailWithResend({
+    to: recipients,
+    subject,
+    html: htmlBody,
   });
 
-  console.log("send-protocolo-email: sending email");
-  try {
-    await transporter.sendMail({
-      from: smtpFrom,
-      to: recipients,
-      subject,
-      html: htmlBody,
+  if (!sendResult.success) {
+    const publicError = getPublicEmailError(sendResult);
+
+    console.error("email_send_failed", {
+      requestId,
+      functionName: "send-protocolo-email",
+      emailType: "pedido_compra",
+      recordId: protocoloId,
+      userId: authData.user.id,
+      errorKind: sendResult.kind,
+      providerCategory: sendResult.providerCategory,
+      providerStatus: sendResult.providerStatus,
+      providerDurationMs: sendResult.durationMs,
+      durationMs: Math.round(performance.now() - requestStartedAt),
     });
-  } catch (error) {
-    console.error("SMTP send error:", error);
-    return jsonResponse({ ok: false, error: "Failed to send email" }, 500);
+
+    return jsonResponse(
+      {
+        success: false,
+        code: publicError.code,
+        message: publicError.message,
+      },
+      publicError.status,
+    );
   }
 
-  console.log("send-protocolo-email: done");
-  return jsonResponse({ ok: true }, 200);
+  console.log("email_send_succeeded", {
+    requestId,
+    functionName: "send-protocolo-email",
+    emailType: "pedido_compra",
+    recordId: protocoloId,
+    userId: authData.user.id,
+    providerStatus: sendResult.providerStatus,
+    emailId: sendResult.emailId,
+    providerDurationMs: sendResult.durationMs,
+    durationMs: Math.round(performance.now() - requestStartedAt),
+  });
+
+  return jsonResponse(
+    {
+      success: true,
+      message: "E-mail enviado com sucesso.",
+      emailId: sendResult.emailId,
+    },
+    200,
+  );
+};
+
+Deno.serve(async (req) => {
+  try {
+    return await handleRequest(req);
+  } catch {
+    console.error("email_send_unexpected_error", {
+      functionName: "send-protocolo-email",
+    });
+    const message = "Não foi possível processar a solicitação.";
+    return jsonResponse(
+      {
+        success: false,
+        code: "INTERNAL_ERROR",
+        message,
+      },
+      500,
+    );
+  }
 });
 
 function formatDateBr(value: Date) {
