@@ -1,9 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
-import nodemailer from "npm:nodemailer@6.9.8";
+import { getPublicEmailError } from "../_shared/email-public-error.ts";
+import { resolveRecipients, sendEmailWithResend } from "../_shared/resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -13,12 +15,24 @@ const currencyFormatter = new Intl.NumberFormat("pt-BR", {
 });
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
+const validationErrorResponse = () =>
+  jsonResponse(
+    {
+      success: false,
+      code: "VALIDATION_ERROR",
+      message: "Os dados informados para o envio são inválidos.",
+    },
+    400,
+  );
 
 const escapeHtml = (value: string) =>
   value
@@ -59,7 +73,9 @@ const parseNumericValue = (value: unknown) => {
     const cleaned = value.replace(/[^\d,.-]/g, "");
     if (!cleaned) return null;
     const hasComma = cleaned.includes(",");
-    const normalized = hasComma ? cleaned.replace(/\./g, "").replace(",", ".") : cleaned;
+    const normalized = hasComma
+      ? cleaned.replace(/\./g, "").replace(",", ".")
+      : cleaned;
     const numeric = Number(normalized);
     return Number.isFinite(numeric) ? numeric : null;
   }
@@ -101,7 +117,8 @@ const formatDateValue = (value: unknown) => {
 const formatCellValue = (column: string, value: unknown) => {
   const columnKey = normalizeColumnKey(column);
   const isMoneyColumn = columnKey.includes("valor");
-  const isDateColumn = columnKey.includes("vencimento") || columnKey.includes("data");
+  const isDateColumn = columnKey.includes("vencimento") ||
+    columnKey.includes("data");
 
   if (value === null || value === undefined || value === "") {
     return "&mdash;";
@@ -109,7 +126,9 @@ const formatCellValue = (column: string, value: unknown) => {
 
   const urlValue = normalizeUrl(value);
   if (urlValue) {
-    return `<a href="${escapeHtml(urlValue)}" target="_blank" rel="noreferrer">Abrir</a>`;
+    return `<a href="${
+      escapeHtml(urlValue)
+    }" target="_blank" rel="noreferrer">Abrir</a>`;
   }
 
   if (isMoneyColumn) {
@@ -127,17 +146,24 @@ const formatCellValue = (column: string, value: unknown) => {
   return escapeHtml(value.toString());
 };
 
-const normalizeEmail = (value: string) => value.trim().toLowerCase();
-
-const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-
 const handleRequest = async (req: Request) => {
+  const requestId = crypto.randomUUID();
+  const requestStartedAt = performance.now();
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
+    const message = "Método não permitido.";
+    return jsonResponse(
+      {
+        success: false,
+        code: "METHOD_NOT_ALLOWED",
+        message,
+      },
+      405,
+    );
   }
 
   let body: {
@@ -146,60 +172,54 @@ const handleRequest = async (req: Request) => {
     rows?: unknown;
     meta?: unknown;
     recipients?: unknown;
-    access_token?: unknown;
   };
   try {
     body = await req.json();
-  } catch (error) {
-    console.error("Invalid JSON body:", error);
-    return jsonResponse({ ok: false, error: "Invalid request body" }, 400);
+  } catch {
+    console.warn("email_send_validation_error", {
+      requestId,
+      functionName: "send-contas-a-pagar-xlsx-email",
+      reason: "invalid_json",
+    });
+    return validationErrorResponse();
   }
 
-  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
-  const headerToken =
-    authHeader && authHeader.toLowerCase().startsWith("bearer ")
-      ? authHeader.slice(7).trim()
-      : "";
-  const bodyToken = typeof body?.access_token === "string" ? body.access_token.trim() : "";
-  const token = headerToken || bodyToken;
+  const authHeader = req.headers.get("authorization") ||
+    req.headers.get("Authorization");
+  const token = authHeader && authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
 
   if (!token) {
-    return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+    const message = "É necessário estar autenticado para enviar este e-mail.";
+    return jsonResponse(
+      {
+        success: false,
+        code: "UNAUTHORIZED",
+        message,
+      },
+      401,
+    );
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const smtpHost = Deno.env.get("SMTP_HOST");
-  const smtpPortValue = Deno.env.get("SMTP_PORT");
-  const smtpUser = Deno.env.get("SMTP_USER");
-  const smtpPass = Deno.env.get("SMTP_PASS");
-  const smtpFrom = Deno.env.get("SMTP_FROM");
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    const missing = [
-      !supabaseUrl ? "SUPABASE_URL" : null,
-      !supabaseServiceKey ? "SUPABASE_SERVICE_ROLE_KEY" : null,
-    ].filter(Boolean);
-    console.error("Missing Supabase environment variables:", missing);
-    return jsonResponse({ ok: false, error: `Server configuration error: missing ${missing.join(", ")}` }, 500);
-  }
-
-  if (!smtpHost || !smtpPortValue || !smtpUser || !smtpPass || !smtpFrom) {
-    const missing = [
-      !smtpHost ? "SMTP_HOST" : null,
-      !smtpPortValue ? "SMTP_PORT" : null,
-      !smtpUser ? "SMTP_USER" : null,
-      !smtpPass ? "SMTP_PASS" : null,
-      !smtpFrom ? "SMTP_FROM" : null,
-    ].filter(Boolean);
-    console.error("Missing SMTP environment variables:", missing);
-    return jsonResponse({ ok: false, error: `Server configuration error: missing ${missing.join(", ")}` }, 500);
-  }
-
-  const smtpPort = Number(smtpPortValue);
-  if (!Number.isFinite(smtpPort)) {
-    console.error("Invalid SMTP port.");
-    return jsonResponse({ ok: false, error: "Server configuration error" }, 500);
+    console.error("email_send_configuration_error", {
+      requestId,
+      functionName: "send-contas-a-pagar-xlsx-email",
+      configuration: "supabase",
+    });
+    const message = "Não foi possível processar a solicitação.";
+    return jsonResponse(
+      {
+        success: false,
+        code: "INTERNAL_ERROR",
+        message,
+      },
+      500,
+    );
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -209,12 +229,22 @@ const handleRequest = async (req: Request) => {
     },
   });
 
-  const { data: authData, error: authError } = await supabase.auth.getUser(token);
+  const { data: authData, error: authError } = await supabase.auth.getUser(
+    token,
+  );
   if (authError || !authData?.user) {
-    console.error("Auth error:", authError);
+    console.warn("email_send_authentication_failed", {
+      requestId,
+      functionName: "send-contas-a-pagar-xlsx-email",
+    });
+    const message = "É necessário estar autenticado para enviar este e-mail.";
     return jsonResponse(
-      { ok: false, error: authError?.message || "Unauthorized" },
-      401
+      {
+        success: false,
+        code: "UNAUTHORIZED",
+        message,
+      },
+      401,
     );
   }
 
@@ -225,17 +255,64 @@ const handleRequest = async (req: Request) => {
     .single();
 
   if (profileError || !profile) {
-    console.error("Profile error:", profileError);
-    return jsonResponse({ ok: false, error: "Forbidden" }, 403);
+    console.warn("email_send_authorization_failed", {
+      requestId,
+      functionName: "send-contas-a-pagar-xlsx-email",
+      userId: authData.user.id,
+      reason: "profile_unavailable",
+    });
+    const message = "Você não possui permissão para enviar este e-mail.";
+    return jsonResponse(
+      {
+        success: false,
+        code: "FORBIDDEN",
+        message,
+      },
+      403,
+    );
   }
 
   const role = normalizeRole(profile.role);
-  const hasAccess =
-    profile.is_active === true && (role === "admin" || role === "owner");
+  const hasAccess = profile.is_active === true &&
+    (role === "admin" || role === "owner");
   if (!hasAccess) {
-    console.error("Access denied for user:", authData.user.id);
-    return jsonResponse({ ok: false, error: "Forbidden" }, 403);
+    console.warn("email_send_authorization_failed", {
+      requestId,
+      functionName: "send-contas-a-pagar-xlsx-email",
+      userId: authData.user.id,
+      reason: "insufficient_permissions",
+    });
+    const message = "Você não possui permissão para enviar este e-mail.";
+    return jsonResponse(
+      {
+        success: false,
+        code: "FORBIDDEN",
+        message,
+      },
+      403,
+    );
   }
+
+  const meta = body?.meta ?? null;
+  if (
+    meta !== null &&
+    (typeof meta !== "object" || Array.isArray(meta))
+  ) {
+    return validationErrorResponse();
+  }
+
+  const metaLoteId = meta && "loteId" in meta
+    ? (meta as Record<string, unknown>).loteId
+    : undefined;
+  if (
+    metaLoteId !== undefined &&
+    (typeof metaLoteId !== "string" || !UUID_PATTERN.test(metaLoteId.trim()))
+  ) {
+    return validationErrorResponse();
+  }
+  const relatedRecordId = typeof metaLoteId === "string"
+    ? metaLoteId.trim()
+    : null;
 
   const columnsRaw = Array.isArray(body?.columns) ? body.columns : [];
   const columns = columnsRaw
@@ -243,25 +320,37 @@ const handleRequest = async (req: Request) => {
     .filter((column) => column);
 
   if (!columns.length) {
-    return jsonResponse({ ok: false, error: "Missing columns" }, 400);
+    return validationErrorResponse();
   }
 
-  const recipientsRaw = Array.isArray(body?.recipients) ? body.recipients : [];
-  const recipients = recipientsRaw
-    .map((recipient) => (recipient ?? "").toString())
-    .map(normalizeEmail)
-    .filter((recipient) => recipient.length > 0)
-    .filter(isValidEmail);
+  const defaultRecipients = ["daniel.rocha@odontoart.com"];
+  const recipientsResult = resolveRecipients(
+    body?.recipients,
+    defaultRecipients,
+  );
+  if (!recipientsResult.success) {
+    return validationErrorResponse();
+  }
+  const recipients = recipientsResult.recipients;
 
   if (!Array.isArray(body?.rows)) {
-    return jsonResponse({ ok: false, error: "Missing rows" }, 400);
+    return validationErrorResponse();
   }
 
   const rowsRaw = body.rows as unknown[];
   if (!rowsRaw.every((row) => Array.isArray(row))) {
-    return jsonResponse({ ok: false, error: "Invalid rows" }, 400);
+    return validationErrorResponse();
   }
   const rows = rowsRaw as unknown[][];
+
+  console.log("email_send_started", {
+    requestId,
+    functionName: "send-contas-a-pagar-xlsx-email",
+    emailType: "contas_a_pagar",
+    recordId: relatedRecordId,
+    userId: authData.user.id,
+    rowCount: rows.length,
+  });
 
   const MAX_ROWS = 2000;
   const totalRows = rows.length;
@@ -276,8 +365,13 @@ const handleRequest = async (req: Request) => {
           const column = columns[index];
           const columnKey = normalizeColumnKey(column);
           const isMoneyColumn = columnKey.includes("valor");
-          const isDateColumn = columnKey.includes("vencimento") || columnKey.includes("data");
-          const align = isMoneyColumn ? "right" : isDateColumn ? "center" : "left";
+          const isDateColumn = columnKey.includes("vencimento") ||
+            columnKey.includes("data");
+          const align = isMoneyColumn
+            ? "right"
+            : isDateColumn
+            ? "center"
+            : "left";
           return `<td align="${align}">${formatCellValue(column, value)}</td>`;
         })
         .join("");
@@ -322,52 +416,85 @@ const handleRequest = async (req: Request) => {
   };
 
   const subject = buildProtocolSubject();
-
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-  });
-
-  console.log("send-contas-a-pagar-xlsx-email: sending email");
-  const defaultRecipient = "daniel.rocha@odontoart.com";
-  const toRecipients = recipients.length ? recipients : [defaultRecipient];
-
-  try {
-    await transporter.sendMail({
-      from: smtpFrom,
-      to: toRecipients,
-      subject,
-      html: htmlBody,
-    });
-  } catch (error) {
-    console.error("SMTP send error:", error);
-    return jsonResponse({ ok: false, error: `Failed to send email: ${error instanceof Error ? error.message : "unknown error"}` }, 500);
+  const requestedSubject = typeof body.subject === "string"
+    ? body.subject.replace(/[\r\n]+/g, " ").trim()
+    : "";
+  if (
+    body.subject !== undefined &&
+    (!requestedSubject || requestedSubject.length > 998)
+  ) {
+    return validationErrorResponse();
   }
 
-  console.log("send-contas-a-pagar-xlsx-email: done");
-  return jsonResponse({ ok: true }, 200);
+  const sendResult = await sendEmailWithResend({
+    to: recipients,
+    subject: requestedSubject || subject,
+    html: htmlBody,
+  });
+
+  if (!sendResult.success) {
+    const publicError = getPublicEmailError(sendResult);
+
+    console.error("email_send_failed", {
+      requestId,
+      functionName: "send-contas-a-pagar-xlsx-email",
+      emailType: "contas_a_pagar",
+      recordId: relatedRecordId,
+      userId: authData.user.id,
+      errorKind: sendResult.kind,
+      providerCategory: sendResult.providerCategory,
+      providerStatus: sendResult.providerStatus,
+      providerDurationMs: sendResult.durationMs,
+      durationMs: Math.round(performance.now() - requestStartedAt),
+    });
+
+    return jsonResponse(
+      {
+        success: false,
+        code: publicError.code,
+        message: publicError.message,
+      },
+      publicError.status,
+    );
+  }
+
+  console.log("email_send_succeeded", {
+    requestId,
+    functionName: "send-contas-a-pagar-xlsx-email",
+    emailType: "contas_a_pagar",
+    recordId: relatedRecordId,
+    userId: authData.user.id,
+    providerStatus: sendResult.providerStatus,
+    emailId: sendResult.emailId,
+    providerDurationMs: sendResult.durationMs,
+    durationMs: Math.round(performance.now() - requestStartedAt),
+  });
+
+  return jsonResponse(
+    {
+      success: true,
+      message: "E-mail enviado com sucesso.",
+      emailId: sendResult.emailId,
+    },
+    200,
+  );
 };
 
 Deno.serve(async (req) => {
   try {
     return await handleRequest(req);
-  } catch (error) {
-    console.error("Unhandled send-contas-a-pagar-xlsx-email error:", error);
+  } catch {
+    console.error("email_send_unexpected_error", {
+      functionName: "send-contas-a-pagar-xlsx-email",
+    });
+    const message = "Não foi possível processar a solicitação.";
     return jsonResponse(
       {
-        ok: false,
-        error: "Unhandled server error",
-        details: error instanceof Error ? error.message : String(error),
+        success: false,
+        code: "INTERNAL_ERROR",
+        message,
       },
-      500
+      500,
     );
   }
 });

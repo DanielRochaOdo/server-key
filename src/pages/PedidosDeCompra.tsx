@@ -6,6 +6,11 @@ import MoneyInputBRL from "../components/MoneyInputBRL";
 import ModuleHeader from "../components/ModuleHeader";
 import { useAuth } from "../contexts/AuthContext";
 import EditPermissionModal from "../components/EditPermissionModal";
+import {
+    getEmailErrorMessage,
+    getEmailSuccessMessage,
+    parseEmailFunctionResponse,
+} from "../utils/emailFunctionResponse";
 
 type PcStatusMensal = "ENTREGUE" | "PEDIDO_FEITO";
 type PcPrioridade = "BAIXA" | "MEDIA" | "ALTA";
@@ -447,9 +452,10 @@ function buildProtocolName(protocolo: Protocolo, titulo: string) {
 
 export default function PedidosDeCompra() {
     const { ano: anoNow, mes: mesNow } = getNowYM();
-    const { hasModuleAccess, hasModuleEditAccess, isFinanceiro, loadingProfile } = useAuth();
+    const { hasModuleAccess, hasModuleEditAccess, isAdmin, isFinanceiro, loadingProfile } = useAuth();
     const canViewPedidos = hasModuleAccess("pedidos_de_compra");
     const canEditPedidos = hasModuleEditAccess("pedidos_de_compra");
+    const canSendPedidosEmail = isAdmin() || canViewPedidos;
     const isFinanceiroUser = isFinanceiro();
     const canEditPrevisao = canEditPedidos;
     const canAccessProtocoloTab = canViewPedidos;
@@ -500,6 +506,7 @@ export default function PedidosDeCompra() {
     const [editItem, setEditItem] = useState<ProtocoloItem | null>(null);
     const [editDraft, setEditDraft] = useState<ProtocoloItemDraft>(() => createEmptyProtocolItemDraft());
     const [sendingEmail, setSendingEmail] = useState(false);
+    const sendingEmailRef = useRef(false);
     const [showEmailRecipientsModal, setShowEmailRecipientsModal] = useState(false);
     const [emailRecipientsError, setEmailRecipientsError] = useState<string | null>(null);
     const [emailRecipients, setEmailRecipients] = useState<string[]>(() => loadEmailRecipients());
@@ -723,11 +730,17 @@ export default function PedidosDeCompra() {
         }
     }, [protocoloColumnWidths]);
 
+    const handleCloseEmailRecipientsModal = useCallback(() => {
+        setShowEmailRecipientsModal(false);
+        setEmailRecipientsError(null);
+        setEmailRecipientInput("");
+    }, []);
+
     const handleOpenEmailRecipientsModal = useCallback(() => {
-        if (!protocoloSel) return;
+        if (!protocoloSel || !canSendPedidosEmail || sendingEmailRef.current) return;
         setEmailRecipientsError(null);
         setShowEmailRecipientsModal(true);
-    }, [protocoloSel]);
+    }, [canSendPedidosEmail, protocoloSel]);
 
     const handleAddEmailRecipient = useCallback(() => {
         const normalized = normalizeEmail(emailRecipientInput);
@@ -735,10 +748,12 @@ export default function PedidosDeCompra() {
             setEmailRecipientsError("Informe um e-mail valido.");
             return;
         }
-        setEmailRecipients((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
+        if (!emailRecipients.includes(normalized)) {
+            setEmailRecipients((prev) => [...prev, normalized]);
+        }
         setEmailRecipientInput("");
         setEmailRecipientsError(null);
-    }, [emailRecipientInput]);
+    }, [emailRecipientInput, emailRecipients]);
 
     const handleRemoveEmailRecipient = useCallback((recipient: string) => {
         const normalized = normalizeEmail(recipient);
@@ -747,9 +762,13 @@ export default function PedidosDeCompra() {
     }, [defaultEmailRecipients]);
 
     async function handleConfirmSendEmail() {
-        const normalizedRecipients = emailRecipients
-            .map((recipient) => normalizeEmail(recipient))
-            .filter((recipient) => recipient.length > 0);
+        const normalizedRecipients = Array.from(
+            new Set(
+                emailRecipients
+                    .map((recipient) => normalizeEmail(recipient))
+                    .filter((recipient) => recipient.length > 0)
+            )
+        );
         if (normalizedRecipients.length === 0) {
             setEmailRecipientsError("Adicione ao menos um destinatario.");
             return;
@@ -758,9 +777,11 @@ export default function PedidosDeCompra() {
             setEmailRecipientsError("Existe um destinatario invalido.");
             return;
         }
-        setShowEmailRecipientsModal(false);
         setEmailRecipientsError(null);
-        await enviarEmailProtocolo(normalizedRecipients);
+        const success = await enviarEmailProtocolo(normalizedRecipients);
+        if (success) {
+            handleCloseEmailRecipientsModal();
+        }
     }
 
     const handleMensalSort = (column: "item" | "quantidade" | "valor_unit" | "frete" | "valor_total" | "diretoria" | "status") => {
@@ -1375,15 +1396,25 @@ export default function PedidosDeCompra() {
         return token;
     }, []);
 
-    async function enviarEmailProtocolo(recipients?: string[]) {
-        if (!protocoloSel || sendingEmail) return;
+    async function enviarEmailProtocolo(recipients: string[]) {
+        if (!protocoloSel || !canSendPedidosEmail || sendingEmailRef.current) return false;
+
+        sendingEmailRef.current = true;
         setSendingEmail(true);
 
         try {
-            const token = await getAccessToken();
-            const normalizedRecipients = Array.isArray(recipients)
-                ? recipients.map((recipient) => normalizeEmail(recipient)).filter((recipient) => recipient.length > 0)
-                : undefined;
+            const token = await getAccessToken().catch(() => null);
+            if (!token) {
+                setToast({ type: "error", message: getEmailErrorMessage("UNAUTHORIZED") });
+                return false;
+            }
+            const normalizedRecipients = Array.from(
+                new Set(
+                    recipients
+                        .map((recipient) => normalizeEmail(recipient))
+                        .filter((recipient) => recipient.length > 0)
+                )
+            );
             const response = await fetch(
                 `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-protocolo-email`,
                 {
@@ -1393,29 +1424,42 @@ export default function PedidosDeCompra() {
                         Authorization: `Bearer ${token}`,
                         apikey: `${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
                     },
-                    body: JSON.stringify({ protocoloId: protocoloSel.id, recipients: normalizedRecipients }),
+                    body: JSON.stringify({
+                        protocoloId: protocoloSel.id,
+                        recipients: normalizedRecipients,
+                    }),
                 }
             );
 
-            const data = await response.json().catch(() => null);
-            if (!response.ok) {
-                const errorMessage = data?.error || "Falha ao enviar e-mail.";
-                console.error("Erro ao enviar e-mail:", data);
-                setToast({ type: "error", message: errorMessage });
-                return;
+            const rawData: unknown = await response.json().catch(() => null);
+            const data = parseEmailFunctionResponse(rawData);
+
+            if (!data) {
+                if (import.meta.env.DEV) {
+                    console.debug("Resposta inesperada da função de envio de e-mail.");
+                }
+                setToast({ type: "error", message: getEmailErrorMessage("EMAIL_PROVIDER_ERROR") });
+                return false;
             }
 
-            if (!data?.ok) {
-                console.error("Resposta inesperada da function:", data);
-                setToast({ type: "error", message: "Falha ao enviar e-mail." });
-                return;
+            if (!response.ok || data.success !== true) {
+                setToast({ type: "error", message: getEmailErrorMessage(data.code) });
+                return false;
             }
 
-            setToast({ type: "success", message: "E-mail enviado." });
-        } catch (err) {
-            console.error("Erro inesperado ao enviar e-mail:", err);
-            setToast({ type: "error", message: "Falha ao enviar e-mail." });
+            if (import.meta.env.DEV && data.emailId) {
+                console.debug("E-mail enviado.", { emailId: data.emailId });
+            }
+            setToast({ type: "success", message: getEmailSuccessMessage(data.message) });
+            return true;
+        } catch {
+            if (import.meta.env.DEV) {
+                console.debug("Falha de transporte ao invocar a função de envio de e-mail.");
+            }
+            setToast({ type: "error", message: getEmailErrorMessage("EMAIL_PROVIDER_ERROR") });
+            return false;
         } finally {
+            sendingEmailRef.current = false;
             setSendingEmail(false);
         }
     }
@@ -1961,20 +2005,22 @@ export default function PedidosDeCompra() {
                             </div>
 
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                <button
-                                    disabled={!protocoloSel || sendingEmail}
-                                    onClick={handleOpenEmailRecipientsModal}
-                                    className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-xs font-semibold uppercase tracking-wide transition-colors
-                                        ${protocoloSel && !sendingEmail
-                                            ? "bg-neutral-200/10 text-white shadow-lg hover:bg-neutral-200/20"
-                                            : "bg-neutral-200/5 text-white/50 cursor-not-allowed border border-white/10"
-                                        }`}
-                                    title="Enviar e-mail do protocolo"
-                                    aria-busy={sendingEmail}
-                                >
-                                    {sendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail size={16} />}
-                                    {sendingEmail ? "Enviando..." : "Enviar email"}
-                                </button>
+                                {canSendPedidosEmail && (
+                                    <button
+                                        disabled={!protocoloSel || sendingEmail}
+                                        onClick={handleOpenEmailRecipientsModal}
+                                        className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-xs font-semibold uppercase tracking-wide transition-colors
+                                            ${protocoloSel && !sendingEmail
+                                                ? "bg-neutral-200/10 text-white shadow-lg hover:bg-neutral-200/20"
+                                                : "bg-neutral-200/5 text-white/50 cursor-not-allowed border border-white/10"
+                                            }`}
+                                        title="Enviar e-mail do protocolo"
+                                        aria-busy={sendingEmail}
+                                    >
+                                        {sendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail size={16} />}
+                                        {sendingEmail ? "Enviando..." : "Enviar email"}
+                                    </button>
+                                )}
                                 <button
                                     disabled={!protocoloSel}
                                     onClick={exportarProtocoloSelecionado}
@@ -2601,7 +2647,7 @@ export default function PedidosDeCompra() {
                 </div>
             )}
 
-            {showEmailRecipientsModal && (
+            {showEmailRecipientsModal && canSendPedidosEmail && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm px-4">
                     <div className="w-full max-w-lg rounded-3xl border border-neutral-800 bg-neutral-950/90 p-6 text-white shadow-2xl">
                         <div className="flex items-center justify-between gap-2">
@@ -2613,11 +2659,7 @@ export default function PedidosDeCompra() {
                             </div>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setShowEmailRecipientsModal(false);
-                                    setEmailRecipientsError(null);
-                                    setEmailRecipientInput("");
-                                }}
+                                onClick={handleCloseEmailRecipientsModal}
                                 className="rounded-2xl border border-neutral-800 bg-neutral-200/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-neutral-600 hover:bg-neutral-200/10"
                                 disabled={sendingEmail}
                             >
@@ -2696,10 +2738,7 @@ export default function PedidosDeCompra() {
                         <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-white/10">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setShowEmailRecipientsModal(false);
-                                    setEmailRecipientsError(null);
-                                }}
+                                onClick={handleCloseEmailRecipientsModal}
                                 className="rounded-2xl border border-neutral-800 bg-neutral-200/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-neutral-600 hover:bg-neutral-200/10"
                                 disabled={sendingEmail}
                             >
@@ -2710,6 +2749,7 @@ export default function PedidosDeCompra() {
                                 onClick={handleConfirmSendEmail}
                                 className="rounded-2xl bg-button px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-button-hover disabled:cursor-not-allowed disabled:opacity-60"
                                 disabled={sendingEmail}
+                                aria-busy={sendingEmail}
                             >
                                 {sendingEmail ? "Enviando..." : "Enviar"}
                             </button>

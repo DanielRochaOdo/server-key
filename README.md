@@ -140,6 +140,12 @@ Acesse a aplicaÃ§Ã£o e faÃ§a login com as credenciais do admin padrÃ£o o
 
 ## ðŸ”’ SeguranÃ§a
 
+### E-mails transacionais
+
+A arquitetura simples, os Secrets e o roteiro de publicação dos fluxos de
+Pedido de Compra e Contas a Pagar estão documentados em
+[`docs/email-resend.md`](docs/email-resend.md).
+
 ### Row Level Security (RLS)
 - Todas as tabelas tÃªm RLS habilitado
 - PolÃ­ticas especÃ­ficas por mÃ³dulo e role

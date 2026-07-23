@@ -11,6 +11,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { getLocalDateKey, getUsdBrlRate } from '../utils/usdBrlRate';
 import {
+  getEmailErrorMessage,
+  getEmailSuccessMessage,
+  parseEmailFunctionResponse,
+} from '../utils/emailFunctionResponse';
+import {
   loadClosedLoteOps,
   markClosedLoteDetalhadoExport,
   markClosedLoteEmailResult,
@@ -388,6 +393,8 @@ const LOTES_STORAGE_KEY = 'serverkey:contas_apagar_lotes';
 const MONTH_CLOSE_STORAGE_KEY = 'serverkey:contas_apagar_last_closed_month';
 const CONSOLIDADO_FEVEREIRO_2026 = 'LOTE CONSOLIDADO FEVEREIRO/2026';
 const DEFAULT_EMAIL_RECIPIENTS = ['daniel.rocha@odontoart.com'];
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 interface ExportModalState {
   showExportNfModal: boolean;
@@ -691,8 +698,9 @@ const loadExportModalState = (): ExportModalState => {
 const ContasAPagar: React.FC = () => {
   const [contas, setContas] = useState<ContaAPagar[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user, hasModuleEditAccess } = useAuth();
+  const { user, hasModuleEditAccess, isAdmin } = useAuth();
   const canEditContasAPagar = hasModuleEditAccess('contas_a_pagar');
+  const canSendContasEmail = isAdmin();
   const { getState, setState, clearState } = usePersistence();
   const USD_UPDATE_DATE_KEY = 'serverkey:contas_apagar_usd_update_date';
 
@@ -728,14 +736,15 @@ const ContasAPagar: React.FC = () => {
   const [showExportNfModal, setShowExportNfModal] = useState(savedExportState.showExportNfModal);
   const [exportEntries, setExportEntries] = useState<Record<string, ExportEntry>>(savedExportState.exportEntries);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const sendingEmailRef = useRef(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [showEmailRecipientsModal, setShowEmailRecipientsModal] = useState(false);
   const [emailRecipientInput, setEmailRecipientInput] = useState('');
   const [emailRecipientsError, setEmailRecipientsError] = useState<string | null>(null);
   const [emailRecipients, setEmailRecipients] = useState<string[]>(() => loadEmailRecipients());
   const [emailContext, setEmailContext] = useState<{
-    columns: string[];
-    rows: Array<Array<string | number | Date | null>>;
+    columns?: string[];
+    rows?: Array<Array<string | number | Date | null>>;
     loteId?: string;
   } | null>(null);
   const [showConsolidateLoteModal, setShowConsolidateLoteModal] = useState(false);
@@ -974,15 +983,10 @@ const ContasAPagar: React.FC = () => {
     setState('contasAPagar_statusFilter', value);
   }, [clearState, setState]);
 
-  const normalizeEmail = (value: string) => value.trim().toLowerCase();
   const defaultEmailRecipients = useMemo(
     () => DEFAULT_EMAIL_RECIPIENTS.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0),
     []
   );
-
-  const isValidEmail = (value: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-  };
 
   const formatBRLFromInput = (input: string) => {
     const cleaned = input.replace(/[^\d,.-]/g, '');
@@ -2328,31 +2332,46 @@ const ContasAPagar: React.FC = () => {
 
   const handleSendXlsxEmail = useCallback(async (
     recipients: string[] = [],
-    context?: { columns: string[]; rows: Array<Array<string | number | Date | null>> }
+    context: {
+      columns?: string[];
+      rows?: Array<Array<string | number | Date | null>>;
+      loteId?: string;
+    } | undefined
   ) => {
-    if (sendingEmail) return false;
+    if (!canSendContasEmail || sendingEmailRef.current) return null;
 
-    const normalizedRecipients = recipients
-      .map((recipient) => normalizeEmail(recipient))
-      .filter((recipient) => recipient.length > 0);
-
-    const dataRows = context?.rows ?? buildXlsxDataRows(exportEntries);
-    const columns = context?.columns ?? XLSX_EXPORT_HEADERS;
-    const rows = dataRows.map((row) =>
-      row.map((value) => {
-        if (value instanceof Date) {
-          const year = value.getFullYear();
-          const month = String(value.getMonth() + 1).padStart(2, '0');
-          const day = String(value.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        }
-        if (value === undefined) return null;
-        return value;
-      })
-    );
-
+    sendingEmailRef.current = true;
     setSendingEmail(true);
+
     try {
+      const normalizedRecipients = Array.from(
+        new Set(
+          recipients
+            .map((recipient) => normalizeEmail(recipient))
+            .filter((recipient) => recipient.length > 0)
+        )
+      );
+
+      const dataRows = context?.rows ?? buildXlsxDataRows(exportEntries);
+      const columns = context?.columns ?? XLSX_EXPORT_HEADERS;
+      const rows = dataRows.map((row) =>
+        row.map((value) => {
+          if (value instanceof Date) {
+            const year = value.getFullYear();
+            const month = String(value.getMonth() + 1).padStart(2, '0');
+            const day = String(value.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          }
+          if (value === undefined) return null;
+          return value;
+        })
+      );
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      const subject = `PROTOCOLO TI CONTAS A PAGAR ${day}-${month}-${year}`;
+
       const getAccessToken = async () => {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
@@ -2372,7 +2391,12 @@ const ContasAPagar: React.FC = () => {
         return token;
       };
 
-      const token = await getAccessToken();
+      const token = await getAccessToken().catch(() => null);
+      if (!token) {
+        const message = getEmailErrorMessage('UNAUTHORIZED');
+        setToast({ type: 'error', message });
+        return { success: false, message, code: 'UNAUTHORIZED' };
+      }
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-contas-a-pagar-xlsx-email`,
         {
@@ -2386,55 +2410,67 @@ const ContasAPagar: React.FC = () => {
             columns,
             rows,
             recipients: normalizedRecipients,
-            access_token: token,
+            meta: context?.loteId ? { loteId: context.loteId } : undefined,
+            subject,
           }),
         }
       );
 
-      const responseText = await response.text().catch(() => '');
-      const responseData = (() => {
-        try {
-          return responseText ? JSON.parse(responseText) : null;
-        } catch {
-          return responseText || null;
+      const rawData: unknown = await response.json().catch(() => null);
+      const data = parseEmailFunctionResponse(rawData);
+
+      if (!data) {
+        if (import.meta.env.DEV) {
+          console.debug('Resposta inesperada da função de envio de e-mail.');
         }
-      })();
-      if (!response.ok) {
-        const errorMessage =
-          (responseData && typeof responseData === 'object' && 'error' in responseData
-            ? String((responseData as { error?: unknown }).error ?? '')
-            : '') ||
-          responseText ||
-          response.statusText ||
-          'Falha ao enviar e-mail.';
-        console.error('Erro ao enviar e-mail:', response.status, responseText);
-        setToast({ type: 'error', message: errorMessage });
-        return false;
+        const message = getEmailErrorMessage('EMAIL_PROVIDER_ERROR');
+        setToast({ type: 'error', message });
+        return { success: false, message, code: 'EMAIL_PROVIDER_ERROR' };
       }
 
-      if (!responseData || typeof responseData !== 'object' || !('ok' in responseData) || !(responseData as { ok?: unknown }).ok) {
-        console.error('Resposta inesperada da function:', responseText);
-        setToast({ type: 'error', message: responseText || 'Falha ao enviar e-mail.' });
-        return false;
+      if (!response.ok || data.success !== true) {
+        const message = getEmailErrorMessage(data.code);
+        setToast({ type: 'error', message });
+        return { success: false, message, code: data.code };
       }
 
-      setToast({ type: 'success', message: 'E-mail enviado com sucesso' });
-      return true;
-    } catch (err) {
-      console.error('Erro inesperado ao enviar e-mail:', err);
-      setToast({ type: 'error', message: err instanceof Error ? err.message : 'Falha ao enviar e-mail.' });
-      return false;
+      if (import.meta.env.DEV && data.emailId) {
+        console.debug('E-mail enviado.', { emailId: data.emailId });
+      }
+      const message = getEmailSuccessMessage(data.message);
+      setToast({ type: 'success', message });
+      return { success: true, message, code: undefined };
+    } catch {
+      if (import.meta.env.DEV) {
+        console.debug('Falha de transporte ao invocar a função de envio de e-mail.');
+      }
+      const message = getEmailErrorMessage('EMAIL_PROVIDER_ERROR');
+      setToast({ type: 'error', message });
+      return { success: false, message, code: 'EMAIL_PROVIDER_ERROR' };
     } finally {
+      sendingEmailRef.current = false;
       setSendingEmail(false);
     }
-  }, [buildXlsxDataRows, exportEntries, normalizeEmail, sendingEmail]);
+  }, [buildXlsxDataRows, canSendContasEmail, exportEntries]);
 
-  const handleOpenEmailRecipientsModal = useCallback((context?: { columns: string[]; rows: Array<Array<string | number | Date | null>>; loteId?: string }) => {
+  const handleCloseEmailRecipientsModal = useCallback(() => {
+    setShowEmailRecipientsModal(false);
+    setEmailRecipientsError(null);
+    setEmailRecipientInput('');
+    setEmailContext(null);
+  }, []);
+
+  const handleOpenEmailRecipientsModal = useCallback((context?: {
+    columns?: string[];
+    rows?: Array<Array<string | number | Date | null>>;
+    loteId?: string;
+  }) => {
+    if (!canSendContasEmail || sendingEmailRef.current) return;
     setEmailRecipientInput('');
     setEmailRecipientsError(null);
     setEmailContext(context ?? null);
     setShowEmailRecipientsModal(true);
-  }, []);
+  }, [canSendContasEmail]);
 
   const handleAddEmailRecipient = useCallback(() => {
     const normalized = normalizeEmail(emailRecipientInput);
@@ -2446,41 +2482,60 @@ const ContasAPagar: React.FC = () => {
       setEmailRecipientsError('Informe um e-mail valido.');
       return;
     }
-    setEmailRecipients((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
+    if (!emailRecipients.includes(normalized)) {
+      setEmailRecipients((prev) => [...prev, normalized]);
+    }
     setEmailRecipientInput('');
     setEmailRecipientsError(null);
-  }, [emailRecipientInput, isValidEmail, normalizeEmail]);
+  }, [emailRecipientInput, emailRecipients]);
 
   const handleRemoveEmailRecipient = useCallback((recipient: string) => {
     const normalized = normalizeEmail(recipient);
     if (defaultEmailRecipients.includes(normalized)) return;
     setEmailRecipients((prev) => prev.filter((item) => item !== recipient));
-  }, [defaultEmailRecipients, normalizeEmail]);
+  }, [defaultEmailRecipients]);
 
   const handleConfirmSendEmail = useCallback(async () => {
-    if (emailRecipients.length === 0) {
+    const normalizedRecipients = Array.from(
+      new Set(
+        emailRecipients
+          .map((recipient) => normalizeEmail(recipient))
+          .filter((recipient) => recipient.length > 0)
+      )
+    );
+    if (normalizedRecipients.length === 0) {
       setEmailRecipientsError('Adicione ao menos um destinatario.');
       return;
     }
-    if (!emailRecipients.every((recipient) => isValidEmail(recipient))) {
+    if (!normalizedRecipients.every((recipient) => isValidEmail(recipient))) {
       setEmailRecipientsError('Existe um destinatario invalido.');
       return;
     }
-    const success = await handleSendXlsxEmail(emailRecipients, emailContext ?? undefined);
+    setEmailRecipientsError(null);
+    const outcome = await handleSendXlsxEmail(
+      normalizedRecipients,
+      emailContext ?? undefined
+    );
+    if (!outcome) return;
+
     if (emailContext?.loteId) {
       const timestampIso = new Date().toISOString();
       setClosedLoteOps((prev) => markClosedLoteEmailResult(prev, emailContext.loteId as string, {
         timestampIso,
-        recipients: emailRecipients,
-        success,
-        errorMessage: success ? undefined : 'Falha ao enviar e-mail.',
+        recipients: normalizedRecipients,
+        success: outcome.success,
+        errorMessage: outcome.success ? undefined : outcome.message,
       }));
     }
-    if (success) {
-      setShowEmailRecipientsModal(false);
-      setEmailContext(null);
+    if (outcome.success) {
+      handleCloseEmailRecipientsModal();
     }
-  }, [emailContext, emailRecipients, handleSendXlsxEmail, isValidEmail]);
+  }, [
+    emailContext,
+    emailRecipients,
+    handleCloseEmailRecipientsModal,
+    handleSendXlsxEmail,
+  ]);
 
   const buildDefaultLoteNome = useCallback(() => {
     const now = new Date();
@@ -3905,7 +3960,9 @@ const ContasAPagar: React.FC = () => {
                             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                               closedLoteOps[lote.id]?.ultimoEmailStatus === 'sucesso'
                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                : 'border-red-200 bg-red-50 text-red-700'
+                                : closedLoteOps[lote.id]?.ultimoEmailStatus === 'incerto'
+                                  ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                  : 'border-red-200 bg-red-50 text-red-700'
                             }`}>
                               Email {closedLoteOps[lote.id]?.ultimoEmailStatus}
                             </span>
@@ -3974,14 +4031,18 @@ const ContasAPagar: React.FC = () => {
                               <Download className="h-3 w-3" />
                               Exportar Res.
                             </button>
-                            <button
-                              onClick={() => handleEmailClosedLoteDetalhado(lote)}
-                              className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
-                              title="Enviar detalhado por e-mail"
-                            >
-                              <Mail className="h-3 w-3" />
-                              Enviar Det.
-                            </button>
+                            {canSendContasEmail && (
+                              <button
+                                onClick={() => handleEmailClosedLoteDetalhado(lote)}
+                                disabled={sendingEmail}
+                                className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                title="Enviar detalhado por e-mail"
+                                aria-busy={sendingEmail}
+                              >
+                                <Mail className="h-3 w-3" />
+                                {sendingEmail ? 'Enviando...' : 'Enviar Det.'}
+                              </button>
+                            )}
                           </>
                         )}
                         {!lote.fechado && (
@@ -4581,16 +4642,23 @@ const ContasAPagar: React.FC = () => {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                onClick={handleOpenEmailRecipientsModal}
-                disabled={sendingEmail}
-                className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 transition-colors ${
-                  sendingEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
-                }`}
-              >
-                <Mail className="h-3 w-3" />
-                {sendingEmail ? 'ENVIANDO...' : 'ENVIAR EMAIL'}
-              </button>
+              {canSendContasEmail && (
+                <button
+                  onClick={() =>
+                    handleOpenEmailRecipientsModal(
+                      currentLoteId ? { loteId: currentLoteId } : undefined
+                    )
+                  }
+                  disabled={sendingEmail}
+                  className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 transition-colors ${
+                    sendingEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
+                  }`}
+                  aria-busy={sendingEmail}
+                >
+                  <Mail className="h-3 w-3" />
+                  {sendingEmail ? 'ENVIANDO...' : 'ENVIAR EMAIL'}
+                </button>
+              )}
             </div>
             <div className="mt-4 border-t border-dashed border-neutral-200 pt-4 flex-1 min-h-0">
               <div className="h-full max-h-[55vh] overflow-auto pr-2 pb-2">
@@ -4727,17 +4795,13 @@ const ContasAPagar: React.FC = () => {
         </div>
       )}
 
-      {showEmailRecipientsModal && (
+      {showEmailRecipientsModal && canSendContasEmail && (
         <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
           <div className="bg-neutral-200 rounded-2xl border border-neutral-200 p-5 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-neutral-900">Enviar E-mail</h3>
               <button
-                onClick={() => {
-                  setShowEmailRecipientsModal(false);
-                  setEmailRecipientsError(null);
-                  setEmailContext(null);
-                }}
+                onClick={handleCloseEmailRecipientsModal}
                 className="text-neutral-400 hover:text-neutral-600"
                 disabled={sendingEmail}
               >
@@ -4820,11 +4884,7 @@ const ContasAPagar: React.FC = () => {
             )}
             <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-neutral-200 bg-neutral-200/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
               <button
-                onClick={() => {
-                  setShowEmailRecipientsModal(false);
-                  setEmailRecipientsError(null);
-                  setEmailContext(null);
-                }}
+                onClick={handleCloseEmailRecipientsModal}
                 className="px-4 py-2 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-200"
                 disabled={sendingEmail}
               >
@@ -4834,6 +4894,7 @@ const ContasAPagar: React.FC = () => {
                 onClick={handleConfirmSendEmail}
                 className="px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
                 disabled={sendingEmail}
+                aria-busy={sendingEmail}
               >
                 {sendingEmail ? 'Enviando...' : 'Enviar'}
               </button>
@@ -5148,7 +5209,7 @@ const ContasAPagar: React.FC = () => {
               >
                 Cancelar
               </button>
-              {editingLoteType === 'detalhado' && editingLoteReadOnly && (
+              {editingLoteType === 'detalhado' && editingLoteReadOnly && canSendContasEmail && (
                 <button
                   onClick={() => {
                     const rows = buildDetalhadoEmailRows(editingLoteRows as LoteRowDetalhado[]);
@@ -5162,6 +5223,7 @@ const ContasAPagar: React.FC = () => {
                   className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-primary-200 text-sm font-medium text-primary-700 transition-colors ${
                     sendingEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
                   }`}
+                  aria-busy={sendingEmail}
                 >
                   <Mail className="h-4 w-4" />
                   {sendingEmail ? 'Enviando...' : 'Enviar Email'}
