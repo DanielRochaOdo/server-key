@@ -348,6 +348,12 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# The email function validates the user JWT and module permission inside its own
+# handler. Disable the platform-level JWT gate so it cannot reject compatible
+# Supabase Auth tokens before the function's explicit auth checks run.
+[functions.send-protocolo-email]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
