@@ -13,6 +13,7 @@ interface RateioGoogle {
   nome_completo: string;
   email?: string;
   status?: RateioGoogleStatus;
+  uso_email?: string;
   ultimo_login?: string;
   created_at: string;
 }
@@ -25,6 +26,20 @@ const formatDateTime = (value?: string | null) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString('pt-BR');
+};
+
+const formatUsageVolume = (value?: number | string | null) => {
+  if (value === null || value === undefined || value === '') return '-';
+  const mb = Number(value);
+  if (!Number.isFinite(mb) || mb < 0) return '-';
+
+  if (mb >= 1024 * 1024) {
+    return `${(mb / (1024 * 1024)).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} TB`;
+  }
+  if (mb >= 1024) {
+    return `${(mb / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} GB`;
+  }
+  return `${mb.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} MB`;
 };
 
 const RateioGoogle: React.FC = () => {
@@ -72,7 +87,7 @@ const RateioGoogle: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('google_workspace_accounts')
-        .select('id, full_name, primary_email, suspended, deleted, last_login_at, created_at')
+        .select('id, full_name, primary_email, suspended, deleted, gmail_usage_mb, last_login_at, created_at')
         .order('primary_email', { ascending: true });
 
       if (error) throw error;
@@ -85,6 +100,7 @@ const RateioGoogle: React.FC = () => {
           nome_completo: row.full_name || '-',
           email: row.primary_email || '-',
           status,
+          uso_email: formatUsageVolume(row.gmail_usage_mb),
           ultimo_login: formatDateTime(row.last_login_at),
           created_at: row.created_at || new Date().toISOString(),
         } as RateioGoogle;
@@ -700,6 +716,7 @@ const RateioGoogle: React.FC = () => {
                   </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Email</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Uso do e-mail</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Status</th>
                 <th className="hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Último Login</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ações</th>
@@ -727,6 +744,9 @@ const RateioGoogle: React.FC = () => {
                         </button>
                       )}
                     </div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-neutral-700">
+                    {rateio.uso_email || '-'}
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-neutral-600">
                     {getStatusBadge(rateio.status) || '-'}
@@ -797,6 +817,7 @@ const RateioGoogle: React.FC = () => {
               <div><strong>Nome Completo:</strong> {viewingRateio.nome_completo}</div>
               <div><strong>Email:</strong> {viewingRateio.email || '-'}</div>
               <div><strong>Status:</strong> {viewingRateio.status || '-'}</div>
+              <div><strong>Uso do e-mail:</strong> {viewingRateio.uso_email || '-'}</div>
               <div><strong>Último Login:</strong> {viewingRateio.ultimo_login || '-'}</div>
             </div>
             <div className="mt-4 sm:mt-6 text-right">
