@@ -78,11 +78,8 @@ BEGIN
     NOW(),
     NOW()
   ) ON CONFLICT (email) DO UPDATE SET
-    email = EXCLUDED.email,
-    name = COALESCE(EXCLUDED.name, users.name),
-    role = COALESCE(EXCLUDED.role, users.role),
-    modules = EXCLUDED.modules,
     auth_uid = EXCLUDED.auth_uid,
+    name = COALESCE(users.name, EXCLUDED.name),
     updated_at = NOW();
 
   RETURN NEW;
@@ -143,10 +140,8 @@ BEGIN
       NOW(),
       NOW()
     ) ON CONFLICT (email) DO UPDATE SET
-      name = COALESCE(EXCLUDED.name, users.name),
-      role = COALESCE(EXCLUDED.role, users.role),
-      modules = EXCLUDED.modules,
       auth_uid = EXCLUDED.auth_uid,
+      name = COALESCE(users.name, EXCLUDED.name),
       updated_at = NOW();
   END LOOP;
 END;
