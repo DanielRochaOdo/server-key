@@ -190,7 +190,6 @@ async function getUsageReport(params: { accessToken: string; domain: string; dat
       "parameters",
       "accounts:used_quota_in_mb,accounts:gmail_used_quota_in_mb"
     );
-    url.searchParams.set("customerId", "my_customer");
     url.searchParams.set("maxResults", "1000");
     if (pageToken) url.searchParams.set("pageToken", pageToken);
 
@@ -443,8 +442,8 @@ Deno.serve(async (req) => {
             archived: Boolean((u as any).archived),
             deleted: false,
             last_login_at: u.lastLoginTime ? new Date(u.lastLoginTime).toISOString() : null,
-            storage_mb: Number.isFinite(storageMb) ? storageMb : null,
-            gmail_usage_mb: Number.isFinite(gmailUsageMb) ? gmailUsageMb : null,
+            ...(Number.isFinite(storageMb) ? { storage_mb: storageMb } : {}),
+            ...(Number.isFinite(gmailUsageMb) ? { gmail_usage_mb: gmailUsageMb } : {}),
             is_admin: typeof u.isAdmin === "boolean" ? u.isAdmin : null,
             aliases: Array.isArray(u.aliases) ? u.aliases.map((a) => String(a).toLowerCase()) : null,
             google_etag: u.etag ?? null,
