@@ -77,12 +77,9 @@ BEGIN
     user_password,
     NOW(),
     NOW()
-  ) ON CONFLICT (auth_uid) DO UPDATE SET
-    email = EXCLUDED.email,
-    name = COALESCE(EXCLUDED.name, users.name),
-    role = EXCLUDED.role,
-    modules = EXCLUDED.modules,
-    is_active = EXCLUDED.is_active,
+  ) ON CONFLICT (email) DO UPDATE SET
+    auth_uid = EXCLUDED.auth_uid,
+    name = COALESCE(users.name, EXCLUDED.name),
     updated_at = NOW();
 
   RAISE NOTICE 'Public user created/updated successfully for: %', NEW.email;
@@ -165,7 +162,10 @@ BEGIN
       user_password,
       auth_user.created_at,
       NOW()
-    );
+    ) ON CONFLICT (email) DO UPDATE SET
+      auth_uid = EXCLUDED.auth_uid,
+      name = COALESCE(users.name, EXCLUDED.name),
+      updated_at = NOW();
 
     sync_count := sync_count + 1;
     result_text := result_text || 'Synced user: ' || auth_user.email || ' (role: ' || user_role || ')' || E'\n';

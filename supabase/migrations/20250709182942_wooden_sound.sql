@@ -46,8 +46,6 @@ DROP FUNCTION IF EXISTS create_user_profile(uuid, text, text, text, text[], bool
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
 -- Clean up existing admin user data to start fresh
-DELETE FROM public.users WHERE lower(email) = lower('admin@serverkey.com');
-DELETE FROM auth.users WHERE lower(email) = lower('admin@serverkey.com');
 
 -- Ensure users table has correct structure
 DO $$
@@ -317,11 +315,9 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'password', ''),
     NOW(),
     NOW()
-  ) ON CONFLICT (auth_uid) DO UPDATE SET
-    email = EXCLUDED.email,
-    name = COALESCE(EXCLUDED.name, users.name),
-    role = EXCLUDED.role,
-    modules = EXCLUDED.modules,
+  ) ON CONFLICT (email) DO UPDATE SET
+    auth_uid = EXCLUDED.auth_uid,
+    name = COALESCE(users.name, EXCLUDED.name),
     updated_at = NOW();
 
   RETURN NEW;
@@ -338,6 +334,22 @@ DO $$
 DECLARE
   admin_auth_id uuid;
 BEGIN
+  -- Preserve an existing default admin during historical replays.
+  SELECT id INTO admin_auth_id
+  FROM auth.users
+  WHERE lower(email) = lower('admin@serverkey.com')
+  LIMIT 1;
+
+  IF admin_auth_id IS NOT NULL THEN
+    UPDATE public.users
+    SET auth_uid = admin_auth_id,
+        role = 'admin',
+        is_active = true,
+        updated_at = NOW()
+    WHERE lower(email) = lower('admin@serverkey.com');
+    RAISE NOTICE 'Existing admin preserved and linked: %', admin_auth_id;
+    RETURN;
+  END IF;
   -- Generate a consistent UUID for admin
   admin_auth_id := gen_random_uuid();
 

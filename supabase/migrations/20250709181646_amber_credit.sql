@@ -209,9 +209,9 @@ BEGIN
       true,
       auth_user.id,
       COALESCE(auth_user.raw_user_meta_data->>'password', '')
-    ) ON CONFLICT (auth_uid) DO UPDATE SET
-      email = EXCLUDED.email,
-      name = COALESCE(EXCLUDED.name, users.name),
+    ) ON CONFLICT (email) DO UPDATE SET
+      auth_uid = EXCLUDED.auth_uid,
+      name = COALESCE(users.name, EXCLUDED.name),
       updated_at = NOW();
   END LOOP;
 END $$;

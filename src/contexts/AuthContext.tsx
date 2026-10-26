@@ -135,55 +135,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setLoadingProfile(true);
 
-        let profile: UserProfile | null = null;
-        let error: { code?: string; message?: string } | null = null;
+        const loadProfile = async () => {
+          let loadedProfile: UserProfile | null = null;
+          let loadError: { code?: string; message?: string } | null = null;
 
-        const withEditModules = await supabase
-          .from('users')
-          .select('id, email, name, role, modules, edit_modules, is_active, auth_uid')
-          .eq('auth_uid', user.id)
-          .single();
-
-        if (
-          withEditModules.error &&
-          (withEditModules.error.code === '42703' ||
-            withEditModules.error.message?.toLowerCase().includes('edit_modules'))
-        ) {
-          const legacyProfile = await supabase
+          const withEditModules = await supabase
             .from('users')
-            .select('id, email, name, role, modules, is_active, auth_uid')
+            .select('id, email, name, role, modules, edit_modules, is_active, auth_uid')
             .eq('auth_uid', user.id)
             .single();
 
-          error = legacyProfile.error;
-          profile = legacyProfile.data
-            ? {
-                ...legacyProfile.data,
-                edit_modules: legacyProfile.data.modules || [],
-              }
-            : null;
-        } else {
-          error = withEditModules.error;
-          profile = withEditModules.data as UserProfile | null;
+          if (
+            withEditModules.error &&
+            (withEditModules.error.code === '42703' ||
+              withEditModules.error.message?.toLowerCase().includes('edit_modules'))
+          ) {
+            const legacyProfile = await supabase
+              .from('users')
+              .select('id, email, name, role, modules, is_active, auth_uid')
+              .eq('auth_uid', user.id)
+              .single();
+
+            loadError = legacyProfile.error;
+            loadedProfile = legacyProfile.data
+              ? {
+                  ...legacyProfile.data,
+                  edit_modules: legacyProfile.data.modules || [],
+                }
+              : null;
+          } else {
+            loadError = withEditModules.error;
+            loadedProfile = withEditModules.data as UserProfile | null;
+          }
+
+          return { profile: loadedProfile, error: loadError };
+        };
+
+        let { profile, error } = await loadProfile();
+
+        if (error?.code === 'PGRST116') {
+          const { data: repaired, error: repairError } = await supabase.rpc(
+            'repair_current_user_profile_link'
+          );
+
+          if (!repairError && repaired === true) {
+            ({ profile, error } = await loadProfile());
+          } else if (repairError) {
+            console.warn('Profile auto-repair unavailable:', repairError);
+          }
         }
 
         if (error) {
           console.error('Error fetching user profile:', error);
-          
-          if (error.code === 'PGRST116') {
-            // User doesn't exist in public.users
-            await supabase.auth.signOut();
-            persistModulePermissionCache(null);
-            window.location.href = '/login?error=usuario_nao_encontrado';
-            return;
-          } else {
-            // Other database errors
-            console.error('❌ Database error:', error);
-            await supabase.auth.signOut();
-            persistModulePermissionCache(null);
-            window.location.href = '/login';
-            return;
-          }
+          // Keep the authenticated Supabase session. Database/RLS errors during
+          // migrations must not force a sign-out loop.
+          setUserProfile(null);
+          persistModulePermissionCache(null);
+          return;
         } else if (profile && mounted) {
           const normalizedRole = normalizeRole(profile.role);
           const normalizedProfile = {
