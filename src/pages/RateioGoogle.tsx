@@ -31,6 +31,9 @@ const RateioGoogle: React.FC = () => {
   const [selectedMetric, setSelectedMetric] = useState<'all' | 'odontoart' | 'odontoartonline'>(
     () => getState('rateioGoogle_selectedMetric') || 'all'
   );
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'Ativo' | 'Suspenso' | 'Excluído'>(
+    () => getState('rateioGoogle_selectedStatus') || 'all'
+  );
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_viewingRateio') || null);
@@ -188,8 +191,12 @@ const RateioGoogle: React.FC = () => {
   }, [selectedMetric, setState]);
 
   useEffect(() => {
+    setState('rateioGoogle_selectedStatus', selectedStatus);
+  }, [selectedStatus, setState]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedMetric]);
+  }, [searchTerm, selectedMetric, selectedStatus]);
 
   const toggleSortOrder = useCallback(() => {
     setSortOrder((prev) => {
@@ -260,7 +267,8 @@ const RateioGoogle: React.FC = () => {
         selectedMetric === 'all' ||
         (selectedMetric === 'odontoart' && email.endsWith('@odontoart.com')) ||
         (selectedMetric === 'odontoartonline' && email.endsWith('@odontoartonline.com.br'));
-      return matchesSearch && matchesMetric;
+      const matchesStatus = selectedStatus === 'all' || rateio.status === selectedStatus;
+      return matchesSearch && matchesMetric && matchesStatus;
     });
 
     if (sortOrder === 'asc') {
@@ -270,7 +278,7 @@ const RateioGoogle: React.FC = () => {
     }
 
     return filtered;
-  }, [rateios, searchTerm, selectedMetric, sortOrder]);
+  }, [rateios, searchTerm, selectedMetric, selectedStatus, sortOrder]);
 
   const exportData = useCallback(async (format: 'csv' | 'xlsx') => {
     try {
@@ -329,7 +337,7 @@ const RateioGoogle: React.FC = () => {
         setExportStage('Gerando planilha...');
         await yieldToUi();
 
-        const filterInfo = (searchTerm || selectedMetric !== 'all') ? `_filtrado` : '';
+        const filterInfo = (searchTerm || selectedMetric !== 'all' || selectedStatus !== 'all') ? `_filtrado` : '';
         const filename = `rateio_google${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
 
         setExportProgress(90);
@@ -375,7 +383,7 @@ const RateioGoogle: React.FC = () => {
         exportHideTimeoutRef.current = null;
       }, remaining);
     }
-  }, [exporting, filteredRateiosSorted, searchTerm, selectedMetric]);
+  }, [exporting, filteredRateiosSorted, searchTerm, selectedMetric, selectedStatus]);
 
   const currentItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -390,12 +398,15 @@ const RateioGoogle: React.FC = () => {
   }, []);
 
   const searchedRateios = useMemo(() => {
-    return rateios.filter((rateio) => (
-      rateio.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rateio.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      false
-    ));
-  }, [rateios, searchTerm]);
+    return rateios.filter((rateio) => {
+      const matchesSearch =
+        rateio.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        rateio.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        false;
+      const matchesStatus = selectedStatus === 'all' || rateio.status === selectedStatus;
+      return matchesSearch && matchesStatus;
+    });
+  }, [rateios, searchTerm, selectedStatus]);
 
   // Dashboard stats based on searched data
   const dashboardStats = useMemo(() => {
@@ -536,7 +547,7 @@ const RateioGoogle: React.FC = () => {
                 <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-10 border border-neutral-200">
                   <div className="py-1">
                     <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
-                      {(searchTerm || selectedMetric !== 'all') ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
+                      {(searchTerm || selectedMetric !== 'all' || selectedStatus !== 'all') ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
                     </div>
                     <button
                       onClick={() => exportData('csv')}
@@ -578,20 +589,46 @@ const RateioGoogle: React.FC = () => {
       <div className="bg-neutral-200 rounded-xl shadow-md overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-neutral-200">
           <div className="flex flex-col space-y-4">
-            {/* Linha 1: Busca */}
-            <div className="flex items-center justify-between">
-              <div className="relative flex-1 max-w-md">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+            {/* Linha 1: Busca e filtros */}
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="relative flex-1 max-w-md">
+                  <label htmlFor="rateio-google-search" className="mb-1 block text-xs font-medium text-neutral-600">
+                    Buscar
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
+                    </div>
+                    <input
+                      id="rateio-google-search"
+                      type="text"
+                      placeholder="Buscar usuários..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Buscar usuários..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
-                />
+
+                <div className="w-full sm:w-48">
+                  <label htmlFor="rateio-google-status" className="mb-1 block text-xs font-medium text-neutral-600">
+                    Status
+                  </label>
+                  <select
+                    id="rateio-google-status"
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'Ativo' | 'Suspenso' | 'Excluído')}
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="Ativo">Ativo</option>
+                    <option value="Suspenso">Suspenso</option>
+                    <option value="Excluído">Excluído</option>
+                  </select>
+                </div>
               </div>
+
               <div className="flex items-center space-x-2">
                 <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
                 <span className="text-xs sm:text-sm text-neutral-600">{filteredRateiosSorted.length} usuários</span>
@@ -599,7 +636,7 @@ const RateioGoogle: React.FC = () => {
             </div>
 
             <div className="text-xs text-neutral-500">
-              Clique em um bloco acima para filtrar os e-mails contabilizados.
+              Use o status e os blocos acima para combinar os filtros da lista.
             </div>
           </div>
         </div>
