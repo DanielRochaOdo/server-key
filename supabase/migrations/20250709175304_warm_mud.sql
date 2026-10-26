@@ -77,11 +77,12 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'password', ''),
     NOW(),
     NOW()
-  ) ON CONFLICT (auth_uid) DO UPDATE SET
+  ) ON CONFLICT (email) DO UPDATE SET
     email = EXCLUDED.email,
     name = COALESCE(EXCLUDED.name, users.name),
     role = COALESCE(EXCLUDED.role, users.role),
     modules = EXCLUDED.modules,
+    auth_uid = EXCLUDED.auth_uid,
     updated_at = NOW();
 
   RETURN NEW;
@@ -141,7 +142,12 @@ BEGIN
       COALESCE(auth_user.raw_user_meta_data->>'password', ''),
       NOW(),
       NOW()
-    );
+    ) ON CONFLICT (email) DO UPDATE SET
+      name = COALESCE(EXCLUDED.name, users.name),
+      role = COALESCE(EXCLUDED.role, users.role),
+      modules = EXCLUDED.modules,
+      auth_uid = EXCLUDED.auth_uid,
+      updated_at = NOW();
   END LOOP;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
