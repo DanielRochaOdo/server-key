@@ -25,12 +25,14 @@ jobs:
           SYNC_SECRET: ${{ secrets.GOOGLE_WORKSPACE_SYNC_SECRET }}
           MODE: ${{ github.event.inputs.mode || 'full' }}
         run: |
+          set -euo pipefail
+
           if [ -z "$SUPABASE_URL" ] || [ -z "$SYNC_SECRET" ]; then
             echo "Missing SUPABASE_URL or GOOGLE_WORKSPACE_SYNC_SECRET GitHub secrets"
             exit 1
           fi
 
-          curl -sS -X POST "$SUPABASE_URL/functions/v1/google-workspace-sync" \
+          curl --fail-with-body -sS -X POST "$SUPABASE_URL/functions/v1/google-workspace-sync" \
             -H "Content-Type: application/json" \
             -H "x-sync-secret: $SYNC_SECRET" \
             -d "{\"mode\":\"$MODE\",\"domains\":[\"odontoart.com\",\"odontoartonline.com.br\"]}" \
