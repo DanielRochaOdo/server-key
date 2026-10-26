@@ -183,14 +183,14 @@ async function getUsageReport(params: { accessToken: string; domain: string; dat
   let pageToken: string | undefined = undefined;
 
   for (;;) {
-    const url = new URL("https://admin.googleapis.com/admin/reports/v1/usage/users");
-    url.searchParams.set("userKey", "all");
-    url.searchParams.set("date", date);
-    url.searchParams.set("parameters", "accounts:used_quota_in_mb");
-    url.searchParams.set("filters", "accounts:is_google_workspace_account==true");
-    url.searchParams.set("customerId", "my_customer");
-    url.searchParams.set("entityType", "USER");
-    url.searchParams.set("domain", domain);
+    const url = new URL(
+      `https://admin.googleapis.com/admin/reports/v1/usage/users/all/dates/${date}`
+    );
+    url.searchParams.set(
+      "parameters",
+      "accounts:used_quota_in_mb,accounts:gmail_used_quota_in_mb"
+    );
+    url.searchParams.set("maxResults", "1000");
     if (pageToken) url.searchParams.set("pageToken", pageToken);
 
     const res = await fetch(url.toString(), {
@@ -208,6 +208,22 @@ async function getUsageReport(params: { accessToken: string; domain: string; dat
   }
 
   return items;
+}
+
+async function getLatestUsageReport(params: { accessToken: string; domain: string }) {
+  const { accessToken, domain } = params;
+
+  // Reports API data can be published after the Directory data. Try the most
+  // recent days until Google returns an available usage report.
+  for (let daysAgo = 1; daysAgo <= 7; daysAgo += 1) {
+    const date = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const reports = await getUsageReport({ accessToken, domain, date });
+    if (reports.length > 0) return reports;
+  }
+
+  return [] as UsageReportItem[];
 }
 
 function normalizeDomain(primaryEmail: string) {
@@ -239,23 +255,15 @@ function getUsageParamValue(item: UsageReportItem, name: string) {
 }
 
 function resolveStorageMb(item: UsageReportItem) {
-  const accountsUsed = getUsageParamValue(item, "accounts:used_quota_in_mb");
-  if (accountsUsed !== null) return accountsUsed;
+  return getUsageParamValue(item, "accounts:used_quota_in_mb");
+}
 
-  const driveUsed = getUsageParamValue(item, "drive:used_storage_in_mb");
-  const gmailUsed = getUsageParamValue(item, "gmail:used_storage_in_mb");
-  if (driveUsed !== null || gmailUsed !== null) return (driveUsed ?? 0) + (gmailUsed ?? 0);
+function resolveGmailUsageMb(item: UsageReportItem) {
+  const accountsGmailUsage = getUsageParamValue(item, "accounts:gmail_used_quota_in_mb");
+  if (accountsGmailUsage !== null) return accountsGmailUsage;
 
-  const accountsStorage = getUsageParamValue(item, "accounts:used_storage_in_mb");
-  if (accountsStorage !== null) return accountsStorage;
-
-  const anyUsed = item.parameters?.find((p) => String(p.name || "").includes("used_storage_in_mb"));
-  if (anyUsed) {
-    const rawValue = anyUsed.intValue ?? anyUsed.value ?? "";
-    return parseUsageValue(String(rawValue));
-  }
-
-  return null;
+  // Legacy fallback kept for compatibility with older report shapes.
+  return getUsageParamValue(item, "gmail:used_storage_in_mb");
 }
 
 type DomainCredentials = {
@@ -358,7 +366,6 @@ Deno.serve(async (req) => {
 
   const scope = "https://www.googleapis.com/auth/admin.directory.user.readonly https://www.googleapis.com/auth/admin.reports.usage.readonly";
   const runStartedAt = new Date().toISOString();
-  const usageDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   const summary: any = { ok: true, mode, runStartedAt, domains: [] as any[] };
 
@@ -400,18 +407,20 @@ Deno.serve(async (req) => {
 
       let usageReports: UsageReportItem[] = [];
       try {
-        usageReports = await getUsageReport({ accessToken, domain: normalized, date: usageDate });
+        usageReports = await getLatestUsageReport({ accessToken, domain: normalized });
       } catch (usageError) {
         const msg = formatError(usageError);
         console.warn(`Reports API skipped for ${normalized}: ${msg}`);
         usageReports = [];
       }
-      const usageByEmail = new Map<string, number>();
+      const usageByEmail = new Map<string, { storageMb: number | null; gmailUsageMb: number | null }>();
       for (const item of usageReports) {
         const email = (item.entity?.userEmail || "").toLowerCase().trim();
         if (!email) continue;
-        const storageMb = resolveStorageMb(item);
-        if (storageMb !== null) usageByEmail.set(email, storageMb);
+        usageByEmail.set(email, {
+          storageMb: resolveStorageMb(item),
+          gmailUsageMb: resolveGmailUsageMb(item),
+        });
       }
 
       const records = users
@@ -419,7 +428,9 @@ Deno.serve(async (req) => {
         .map((u) => {
           const primaryEmail = String(u.primaryEmail).toLowerCase();
           const recordDomain = normalizeDomain(primaryEmail);
-          const storageMb = usageByEmail.get(primaryEmail);
+          const usage = usageByEmail.get(primaryEmail);
+          const storageMb = usage?.storageMb ?? null;
+          const gmailUsageMb = usage?.gmailUsageMb ?? null;
           return {
             primary_email: primaryEmail,
             domain: recordDomain || normalized,
@@ -431,7 +442,8 @@ Deno.serve(async (req) => {
             archived: Boolean((u as any).archived),
             deleted: false,
             last_login_at: u.lastLoginTime ? new Date(u.lastLoginTime).toISOString() : null,
-            storage_mb: Number.isFinite(storageMb) ? storageMb : null,
+            ...(Number.isFinite(storageMb) ? { storage_mb: storageMb } : {}),
+            ...(Number.isFinite(gmailUsageMb) ? { gmail_usage_mb: gmailUsageMb } : {}),
             is_admin: typeof u.isAdmin === "boolean" ? u.isAdmin : null,
             aliases: Array.isArray(u.aliases) ? u.aliases.map((a) => String(a).toLowerCase()) : null,
             google_etag: u.etag ?? null,
