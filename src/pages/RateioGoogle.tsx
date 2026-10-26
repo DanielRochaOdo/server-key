@@ -6,14 +6,19 @@ import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
 import { usePersistence } from '../contexts/PersistenceContext';
 
+type RateioGoogleStatus = 'Ativo' | 'Suspenso' | 'Excluído';
+
 interface RateioGoogle {
   id: string;
   nome_completo: string;
   email?: string;
-  status?: string;
+  status?: RateioGoogleStatus;
   ultimo_login?: string;
   created_at: string;
 }
+
+const DEFAULT_SELECTED_STATUSES: RateioGoogleStatus[] = ['Ativo', 'Suspenso'];
+const ALL_RATEIO_GOOGLE_STATUSES: RateioGoogleStatus[] = ['Ativo', 'Suspenso', 'Excluído'];
 
 const formatDateTime = (value?: string | null) => {
   if (!value) return '-';
@@ -31,9 +36,19 @@ const RateioGoogle: React.FC = () => {
   const [selectedMetric, setSelectedMetric] = useState<'all' | 'odontoart' | 'odontoartonline'>(
     () => getState('rateioGoogle_selectedMetric') || 'all'
   );
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'Ativo' | 'Suspenso' | 'Excluído'>(
-    () => getState('rateioGoogle_selectedStatus') || 'all'
-  );
+  const [selectedStatuses, setSelectedStatuses] = useState<RateioGoogleStatus[]>(() => {
+    const persisted = getState('rateioGoogle_selectedStatuses');
+    if (Array.isArray(persisted)) {
+      const valid = persisted.filter((status): status is RateioGoogleStatus =>
+        ALL_RATEIO_GOOGLE_STATUSES.includes(status as RateioGoogleStatus)
+      );
+      return Array.from(new Set(valid));
+    }
+
+    // Ignore the old single-select persistence so Excluído does not become
+    // selected by default after this multi-select migration.
+    return DEFAULT_SELECTED_STATUSES;
+  });
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_viewingRateio') || null);
@@ -191,12 +206,20 @@ const RateioGoogle: React.FC = () => {
   }, [selectedMetric, setState]);
 
   useEffect(() => {
-    setState('rateioGoogle_selectedStatus', selectedStatus);
-  }, [selectedStatus, setState]);
+    setState('rateioGoogle_selectedStatuses', selectedStatuses);
+  }, [selectedStatuses, setState]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedMetric, selectedStatus]);
+  }, [searchTerm, selectedMetric, selectedStatuses]);
+
+  const toggleStatus = useCallback((status: RateioGoogleStatus) => {
+    setSelectedStatuses((current) =>
+      current.includes(status)
+        ? current.filter((item) => item !== status)
+        : [...current, status]
+    );
+  }, []);
 
   const toggleSortOrder = useCallback(() => {
     setSortOrder((prev) => {
@@ -267,7 +290,7 @@ const RateioGoogle: React.FC = () => {
         selectedMetric === 'all' ||
         (selectedMetric === 'odontoart' && email.endsWith('@odontoart.com')) ||
         (selectedMetric === 'odontoartonline' && email.endsWith('@odontoartonline.com.br'));
-      const matchesStatus = selectedStatus === 'all' || rateio.status === selectedStatus;
+      const matchesStatus = Boolean(rateio.status && selectedStatuses.includes(rateio.status));
       return matchesSearch && matchesMetric && matchesStatus;
     });
 
@@ -278,7 +301,7 @@ const RateioGoogle: React.FC = () => {
     }
 
     return filtered;
-  }, [rateios, searchTerm, selectedMetric, selectedStatus, sortOrder]);
+  }, [rateios, searchTerm, selectedMetric, selectedStatuses, sortOrder]);
 
   const exportData = useCallback(async (format: 'csv' | 'xlsx') => {
     try {
@@ -337,7 +360,7 @@ const RateioGoogle: React.FC = () => {
         setExportStage('Gerando planilha...');
         await yieldToUi();
 
-        const filterInfo = (searchTerm || selectedMetric !== 'all' || selectedStatus !== 'all') ? `_filtrado` : '';
+        const filterInfo = (searchTerm || selectedMetric !== 'all' || selectedStatuses.length !== ALL_RATEIO_GOOGLE_STATUSES.length) ? `_filtrado` : '';
         const filename = `rateio_google${filterInfo}_${new Date().toISOString().slice(0, 10)}.${format}`;
 
         setExportProgress(90);
@@ -383,7 +406,7 @@ const RateioGoogle: React.FC = () => {
         exportHideTimeoutRef.current = null;
       }, remaining);
     }
-  }, [exporting, filteredRateiosSorted, searchTerm, selectedMetric, selectedStatus]);
+  }, [exporting, filteredRateiosSorted, searchTerm, selectedMetric, selectedStatuses]);
 
   const currentItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -403,10 +426,10 @@ const RateioGoogle: React.FC = () => {
         rateio.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         rateio.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         false;
-      const matchesStatus = selectedStatus === 'all' || rateio.status === selectedStatus;
+      const matchesStatus = Boolean(rateio.status && selectedStatuses.includes(rateio.status));
       return matchesSearch && matchesStatus;
     });
-  }, [rateios, searchTerm, selectedStatus]);
+  }, [rateios, searchTerm, selectedStatuses]);
 
   // Dashboard stats based on searched data
   const dashboardStats = useMemo(() => {
@@ -547,7 +570,7 @@ const RateioGoogle: React.FC = () => {
                 <div className="absolute right-0 mt-2 w-56 bg-neutral-200 rounded-md shadow-lg z-10 border border-neutral-200">
                   <div className="py-1">
                     <div className="px-4 py-2 text-xs text-neutral-500 border-b border-neutral-100">
-                      {(searchTerm || selectedMetric !== 'all' || selectedStatus !== 'all') ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
+                      {(searchTerm || selectedMetric !== 'all' || selectedStatuses.length !== ALL_RATEIO_GOOGLE_STATUSES.length) ? `Exportando ${filteredRateiosSorted.length} registros filtrados` : `Exportando todos os ${filteredRateiosSorted.length} registros`}
                     </div>
                     <button
                       onClick={() => exportData('csv')}
@@ -611,22 +634,42 @@ const RateioGoogle: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="w-full sm:w-48">
-                  <label htmlFor="rateio-google-status" className="mb-1 block text-xs font-medium text-neutral-600">
+                <fieldset className="w-full sm:w-auto">
+                  <legend className="mb-1 block text-xs font-medium text-neutral-600">
                     Status
-                  </label>
-                  <select
-                    id="rateio-google-status"
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'Ativo' | 'Suspenso' | 'Excluído')}
-                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="all">Todos</option>
-                    <option value="Ativo">Ativo</option>
-                    <option value="Suspenso">Suspenso</option>
-                    <option value="Excluído">Excluído</option>
-                  </select>
-                </div>
+                  </legend>
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_RATEIO_GOOGLE_STATUSES.map((status) => {
+                      const checked = selectedStatuses.includes(status);
+                      const statusClasses: Record<RateioGoogleStatus, string> = {
+                        Ativo: checked
+                          ? 'border-green-300 bg-green-100 text-green-800'
+                          : 'border-neutral-300 bg-neutral-100 text-neutral-600',
+                        Suspenso: checked
+                          ? 'border-yellow-300 bg-yellow-100 text-yellow-800'
+                          : 'border-neutral-300 bg-neutral-100 text-neutral-600',
+                        Excluído: checked
+                          ? 'border-red-300 bg-red-100 text-red-800'
+                          : 'border-neutral-300 bg-neutral-100 text-neutral-600',
+                      };
+
+                      return (
+                        <label
+                          key={status}
+                          className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${statusClasses[status]}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleStatus(status)}
+                            className="h-4 w-4 rounded border-neutral-300"
+                          />
+                          {status}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
               </div>
 
               <div className="flex items-center space-x-2">
@@ -636,7 +679,7 @@ const RateioGoogle: React.FC = () => {
             </div>
 
             <div className="text-xs text-neutral-500">
-              Use o status e os blocos acima para combinar os filtros da lista.
+              Marque um ou mais status e combine com os blocos acima. Por padrão, Excluído fica desmarcado.
             </div>
           </div>
         </div>
