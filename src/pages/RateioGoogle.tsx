@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Globe, Download, Search, Users, Copy } from 'lucide-react';
+import { Globe, Download, Search, Users, Copy, RefreshCw } from 'lucide-react';
 import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
@@ -35,6 +35,8 @@ const RateioGoogle: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingRateio, setViewingRateio] = useState<RateioGoogle | null>(() => getState('rateioGoogle_viewingRateio') || null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [syncingWorkspace, setSyncingWorkspace] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportStage, setExportStage] = useState('');
@@ -80,6 +82,98 @@ const RateioGoogle: React.FC = () => {
   useEffect(() => {
     fetchRateios();
   }, [fetchRateios]);
+
+  const getFreshAccessToken = useCallback(async () => {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+
+    let session = sessionData.session;
+    if (!session?.access_token) {
+      throw new Error('Sessao expirada. Faca login novamente.');
+    }
+
+    const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
+    if (!expiresAtMs || expiresAtMs - Date.now() < 2 * 60 * 1000) {
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError || !refreshData.session?.access_token) {
+        throw new Error('Sessao expirada. Faca login novamente.');
+      }
+      session = refreshData.session;
+    }
+
+    return session.access_token;
+  }, []);
+
+  const handleSyncWorkspace = useCallback(async () => {
+    if (syncingWorkspace) return;
+
+    setSyncingWorkspace(true);
+    setSyncMessage(null);
+
+    try {
+      const token = await getFreshAccessToken();
+      const anonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+      if (!anonKey) {
+        throw new Error('Configuracao do Supabase indisponivel.');
+      }
+
+      const { data: payload, error } = await supabase.functions.invoke('google-workspace-sync', {
+        body: {
+          mode: 'full',
+          domains: ['odontoart.com', 'odontoartonline.com.br'],
+        },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          apikey: anonKey,
+        },
+      });
+
+      if (error) {
+        let details = '';
+        try {
+          const context = (error as any)?.context;
+          if (context?.clone) {
+            details = await context.clone().text();
+          }
+        } catch {
+          // ignore response parsing errors
+        }
+        throw new Error(details || error.message || 'Falha ao sincronizar o Google Workspace.');
+      }
+
+      if (!payload?.ok) {
+        throw new Error(payload?.error || 'A sincronizacao nao foi concluida.');
+      }
+
+      const domains = Array.isArray(payload?.domains) ? payload.domains : [];
+      const totalFetched = domains.reduce(
+        (acc: number, item: any) => acc + Number(item?.fetched || 0),
+        0
+      );
+      const totalUpdated = domains.reduce(
+        (acc: number, item: any) => acc + Number(item?.upserts || 0),
+        0
+      );
+      const totalDeleted = domains.reduce(
+        (acc: number, item: any) => acc + Number(item?.marked_deleted || 0),
+        0
+      );
+
+      await fetchRateios();
+      setSyncMessage({
+        type: 'success',
+        text: `Sincronizacao concluida. Lidos: ${totalFetched}. Atualizados: ${totalUpdated}. Excluidos: ${totalDeleted}.`,
+      });
+    } catch (error) {
+      console.error('Erro ao sincronizar Google Workspace:', error);
+      setSyncMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Erro ao sincronizar o Google Workspace.',
+      });
+    } finally {
+      setSyncingWorkspace(false);
+    }
+  }, [fetchRateios, getFreshAccessToken, syncingWorkspace]);
 
   useEffect(() => {
     setState('rateioGoogle_viewingRateio', viewingRateio);
@@ -397,6 +491,34 @@ const RateioGoogle: React.FC = () => {
         subtitle="Gerenciamento de usuários Google Workspace"
         actions={(
           <div className="flex flex-wrap items-start gap-2">
+            <div className="flex flex-col items-start">
+              <button
+                type="button"
+                onClick={handleSyncWorkspace}
+                disabled={syncingWorkspace || exporting}
+                className={`inline-flex w-full items-center justify-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors sm:w-auto ${
+                  syncingWorkspace
+                    ? 'cursor-not-allowed border-neutral-300 bg-neutral-200 text-neutral-500'
+                    : 'border-primary-400 bg-primary-100 text-primary-800 hover:bg-primary-200 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-200 dark:hover:bg-primary-900/50'
+                }`}
+                title="Forcar uma sincronizacao imediata com os dois dominios do Google Workspace"
+              >
+                <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 ${syncingWorkspace ? 'animate-spin' : ''}`} />
+                {syncingWorkspace ? 'Sincronizando...' : 'Sincronizar agora'}
+              </button>
+              {syncMessage && (
+                <div
+                  className={`mt-2 max-w-sm rounded-lg border px-3 py-2 text-xs shadow-sm ${
+                    syncMessage.type === 'success'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-red-200 bg-red-50 text-red-700'
+                  }`}
+                  role="status"
+                >
+                  {syncMessage.text}
+                </div>
+              )}
+            </div>
             <div className="relative flex flex-col items-start">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
