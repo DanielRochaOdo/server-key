@@ -192,11 +192,18 @@ const RateioGoogle: React.FC = () => {
         (acc: number, item: any) => acc + Number(item?.marked_deleted || 0),
         0
       );
+      const gmailUsageValues = domains.reduce(
+        (acc: number, item: any) => acc + Number(item?.gmail_usage_values || 0),
+        0
+      );
+      const usageReportIssues = domains
+        .filter((item: any) => item?.usage_report_error)
+        .map((item: any) => `${item.domain}: ${item.usage_report_error}`);
 
       await fetchRateios();
       setSyncMessage({
         type: 'success',
-        text: `Sincronizacao concluida. Lidos: ${totalFetched}. Atualizados: ${totalUpdated}. Excluidos: ${totalDeleted}.`,
+        text: `Sincronizacao concluida. Lidos: ${totalFetched}. Atualizados: ${totalUpdated}. Excluidos: ${totalDeleted}. Uso do Gmail retornado para ${gmailUsageValues} contas.${usageReportIssues.length ? ` Aviso: ${usageReportIssues.join(' | ')}` : ''}`,
       });
     } catch (error) {
       console.error('Erro ao sincronizar Google Workspace:', error);

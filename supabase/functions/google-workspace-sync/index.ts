@@ -212,17 +212,27 @@ async function getUsageReport(params: { accessToken: string; domain: string; dat
 
 async function getLatestUsageReport(params: { accessToken: string; domain: string }) {
   const { accessToken, domain } = params;
+  let latestError: unknown = null;
 
   // Reports API data can be published after the Directory data. Try the most
-  // recent days until Google returns an available usage report.
+  // recent days until Google returns an available usage report. Google returns
+  // HTTP 400 for dates newer than its reporting watermark, so those dates must
+  // be skipped instead of aborting the search.
   for (let daysAgo = 1; daysAgo <= 7; daysAgo += 1) {
     const date = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10);
-    const reports = await getUsageReport({ accessToken, domain, date });
-    if (reports.length > 0) return reports;
+    try {
+      const reports = await getUsageReport({ accessToken, domain, date });
+      if (reports.length > 0) return reports;
+    } catch (error) {
+      const message = formatError(error);
+      if (!message.includes("Data for dates later than")) throw error;
+      latestError = error;
+    }
   }
 
+  if (latestError) throw latestError;
   return [] as UsageReportItem[];
 }
 
@@ -411,8 +421,10 @@ Deno.serve(async (req) => {
       } catch (usageError) {
         const msg = formatError(usageError);
         console.warn(`Reports API skipped for ${normalized}: ${msg}`);
+        domainResult.usage_report_error = msg;
         usageReports = [];
       }
+      domainResult.usage_reports_fetched = usageReports.length;
       const usageByEmail = new Map<string, { storageMb: number | null; gmailUsageMb: number | null }>();
       for (const item of usageReports) {
         const email = (item.entity?.userEmail || "").toLowerCase().trim();
@@ -451,6 +463,13 @@ Deno.serve(async (req) => {
             last_synced_at: runStartedAt,
           };
         });
+
+      domainResult.gmail_usage_values = records.filter((record) => Number.isFinite(record.gmail_usage_mb)).length;
+      if (usageReports.length === 0 && !domainResult.usage_report_error) {
+        domainResult.usage_report_error = "O Google não retornou relatórios de uso para os últimos 7 dias.";
+      } else if (usageReports.length > 0 && domainResult.gmail_usage_values === 0) {
+        domainResult.usage_report_error = "O Google retornou relatórios, mas nenhum valor de uso do Gmail foi associado às contas.";
+      }
 
       let bulkUpsertError: unknown | null = null;
       const chunkSize = 200;
