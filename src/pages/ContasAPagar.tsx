@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail, Eye } from 'lucide-react';
+import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
@@ -886,8 +886,6 @@ const ContasAPagar: React.FC = () => {
   const savedExportState = useMemo(() => loadExportModalState(), []);
 
   const [showNextWeekModal, setShowNextWeekModal] = useState(false);
-  const [showFinanceiroEnviosModal, setShowFinanceiroEnviosModal] = useState(false);
-  const [selectedFinanceiroEnvioMonth, setSelectedFinanceiroEnvioMonth] = useState('');
   const nextWeekModalRef = useRef<HTMLDivElement | null>(null);
   const [showExportNfModal, setShowExportNfModal] = useState(savedExportState.showExportNfModal);
   const [exportEntries, setExportEntries] = useState<Record<string, ExportEntry>>(savedExportState.exportEntries);
@@ -1575,36 +1573,6 @@ const ContasAPagar: React.FC = () => {
     });
     return map;
   }, [getLoteDataEnvio, getRowContaId, lotesFechados]);
-  const contasEnviadasFinanceiro = useMemo(() => {
-    return contas
-      .map((conta) => {
-        const vinculo = contasEnvioFinanceiroMap.get(conta.id);
-        if (!vinculo) return null;
-        return {
-          contaId: conta.id,
-          fornecedor: decodeLatin1IfNeeded(conta.fornecedor) || 'Fornecedor nao informado',
-          descricao: decodeLatin1IfNeeded(conta.descricao) || '',
-          valor: conta.valor,
-          loteId: vinculo.loteId,
-          loteNome: vinculo.loteNome,
-          loteDataEnvio: vinculo.loteDataEnvio,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item));
-  }, [contas, contasEnvioFinanceiroMap]);
-  const financeiroEnvioMonthOptions = useMemo(
-    () => Array.from(new Set(contasEnviadasFinanceiro.map((item) => getMonthKeyFromValue(item.loteDataEnvio)))).sort((a, b) => b.localeCompare(a)),
-    [contasEnviadasFinanceiro]
-  );
-  useEffect(() => {
-    if (financeiroEnvioMonthOptions.length === 0) {
-      if (selectedFinanceiroEnvioMonth) setSelectedFinanceiroEnvioMonth('');
-      return;
-    }
-    if (!financeiroEnvioMonthOptions.includes(selectedFinanceiroEnvioMonth)) {
-      setSelectedFinanceiroEnvioMonth(financeiroEnvioMonthOptions[0]);
-    }
-  }, [financeiroEnvioMonthOptions, selectedFinanceiroEnvioMonth]);
   const lotesFechadosMonthOptions = useMemo(
     () => Array.from(new Set(lotesFechados.map((lote) => getMonthKeyFromValue(lote.criado_em)))).sort((a, b) => b.localeCompare(a)),
     [lotesFechados]
@@ -3708,22 +3676,6 @@ const ContasAPagar: React.FC = () => {
     const numeric = Number(normalized);
     return Number.isFinite(numeric) ? numeric : null;
   };
-  const contasEnviadasNoMesSelecionado = useMemo(() => {
-    if (!selectedFinanceiroEnvioMonth) return [];
-    return contasEnviadasFinanceiro
-      .filter((item) => getMonthKeyFromValue(item.loteDataEnvio) === selectedFinanceiroEnvioMonth)
-      .sort((a, b) => {
-        const byDate = new Date(a.loteDataEnvio).getTime() - new Date(b.loteDataEnvio).getTime();
-        if (byDate !== 0) return byDate;
-        return a.fornecedor.localeCompare(b.fornecedor);
-      });
-  }, [contasEnviadasFinanceiro, selectedFinanceiroEnvioMonth]);
-  const resumoFinanceiroMesSelecionado = useMemo(() => {
-    const totalContas = contasEnviadasNoMesSelecionado.length;
-    const totalValor = contasEnviadasNoMesSelecionado.reduce((acc, item) => acc + (parseValorNumber(item.valor) ?? 0), 0);
-    return { totalContas, totalValor };
-  }, [contasEnviadasNoMesSelecionado]);
-
   const getStatusColorClasses = (status: string | null) => {
     if (status === 'Nao emitido') {
       return 'bg-red-50 text-red-700 border-red-200';
@@ -3903,54 +3855,6 @@ const ContasAPagar: React.FC = () => {
           />
         </div>
       )}
-      {activeTab !== 'lotes' && activeTab !== 'lotes_fechados' && (
-        <div className="rounded-2xl border border-neutral-200 bg-neutral-200 p-3 sm:p-4 shadow-sm">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(180px,220px)_1fr_auto] sm:items-end">
-            <div>
-              <label htmlFor="financeiro-envio-mes" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-                Historico de envios
-              </label>
-              <select
-                id="financeiro-envio-mes"
-                value={selectedFinanceiroEnvioMonth}
-                onChange={(event) => setSelectedFinanceiroEnvioMonth(event.target.value)}
-                className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 text-sm font-semibold uppercase text-neutral-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200"
-                disabled={financeiroEnvioMonthOptions.length === 0}
-              >
-                {financeiroEnvioMonthOptions.length === 0 ? (
-                  <option value="">Sem registros</option>
-                ) : (
-                  financeiroEnvioMonthOptions.map((month) => (
-                    <option key={month} value={month}>
-                      {getMonthLabelFromKey(month)}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-neutral-200 bg-neutral-200 p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Contas enviadas</div>
-                <div className="mt-1 text-lg font-bold text-neutral-900">{resumoFinanceiroMesSelecionado.totalContas}</div>
-              </div>
-              <div className="rounded-xl border border-neutral-200 bg-neutral-200 p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Valor total</div>
-                <div className="mt-1 text-lg font-bold text-neutral-900">{formatCurrency(resumoFinanceiroMesSelecionado.totalValor)}</div>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowFinanceiroEnviosModal(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-button bg-neutral-200 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-button transition-colors hover:bg-button-50 disabled:opacity-50"
-              disabled={contasEnviadasNoMesSelecionado.length === 0}
-              title="Visualizar detalhes do mes"
-            >
-              <Eye className="h-4 w-4" />
-              Ver detalhes
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="bg-neutral-200 rounded-2xl border border-neutral-200 shadow-sm overflow-hidden hide-scrollbar">
         <div className="border-b border-neutral-200 bg-neutral-200">
           <div className="flex gap-2 overflow-x-auto no-scrollbar px-2.5 py-2 sm:px-3 sm:py-2.5">
@@ -5734,57 +5638,6 @@ const ContasAPagar: React.FC = () => {
               >
                 Sim
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showFinanceiroEnviosModal && (
-        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-neutral-200 rounded-2xl border border-neutral-200 p-3 sm:p-5 lg:p-6 w-[min(96vw,1200px)] shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold">Detalhes de Envio ao Financeiro</h2>
-                <p className="text-xs sm:text-sm text-neutral-600 mt-1">
-                  {selectedFinanceiroEnvioMonth
-                    ? `Mes selecionado: ${getMonthLabelFromKey(selectedFinanceiroEnvioMonth)}`
-                    : 'Sem mes selecionado'}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowFinanceiroEnviosModal(false)}
-                className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors text-xs sm:text-sm"
-              >
-                Fechar
-              </button>
-            </div>
-            <div className="mt-4 rounded-xl border border-neutral-200 overflow-hidden">
-              <div className="grid grid-cols-12 gap-2 px-2.5 sm:px-3 py-2 bg-neutral-200 border-b border-neutral-200 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                <div className="col-span-3">Conta</div>
-                <div className="col-span-2 text-center">Data envio lote</div>
-                <div className="col-span-2 text-right">Valor</div>
-                <div className="col-span-5">Lote</div>
-              </div>
-              {contasEnviadasNoMesSelecionado.length === 0 ? (
-                <div className="px-3 py-4 text-xs text-neutral-500">Nenhuma conta enviada no mes selecionado.</div>
-              ) : (
-                <ul className="divide-y divide-neutral-200">
-                  {contasEnviadasNoMesSelecionado.map((item) => (
-                    <li key={`${item.contaId}-${item.loteId}`} className="grid grid-cols-12 gap-2 px-2.5 sm:px-3 py-2 text-[11px] sm:text-xs text-neutral-700">
-                      <div className="col-span-3 min-w-0">
-                        <div className="truncate font-semibold text-neutral-900">{item.fornecedor}</div>
-                        {item.descricao && (
-                          <div className="truncate text-neutral-500">{item.descricao}</div>
-                        )}
-                      </div>
-                      <div className="col-span-2 text-center">{formatShortDate(item.loteDataEnvio)}</div>
-                      <div className="col-span-2 text-right font-semibold text-neutral-900">{formatCurrency(item.valor)}</div>
-                      <div className="col-span-5 min-w-0 break-words" title={item.loteId}>
-                        {item.loteNome} ({item.loteId.slice(0, 8)})
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           </div>
         </div>
