@@ -235,6 +235,11 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    const formElement = e.currentTarget;
+    const submittedFornecedor = (formElement.elements.namedItem('fornecedor') as HTMLInputElement | null)?.value
+      ?? formData.fornecedor;
+    const submittedDescricao = (formElement.elements.namedItem('descricao') as HTMLInputElement | null)?.value
+      ?? formData.descricao;
     if (!hasModuleEditAccess('contas_a_pagar')) {
       setError('Voce nao tem permissao para editar este modulo.');
       return;
@@ -320,6 +325,8 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
           return null;
         })(),
         ...formData,
+        fornecedor: submittedFornecedor,
+        descricao: submittedDescricao,
         valor: valorFinal,
         valor_moeda: parsedValor,
         moeda,
@@ -406,6 +413,8 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
 
         const expectedLink = updateDataToSave.link || null;
         const persistedLink = persistedConta.link || null;
+        const expectedFornecedor = updateDataToSave.fornecedor || null;
+        const persistedFornecedor = persistedConta.fornecedor || null;
         const expectedDescricao = updateDataToSave.descricao || null;
         const persistedDescricao = persistedConta.descricao || null;
         const expectedStatus = updateDataToSave.status_documento || null;
@@ -413,6 +422,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
 
         if (
           expectedLink !== persistedLink ||
+          expectedFornecedor !== persistedFornecedor ||
           expectedDescricao !== persistedDescricao ||
           expectedStatus !== persistedStatus
         ) {
@@ -420,16 +430,18 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
             contaId: conta.id,
             expected: {
               link: expectedLink,
+              fornecedor: expectedFornecedor,
               descricao: expectedDescricao,
               status_documento: expectedStatus,
             },
             persisted: {
               link: persistedLink,
+              fornecedor: persistedFornecedor,
               descricao: persistedDescricao,
               status_documento: persistedStatus,
             },
           });
-          throw new Error('Os dados nao foram persistidos no banco como esperado. Tente novamente.');
+          throw new Error('Os dados do fornecedor ou da descricao nao foram persistidos como digitados. Tente salvar novamente.');
         }
         updatedContaForUi = {
           id: persistedConta.id as any,
