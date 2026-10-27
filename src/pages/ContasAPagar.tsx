@@ -3902,13 +3902,13 @@ const ContasAPagar: React.FC = () => {
                     key={lote.id}
                     className="rounded-2xl border border-neutral-200 bg-neutral-200 p-4 sm:p-5 shadow-sm transition-shadow hover:shadow-md"
                   >
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
-                      <div className="space-y-2 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm sm:text-base font-semibold text-neutral-900 uppercase break-words">
+                    <div className="flex flex-col gap-4">
+                      <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <span className="break-words text-sm font-semibold uppercase text-neutral-900 sm:text-base">
                             {lote.nome}
                           </span>
-                          <span className="inline-flex items-center rounded-full bg-neutral-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
+                          <span className="inline-flex shrink-0 items-center rounded-full bg-neutral-200 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
                             {lote.origem === 'avulsa'
                               ? 'Avulsas'
                               : lote.origem === 'ressarcimento'
@@ -3918,82 +3918,17 @@ const ContasAPagar: React.FC = () => {
                                   : 'Fixas'}
                           </span>
                           {lote.fechado && (
-                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                            <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                               Fechado
                             </span>
                           )}
                         </div>
-                        <div className="flex flex-wrap gap-3 text-[11px] text-neutral-500">
-                          <span className="inline-flex items-center gap-1">
-                            Itens:
-                            <strong className="font-semibold text-neutral-700">{lote.total}</strong>
-                          </span>
-                          <span className="hidden sm:inline text-neutral-300">â€¢</span>
-                          <span>
-                            Criado em: <strong className="font-semibold text-neutral-700">{formatDateTime(lote.criado_em)}</strong>
-                          </span>
-                          {closedLoteOps[lote.id]?.ultimoExportDetalhadoEm && (
-                            <>
-                              <span className="hidden sm:inline text-neutral-300">Ã¢â‚¬Â¢</span>
-                              <span>
-                                Det. exportado: <strong className="font-semibold text-neutral-700">{formatDateTime(closedLoteOps[lote.id]?.ultimoExportDetalhadoEm as string)}</strong>
-                              </span>
-                            </>
-                          )}
-                          {closedLoteOps[lote.id]?.ultimoExportResumidoEm && (
-                            <>
-                              <span className="hidden sm:inline text-neutral-300">Ã¢â‚¬Â¢</span>
-                              <span>
-                                Res. exportado: <strong className="font-semibold text-neutral-700">{formatDateTime(closedLoteOps[lote.id]?.ultimoExportResumidoEm as string)}</strong>
-                              </span>
-                            </>
-                          )}
-                          {closedLoteOps[lote.id]?.ultimoEmailDetalhadoEm && (
-                            <>
-                              <span className="hidden sm:inline text-neutral-300">Ã¢â‚¬Â¢</span>
-                              <span>
-                                E-mail det.: <strong className="font-semibold text-neutral-700">{formatDateTime(closedLoteOps[lote.id]?.ultimoEmailDetalhadoEm as string)}</strong>
-                              </span>
-                            </>
-                          )}
-                          {closedLoteOps[lote.id]?.ultimoEmailStatus && (
-                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                              closedLoteOps[lote.id]?.ultimoEmailStatus === 'sucesso'
-                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                : closedLoteOps[lote.id]?.ultimoEmailStatus === 'incerto'
-                                  ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                  : 'border-red-200 bg-red-50 text-red-700'
-                            }`}>
-                              Email {closedLoteOps[lote.id]?.ultimoEmailStatus}
-                            </span>
-                          )}
-                          {lote.fechado && (() => {
-                            const counts = getLoteCounts(lote);
-                            return (
-                              <>
-                                <span className="hidden sm:inline text-neutral-300">â€¢</span>
-                                <span className="inline-flex items-center gap-1">
-                                  Fixas:
-                                  <strong className="font-semibold text-neutral-700">{counts.fixas}</strong>
-                                </span>
-                                <span className="inline-flex items-center gap-1">
-                                  Avulsas:
-                                  <strong className="font-semibold text-neutral-700">{counts.avulsas}</strong>
-                                </span>
-                                <span className="inline-flex items-center gap-1">
-                                  Ressarcimento:
-                                  <strong className="font-semibold text-neutral-700">{counts.ressarcimentos}</strong>
-                                </span>
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2 lg:items-stretch">
+
+                        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
                         <button
                           onClick={() => lote.resumido && handleStartEditLote(lote, 'resumido', lote.fechado)}
                           disabled={!lote.resumido}
-                          className={`w-full rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                          className={`rounded-full border px-3 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors ${
                             lote.resumido
                               ? 'border-primary-200 text-primary-700 hover:bg-primary-50'
                               : 'border-neutral-200 text-neutral-300 cursor-not-allowed'
@@ -4004,7 +3939,7 @@ const ContasAPagar: React.FC = () => {
                         <button
                           onClick={() => lote.detalhado && handleStartEditLote(lote, 'detalhado', lote.fechado)}
                           disabled={!lote.detalhado}
-                          className={`w-full rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                          className={`rounded-full border px-3 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors ${
                             lote.detalhado
                               ? 'border-primary-200 text-primary-700 hover:bg-primary-50'
                               : 'border-neutral-200 text-neutral-300 cursor-not-allowed'
@@ -4012,12 +3947,11 @@ const ContasAPagar: React.FC = () => {
                         >
                           Detalhado
                         </button>
-                        <div className="h-px w-full bg-neutral-200 my-1" />
                         {lote.fechado && (
                           <>
                             <button
                               onClick={() => void handleExportClosedLote(lote, 'detalhado')}
-                              className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100"
                               title="Exportar XLSX detalhado"
                             >
                               <Download className="h-3 w-3" />
@@ -4025,7 +3959,7 @@ const ContasAPagar: React.FC = () => {
                             </button>
                             <button
                               onClick={() => void handleExportClosedLote(lote, 'resumido')}
-                              className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100"
                               title="Exportar XLSX resumido"
                             >
                               <Download className="h-3 w-3" />
@@ -4035,7 +3969,7 @@ const ContasAPagar: React.FC = () => {
                               <button
                                 onClick={() => handleEmailClosedLoteDetalhado(lote)}
                                 disabled={sendingEmail}
-                                className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex items-center justify-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-60"
                                 title="Enviar detalhado por e-mail"
                                 aria-busy={sendingEmail}
                               >
@@ -4048,7 +3982,7 @@ const ContasAPagar: React.FC = () => {
                         {!lote.fechado && (
                           <button
                             onClick={() => handleOpenManageLoteFromList(lote)}
-                            className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-700 hover:border-primary-300 hover:bg-primary-100"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100"
                             title="Adicionar ou remover contas do lote"
                           >
                             Contas
@@ -4057,7 +3991,7 @@ const ContasAPagar: React.FC = () => {
                         {!lote.fechado && (
                           <button
                             onClick={() => handleDeleteLote(lote.id)}
-                            className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-600 hover:border-red-200 hover:bg-red-100"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-red-600 transition-colors hover:border-red-200 hover:bg-red-100"
                             title="Excluir lote"
                           >
                             <Trash2 className="h-3 w-3" />
@@ -4067,13 +4001,77 @@ const ContasAPagar: React.FC = () => {
                         {!lote.fechado && (
                           <button
                             onClick={() => handleOpenCloseSingleLoteModal(lote)}
-                            className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-100"
                             title="Fechar lote"
                           >
                             <CheckCircle className="h-3 w-3" />
                             Fechar Lote
                           </button>
                         )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-neutral-200 pt-3 text-[11px] text-neutral-500">
+                        <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                          <span className="uppercase tracking-wide">Itens</span>
+                          <strong className="font-semibold text-neutral-800">{lote.total}</strong>
+                        </span>
+                        <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                          <span className="uppercase tracking-wide">Criado em</span>
+                          <strong className="font-semibold text-neutral-800">{formatDateTime(lote.criado_em)}</strong>
+                        </span>
+                        {closedLoteOps[lote.id]?.ultimoExportDetalhadoEm && (
+                          <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                            <span className="uppercase tracking-wide">Det. exportado</span>
+                            <strong className="font-semibold text-neutral-800">{formatDateTime(closedLoteOps[lote.id]?.ultimoExportDetalhadoEm as string)}</strong>
+                          </span>
+                        )}
+                        {closedLoteOps[lote.id]?.ultimoExportResumidoEm && (
+                          <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                            <span className="uppercase tracking-wide">Res. exportado</span>
+                            <strong className="font-semibold text-neutral-800">{formatDateTime(closedLoteOps[lote.id]?.ultimoExportResumidoEm as string)}</strong>
+                          </span>
+                        )}
+                        {(closedLoteOps[lote.id]?.ultimoEmailDetalhadoEm || closedLoteOps[lote.id]?.ultimoEmailStatus) && (
+                          <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                            {closedLoteOps[lote.id]?.ultimoEmailDetalhadoEm && (
+                              <>
+                                <span className="uppercase tracking-wide">E-mail det.</span>
+                                <strong className="font-semibold text-neutral-800">{formatDateTime(closedLoteOps[lote.id]?.ultimoEmailDetalhadoEm as string)}</strong>
+                              </>
+                            )}
+                            {closedLoteOps[lote.id]?.ultimoEmailStatus && (
+                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                                closedLoteOps[lote.id]?.ultimoEmailStatus === 'sucesso'
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  : closedLoteOps[lote.id]?.ultimoEmailStatus === 'incerto'
+                                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                    : 'border-red-200 bg-red-50 text-red-700'
+                              }`}>
+                                Email {closedLoteOps[lote.id]?.ultimoEmailStatus}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                        {lote.fechado && (() => {
+                          const counts = getLoteCounts(lote);
+                          return (
+                            <span className="inline-flex flex-wrap items-baseline gap-x-3 gap-y-1 border-l border-neutral-200 pl-4">
+                              <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                                <span className="uppercase tracking-wide">Fixas</span>
+                                <strong className="font-semibold text-neutral-800">{counts.fixas}</strong>
+                              </span>
+                              <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                                <span className="uppercase tracking-wide">Avulsas</span>
+                                <strong className="font-semibold text-neutral-800">{counts.avulsas}</strong>
+                              </span>
+                              <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                                <span className="uppercase tracking-wide">Ressarcimento</span>
+                                <strong className="font-semibold text-neutral-800">{counts.ressarcimentos}</strong>
+                              </span>
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
