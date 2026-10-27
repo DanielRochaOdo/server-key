@@ -1,4 +1,4 @@
-﻿-- Persist the center of cost on the account so lot edits are shared across devices.
+-- Persist the center of cost on the account so lot edits are shared across devices.
 ALTER TABLE public.contas_a_pagar
   ADD COLUMN IF NOT EXISTS centro_custo text;
 
