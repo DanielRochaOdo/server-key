@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { encryptPassword } from '../utils/encryption';
 import { decryptPassword } from '../utils/encryption';
+import { updateRecordById } from '../lib/supabaseMutations';
 
 interface TeamFormProps {
   team?: any;
@@ -95,8 +96,7 @@ const TeamForm: React.FC<TeamFormProps> = ({ team, onSuccess, onCancel }) => {
       };
 
       if (team) {
-        const { error } = await supabase.from('teams').update(dataToSave).eq('id', team.id);
-        if (error) throw error;
+        await updateRecordById('teams', team.id, dataToSave);
       } else {
         const { error } = await supabase.from('teams').insert([{ 
           ...dataToSave, 

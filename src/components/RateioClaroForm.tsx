@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { updateRecordById } from '../lib/supabaseMutations';
 
 interface RateioClaro {
   id: string;
@@ -123,11 +124,7 @@ const RateioClaroForm: React.FC<RateioClaroFormProps> = ({ rateio, onSuccess, on
       };
 
       if (rateio) {
-        const { error } = await supabase
-          .from('rateio_claro')
-          .update(dataToSave)
-          .eq('id', rateio.id);
-        if (error) throw error;
+        await updateRecordById('rateio_claro', rateio.id, dataToSave);
       } else {
         const { error } = await supabase
           .from('rateio_claro')

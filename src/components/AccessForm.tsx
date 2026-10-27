@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { encryptPassword } from '../utils/encryption';
 import { decryptPassword } from '../utils/encryption';
+import { updateRecordById } from '../lib/supabaseMutations';
 
 interface Access {
   id: string;
@@ -124,14 +125,7 @@ const AccessForm: React.FC<AccessFormProps> = ({ access, onSuccess, onCancel }) 
       };
 
       if (access) {
-        const { error } = await supabase
-          .from('acessos')
-          .update(dataToSave)
-          .eq('id', access.id);
-        if (error) {
-          console.error('Update error:', error);
-          throw error;
-        }
+        await updateRecordById('acessos', access.id, dataToSave);
       } else {
         const { error } = await supabase
           .from('acessos')

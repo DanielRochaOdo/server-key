@@ -6,6 +6,7 @@ import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
+import { deleteRecordById } from '../lib/supabaseMutations';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useClipboardCopy } from '../hooks/useClipboardCopy';
@@ -114,8 +115,7 @@ const Acessos: React.FC = () => {
     if (!confirm('Tem certeza que deseja excluir este acesso?')) return;
 
     try {
-      const { error } = await supabase.from('acessos').delete().eq('id', id);
-      if (error) throw error;
+      await deleteRecordById('acessos', id);
       setAcessos(prev => prev.filter((acesso) => acesso.id !== id));
     } catch (error) {
       console.error('Error deleting access:', error);

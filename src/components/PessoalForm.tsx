@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { encryptPassword } from '../utils/encryption';
 import { decryptPassword } from '../utils/encryption';
+import { updateRecordById } from '../lib/supabaseMutations';
 
 interface Pessoal {
   id: string;
@@ -132,11 +133,7 @@ const PessoalForm: React.FC<PessoalFormProps> = ({ pessoal, onSuccess, onCancel 
       };
 
       if (pessoal) {
-        const { error } = await supabase
-          .from('pessoal')
-          .update(dataToSave)
-          .eq('id', pessoal.id);
-        if (error) throw error;
+        await updateRecordById('pessoal', pessoal.id, dataToSave);
       } else {
         const { error } = await supabase
           .from('pessoal')

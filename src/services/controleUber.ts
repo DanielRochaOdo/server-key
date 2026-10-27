@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { deleteRecordsByIds } from '../lib/supabaseMutations';
 
 export type ControleUberRow = {
   id: string;
@@ -77,7 +78,5 @@ export const upsertControleUber = async (payload: ControleUberUpsertInput[]) => 
 };
 
 export const deleteControleUber = async (ids: string[]) => {
-  if (ids.length === 0) return;
-  const { error } = await supabase.from('controle_uber').delete().in('id', ids);
-  if (error) throw error;
+  await deleteRecordsByIds('controle_uber', ids);
 };

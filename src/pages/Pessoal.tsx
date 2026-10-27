@@ -7,6 +7,7 @@ import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { deleteRecordById } from '../lib/supabaseMutations';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { useClipboardCopy } from '../hooks/useClipboardCopy';
 import { useProtectedVisibility } from '../hooks/useProtectedVisibility';
@@ -115,8 +116,7 @@ const Pessoal: React.FC = () => {
     if (!confirm('Tem certeza que deseja excluir este item pessoal?')) return;
 
     try {
-      const { error } = await supabase.from('pessoal').delete().eq('id', id);
-      if (error) throw error;
+      await deleteRecordById('pessoal', id);
       setPessoais(prev => prev.filter((pessoal) => pessoal.id !== id));
     } catch (error) {
       console.error('Error deleting pessoal:', error);

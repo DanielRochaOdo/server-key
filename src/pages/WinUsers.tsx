@@ -6,6 +6,7 @@ import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
+import { deleteRecordById } from '../lib/supabaseMutations';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { useClipboardCopy } from '../hooks/useClipboardCopy';
 import { useProtectedVisibility } from '../hooks/useProtectedVisibility';
@@ -94,8 +95,7 @@ const WinUsers: React.FC = () => {
     if (!confirm('Tem certeza que deseja excluir este Usuário Windows?')) return;
 
     try {
-      const { error } = await supabase.from('win_users').delete().eq('id', id);
-      if (error) throw error;
+      await deleteRecordById('win_users', id);
       setWinUsers((prev) => prev.filter((user) => user.id !== id));
     } catch (error) {
       console.error('Error deleting Usuário Windows:', error);

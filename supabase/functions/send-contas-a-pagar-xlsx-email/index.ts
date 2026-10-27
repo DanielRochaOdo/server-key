@@ -170,6 +170,7 @@ const handleRequest = async (req: Request) => {
     subject?: string;
     columns?: unknown;
     rows?: unknown;
+    attachment?: unknown;
     meta?: unknown;
     recipients?: unknown;
   };
@@ -319,9 +320,26 @@ const handleRequest = async (req: Request) => {
     .map((column) => (column ?? "").toString().trim())
     .filter((column) => column);
 
-  if (!columns.length) {
-    return validationErrorResponse();
+  let attachment: { filename: string; content: string } | undefined;
+  if (body?.attachment !== undefined) {
+    const rawAttachment = body.attachment;
+    if (!rawAttachment || typeof rawAttachment !== "object" || Array.isArray(rawAttachment)) {
+      return validationErrorResponse();
+    }
+    const candidate = rawAttachment as Record<string, unknown>;
+    const filename = typeof candidate.filename === "string" ? candidate.filename.trim() : "";
+    const content = typeof candidate.content === "string" ? candidate.content.trim() : "";
+    const isBase64 = /^[A-Za-z0-9+/]+={0,2}$/.test(content) && content.length % 4 === 0;
+    if (
+      !/^[A-Za-z0-9 _().-]+\.xlsx$/i.test(filename) ||
+      !isBase64 ||
+      content.length > 30 * 1024 * 1024
+    ) {
+      return validationErrorResponse();
+    }
+    attachment = { filename, content };
   }
+  if (!attachment && !columns.length) return validationErrorResponse();
 
   const defaultRecipients = ["daniel.rocha@odontoart.com"];
   const recipientsResult = resolveRecipients(
@@ -333,14 +351,11 @@ const handleRequest = async (req: Request) => {
   }
   const recipients = recipientsResult.recipients;
 
-  if (!Array.isArray(body?.rows)) {
+  const rowsRaw = Array.isArray(body?.rows) ? body.rows as unknown[] : [];
+  if (!attachment && !rowsRaw.every((row) => Array.isArray(row))) {
     return validationErrorResponse();
   }
-
-  const rowsRaw = body.rows as unknown[];
-  if (!rowsRaw.every((row) => Array.isArray(row))) {
-    return validationErrorResponse();
-  }
+  if (!attachment && !Array.isArray(body?.rows)) return validationErrorResponse();
   const rows = rowsRaw as unknown[][];
 
   console.log("email_send_started", {
@@ -349,7 +364,8 @@ const handleRequest = async (req: Request) => {
     emailType: "contas_a_pagar",
     recordId: relatedRecordId,
     userId: authData.user.id,
-    rowCount: rows.length,
+    rowCount: attachment ? undefined : rows.length,
+    hasAttachment: Boolean(attachment),
   });
 
   const MAX_ROWS = 2000;
@@ -400,7 +416,9 @@ const handleRequest = async (req: Request) => {
     ? `<p><em>(parcial) Exibindo ${MAX_ROWS} de ${totalRows} linhas.</em></p>`
     : "";
 
-  const htmlBody = `
+  const htmlBody = attachment
+    ? "<p>Olá,</p><p>Segue anexo contas a pagar</p><p>Att,</p>"
+    : `
     <p>Olá,</p>
     <p>Segue abaixo contas a pagar:</p>
     ${partialNote}
@@ -430,6 +448,7 @@ const handleRequest = async (req: Request) => {
     to: recipients,
     subject: requestedSubject || subject,
     html: htmlBody,
+    ...(attachment ? { attachments: [attachment] } : {}),
   });
 
   if (!sendResult.success) {

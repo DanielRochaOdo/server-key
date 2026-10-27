@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail, Eye } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
 import DashboardStats from '../components/DashboardStats';
@@ -7,6 +8,7 @@ import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import EditPermissionModal from '../components/EditPermissionModal';
 import { supabase } from '../lib/supabase';
+import { deleteRecordById, deleteRecordsByIds } from '../lib/supabaseMutations';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { getLocalDateKey, getUsdBrlRate } from '../utils/usdBrlRate';
@@ -240,20 +242,21 @@ const parseExportDate = (value?: string | null) => {
     }
   }
 
-  const parsed = new Date(trimmed);
-  if (!Number.isNaN(parsed.getTime())) {
-    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  const match = trimmed.match(/^(\d{1,2})[\\/.-](\d{1,2})[\\/.-](\d{2,4})$/);
+  if (match) {
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    let year = Number(match[3]);
+    if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
+    if (year < 100) year += 2000;
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+    return date;
   }
 
-  const match = trimmed.match(/^(\d{1,2})[\\/.-](\d{1,2})[\\/.-](\d{2,4})$/);
-  if (!match) return null;
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  let year = Number(match[3]);
-  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
-  if (year < 100) year += 2000;
-  const date = new Date(year, month - 1, day);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 };
 
 const formatExportDateText = (value?: string | null) => {
@@ -263,6 +266,144 @@ const formatExportDateText = (value?: string | null) => {
   const month = String(parsed.getMonth() + 1).padStart(2, '0');
   const year = parsed.getFullYear();
   return `${day}/${month}/${year}`;
+};
+
+const formatDateInputText = (value: string) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatExportDateText(value);
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
+const CENTRO_CUSTO_OPTIONS = [
+  'adm',
+  'aguanambi',
+  'bezerra',
+  'call center',
+  'clinicas',
+  'comercial',
+  'marketing',
+  'parangaba',
+  'sobral',
+  'ti',
+] as const;
+
+const normalizeCentroCusto = (value?: string | null) => {
+  const selected = (value || '')
+    .split(/[;,|]/)
+    .map((item) => item.trim().toLocaleLowerCase('pt-BR'))
+    .filter((item): item is (typeof CENTRO_CUSTO_OPTIONS)[number] =>
+      CENTRO_CUSTO_OPTIONS.includes(item as (typeof CENTRO_CUSTO_OPTIONS)[number])
+    );
+  const unique = Array.from(new Set(selected));
+  return unique.length > 0 ? unique.join(', ') : 'adm';
+};
+
+const normalizeDespesa = (value?: string | null) => {
+  const normalized = (value || '').trim().toLocaleLowerCase('pt-BR');
+  return normalized === 'fixo' || normalized === 'variavel' ? normalized : '';
+};
+
+const getDefaultDespesaForTipoConta = (tipoConta?: string | null) =>
+  tipoConta === 'fixa' ? 'fixo' : 'variavel';
+
+const CentroCustoMultiSelect: React.FC<{ value: string; onChange: (value: string) => void }> = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 208, maxHeight: 256 });
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const selectedCenters = normalizeCentroCusto(value).split(', ');
+
+  useEffect(() => {
+    if (!open) return;
+
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const menuHeight = Math.min(256, CENTRO_CUSTO_OPTIONS.length * 32 + 16);
+      const menuWidth = Math.min(208, window.innerWidth - 16);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openBelow = spaceBelow >= menuHeight || spaceBelow >= rect.top;
+      const maxHeight = Math.max(96, Math.min(menuHeight, (openBelow ? spaceBelow : rect.top) - 12));
+      const top = openBelow
+        ? Math.min(rect.bottom + 4, window.innerHeight - maxHeight - 8)
+        : Math.max(8, rect.top - maxHeight - 4);
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+      setPosition({ top: Math.max(8, top), left, width: menuWidth, maxHeight });
+    };
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    const syncPositionOnScroll = (event: Event) => {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      updatePosition();
+    };
+
+    updatePosition();
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    document.addEventListener('scroll', syncPositionOnScroll, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+      document.removeEventListener('scroll', syncPositionOnScroll, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open]);
+
+  const toggleCenter = (center: (typeof CENTRO_CUSTO_OPTIONS)[number], checked: boolean) => {
+    const nextCenters = checked
+      ? [...selectedCenters, center]
+      : selectedCenters.filter((item) => item !== center);
+    onChange(nextCenters.join(', '));
+  };
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label="Selecionar centro de custo"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full min-w-40 items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-neutral-200 px-2 py-1 text-left text-[10px] sm:text-[11px] lg:text-xs uppercase shadow-sm"
+      >
+        <span className="truncate">{selectedCenters.join(', ')}</span>
+        <ArrowUpDown className="h-3 w-3 shrink-0 text-neutral-500" aria-hidden="true" />
+      </button>
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          role="group"
+          aria-label="Centros de custo"
+          style={{ position: 'fixed', top: position.top, left: position.left, width: position.width, maxHeight: position.maxHeight, zIndex: 10000 }}
+          className="max-h-64 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-200 p-2 text-left shadow-xl"
+        >
+          {CENTRO_CUSTO_OPTIONS.map((center) => (
+            <label key={center} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs uppercase text-neutral-700 hover:bg-neutral-100">
+              <input
+                type="checkbox"
+                checked={selectedCenters.includes(center)}
+                onChange={(event) => toggleCenter(center, event.target.checked)}
+                className="h-3.5 w-3.5 rounded border-neutral-300 text-primary-600 focus:ring-primary-200"
+              />
+              {center}
+            </label>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
+  );
 };
 
 const formatDateToIsoLocal = (date: Date) => {
@@ -294,6 +435,19 @@ type ExportOverrides = {
   resumidoRows?: LoteRowResumido[];
   detalhadoRows?: LoteRowDetalhado[];
   filenameBase?: string;
+  captureAttachment?: (attachment: XlsxEmailAttachment) => void;
+};
+
+type XlsxEmailAttachment = {
+  filename: string;
+  content: string;
+};
+
+type EmailSendContext = {
+  columns?: string[];
+  rows?: Array<Array<string | number | Date | null>>;
+  loteId?: string;
+  attachment?: XlsxEmailAttachment;
 };
 
 type ExportEntryField =
@@ -338,7 +492,7 @@ const EXPORT_TABLE_COLUMNS: {
   align?: 'left' | 'center' | 'right';
 }[] = [
   { label: 'FORNECEDOR', field: 'fornecedor', align: 'left' },
-  { label: 'VALOR', readonly: true, align: 'right' },
+  { label: 'VALOR LÍQUIDO', readonly: true, align: 'right' },
   { label: 'VENCIMENTO', field: 'vencimento', type: 'date', align: 'center' },
   { label: 'FORMA DE PAGAMENTO', field: 'pagamento', align: 'center' },
   { label: 'DESCRIÇÃO', field: 'descricao', align: 'left' },
@@ -361,7 +515,7 @@ const LOTE_DETALHADO_COLUMNS: {
   align?: 'left' | 'center' | 'right';
 }[] = [
   { label: 'FORNECEDOR', field: 'fornecedor', align: 'left' },
-  { label: 'VALOR', field: 'valor', align: 'right' },
+  { label: 'VALOR LÍQUIDO', field: 'valor', align: 'right' },
   { label: 'VENCIMENTO', field: 'vencimento', type: 'date', align: 'center' },
   { label: 'FORMA DE PAGAMENTO', field: 'pagamento', align: 'center' },
   { label: 'DESCRIÇÃO', field: 'descricao', align: 'left' },
@@ -382,7 +536,7 @@ const LOTE_RESUMIDO_COLUMNS: {
   align?: 'left' | 'center' | 'right';
 }[] = [
   { label: 'FORNECEDOR', field: 'fornecedor', align: 'left' },
-  { label: 'VALOR', field: 'valor', align: 'right' },
+  { label: 'VALOR LÍQUIDO', field: 'valor', align: 'right' },
   { label: 'VENCIMENTO', field: 'vencimento', type: 'date', align: 'center' },
   { label: 'DESCRIÃ‡ÃƒO', field: 'descricao', align: 'left' },
 ];
@@ -588,10 +742,11 @@ const loadLotes = (): LoteRegistro[] => {
               valor: typeof row.valor === 'string' ? row.valor : '',
               vencimento: typeof row.vencimento === 'string' ? row.vencimento : '',
               pagamento: typeof row.pagamento === 'string' ? row.pagamento : '',
-              empresa: typeof row.empresa === 'string' ? row.empresa : '',
+              empresa: normalizeCentroCusto(typeof row.empresa === 'string' ? row.empresa : ''),
               descricao: typeof row.descricao === 'string' ? row.descricao : '',
               notaFiscal: typeof row.notaFiscal === 'string' ? row.notaFiscal : '',
-              setorResponsavel: typeof row.setorResponsavel === 'string' ? row.setorResponsavel : '',
+              setorResponsavel: normalizeDespesa(typeof row.setorResponsavel === 'string' ? row.setorResponsavel : '')
+                || getDefaultDespesaForTipoConta(row.tipoRegistro),
               banco: typeof row.banco === 'string' ? row.banco : '',
               agencia: typeof row.agencia === 'string' ? row.agencia : '',
               conta: typeof row.conta === 'string' ? row.conta : '',
@@ -736,17 +891,14 @@ const ContasAPagar: React.FC = () => {
   const [showExportNfModal, setShowExportNfModal] = useState(savedExportState.showExportNfModal);
   const [exportEntries, setExportEntries] = useState<Record<string, ExportEntry>>(savedExportState.exportEntries);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [preparingEmailAttachment, setPreparingEmailAttachment] = useState(false);
   const sendingEmailRef = useRef(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [showEmailRecipientsModal, setShowEmailRecipientsModal] = useState(false);
   const [emailRecipientInput, setEmailRecipientInput] = useState('');
   const [emailRecipientsError, setEmailRecipientsError] = useState<string | null>(null);
   const [emailRecipients, setEmailRecipients] = useState<string[]>(() => loadEmailRecipients());
-  const [emailContext, setEmailContext] = useState<{
-    columns?: string[];
-    rows?: Array<Array<string | number | Date | null>>;
-    loteId?: string;
-  } | null>(null);
+  const [emailContext, setEmailContext] = useState<EmailSendContext | null>(null);
   const [showConsolidateLoteModal, setShowConsolidateLoteModal] = useState(false);
   const [showBulkNaoEmitidoModal, setShowBulkNaoEmitidoModal] = useState(false);
   const [showCloseSingleLoteModal, setShowCloseSingleLoteModal] = useState(false);
@@ -1100,8 +1252,8 @@ const ContasAPagar: React.FC = () => {
         const detailed = row as LoteRowDetalhado;
         Object.assign(base, {
           pagamento: detailed.pagamento || null,
-          empresa: detailed.empresa || null,
-          setor_responsavel: detailed.setorResponsavel || null,
+          empresa: normalizeCentroCusto(detailed.empresa),
+          setor_responsavel: normalizeDespesa(detailed.setorResponsavel) || null,
           banco: detailed.banco || null,
           agencia: detailed.agencia || null,
           conta: detailed.conta || null,
@@ -1194,11 +1346,9 @@ const ContasAPagar: React.FC = () => {
     if (ids.length === 0) return;
     const validIds = ids.filter((id) => isUuid(id));
     if (validIds.length === 0) return;
-    const { error } = await supabase
-      .from('contas_a_pagar_lotes')
-      .delete()
-      .in('id', validIds);
-    if (error) {
+    try {
+      await deleteRecordsByIds('contas_a_pagar_lotes', validIds);
+    } catch (error) {
       console.error('Erro ao remover lotes do Supabase:', error);
       setToast({ type: 'error', message: 'Falha ao remover lote no banco.' });
     }
@@ -1261,10 +1411,11 @@ const ContasAPagar: React.FC = () => {
               valor: item.valor === null || item.valor === undefined ? '' : item.valor.toString(),
               vencimento: item.vencimento ?? '',
               pagamento: item.pagamento ?? '',
-              empresa: item.empresa ?? '',
+              empresa: normalizeCentroCusto(item.empresa),
               descricao: item.descricao ?? '',
               notaFiscal: item.nota_fiscal ?? '',
-              setorResponsavel: item.setor_responsavel ?? '',
+              setorResponsavel: normalizeDespesa(item.setor_responsavel)
+                || getDefaultDespesaForTipoConta(item.tipo_conta),
               banco: item.banco ?? '',
               agencia: item.agencia ?? '',
               conta: item.conta ?? '',
@@ -1547,8 +1698,7 @@ const ContasAPagar: React.FC = () => {
     if (!confirm('Tem certeza que deseja excluir esta conta?')) return;
 
     try {
-      const { error } = await supabase.from('contas_a_pagar').delete().eq('id', id);
-      if (error) throw error;
+      await deleteRecordById('contas_a_pagar', id);
       setContas(prev => prev.filter((conta) => conta.id !== id));
     } catch (error) {
       console.error('Error deleting conta a pagar:', error);
@@ -1773,10 +1923,10 @@ const ContasAPagar: React.FC = () => {
       fornecedor: decodeLatin1IfNeeded(conta.fornecedor) ?? '',
       vencimento: vencDate ? formatDateToIsoLocal(vencDate) : '',
       pagamento,
-      empresa: 'ODONTOART',
+      empresa: 'adm',
       descricao: decodeLatin1IfNeeded(conta.descricao) ?? '',
       notaFiscal: '*',
-      setorResponsavel: 'T.I',
+      setorResponsavel: getDefaultDespesaForTipoConta(conta.tipo_conta),
       banco: transferencia ? (decodeLatin1IfNeeded(conta.banco) ?? '') : '*',
       agencia: transferencia ? (decodeLatin1IfNeeded(conta.agencia) ?? '') : '*',
       conta: transferencia ? (decodeLatin1IfNeeded(conta.conta) ?? '') : '*',
@@ -1800,6 +1950,9 @@ const ContasAPagar: React.FC = () => {
       if (textValue.trim() === '') return;
       merged[field] = textValue;
     });
+    merged.empresa = normalizeCentroCusto(merged.empresa);
+    merged.setorResponsavel = normalizeDespesa(merged.setorResponsavel)
+      || getDefaultDespesaForTipoConta(conta.tipo_conta);
     return merged;
   };
 
@@ -1892,28 +2045,6 @@ const ContasAPagar: React.FC = () => {
     return Array.from(byContaId.values());
   }, [exportEntries, getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
 
-  const buildDetalhadoEmailRows = useCallback((rows: LoteRowDetalhado[]) => {
-    return rows.map((row) => {
-      const valorNum = parseExportValor(row.valor ?? null);
-      const vencDate = parseExportDate(row.vencimento ?? null);
-      return [
-        row.fornecedor,
-        valorNum ?? null,
-        formatExportDateText(row.vencimento ?? null),
-        row.pagamento,
-        row.empresa,
-        row.descricao,
-        row.setorResponsavel,
-        row.banco,
-        row.agencia,
-        row.conta,
-        row.tipoConta,
-        row.cpfCnpj,
-        '',
-      ];
-    });
-  }, []);
-
   const mapDetalhadoToResumido = useCallback((rows: LoteRowDetalhado[]): LoteRowResumido[] => {
     return rows.map((row) => ({
       id: row.id,
@@ -1935,9 +2066,9 @@ const ContasAPagar: React.FC = () => {
         valor: row.valor ?? '',
         vencimento: row.vencimento ?? '',
         pagamento: '',
-        empresa: '',
+        empresa: 'adm',
         descricao: row.descricao ?? '',
-        setorResponsavel: '',
+        setorResponsavel: getDefaultDespesaForTipoConta(row.tipoRegistro),
         banco: '',
         agencia: '',
         conta: '',
@@ -1959,7 +2090,7 @@ const ContasAPagar: React.FC = () => {
         vencDate,
         entry.pagamento,
         entry.descricao,
-        entry.empresa || entry.setorResponsavel,
+        entry.empresa,
         entry.banco,
         entry.agencia,
         entry.conta,
@@ -2036,10 +2167,10 @@ const ContasAPagar: React.FC = () => {
     if (format === 'xlsx_resumido') {
       const TITLE = 'PROTOCOLO DE PAGAMENTO';
 
-      const HEADERS = ['FORNECEDOR', 'VALOR', 'VENCIMENTO', 'DESCRIÃ‡ÃƒO', 'NF', null]; // F fica oculto
+      const HEADERS = ['FORNECEDOR', 'VALOR LÍQUIDO', 'VENCIMENTO', 'DESCRIÇÃO'];
 
       // larguras iguais ao anexo (A..D)
-      const COL_WIDTHS = [32.21, 18.79, 20.36, 63.07, 21.93];
+      const COL_WIDTHS = [32.21, 18.79, 20.36, 63.07];
 
       const thin = { style: 'thin', color: { rgb: 'FFBFBFBF' } };
 
@@ -2088,12 +2219,11 @@ const ContasAPagar: React.FC = () => {
           valorNum ?? null,
           vencCell ?? null,
           row.descricao ?? '',
-          null,
         ]);
       };
 
-      rows.push([TITLE, null, null, null, null]);      // linha 1
-      rows.push([null, null, null, null, null]);       // linha 2
+      rows.push([TITLE, null, null, null]);            // linha 1
+      rows.push([null, null, null, null]);             // linha 2
       rows.push(HEADERS);                                    // linha 3
 
       // dados (linha 4+)
@@ -2114,7 +2244,7 @@ const ContasAPagar: React.FC = () => {
       // TOTAL (igual ao anexo) - soma de B4 atÃ© Ãºltima linha de dados
       const firstDataRow = 4;
       const lastDataRow = rows.length; // antes de adicionar total
-      rows.push(['TOTAL', { f: `SUM(B${firstDataRow}:B${lastDataRow})` }, null, null, null]);
+      rows.push(['TOTAL', { f: `SUM(B${firstDataRow}:B${lastDataRow})` }, null, null]);
 
       const ws = XLSX.utils.aoa_to_sheet(rows, { cellDates: true });
 
@@ -2126,7 +2256,7 @@ const ContasAPagar: React.FC = () => {
       }
 
       // merge tÃ­tulo: A1:E2 (nÃ£o inclui F)
-      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 1, c: 4 } }];
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 1, c: 3 } }];
 
       // larguras
       ws['!cols'] = COL_WIDTHS.map((w) => ({ wch: w }));
@@ -2135,14 +2265,14 @@ const ContasAPagar: React.FC = () => {
       if (ws['A1']) ws['A1'].s = styleTitle;
 
       // header linha 3 (r=2) col A..D
-      for (let c = 0; c <= 4; c++) {
+      for (let c = 0; c < 4; c++) {
         const addr = XLSX.utils.encode_cell({ r: 2, c });
         if (ws[addr]) ws[addr].s = styleHeader;
       }
 
       // corpo: da linha 4 em diante (r=3..)
       for (let r = 3; r < rows.length; r++) {
-        for (let c = 0; c < 5; c++) {
+        for (let c = 0; c < 4; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
           if (!ws[addr]) continue;
 
@@ -2213,13 +2343,13 @@ const ContasAPagar: React.FC = () => {
               vencCell ?? null,
               row.pagamento ?? '',
               row.descricao ?? '',
-              row.empresa ?? row.setorResponsavel ?? '',
+              row.empresa ?? '',
               row.banco ?? '',
               row.agencia ?? '',
               row.conta ?? '',
               row.tipoConta ?? '',
               row.cpfCnpj ?? '',
-              '',
+              row.setorResponsavel ?? '',
             ];
           })
         : buildXlsxDataRows(entryMap);
@@ -2285,7 +2415,17 @@ const ContasAPagar: React.FC = () => {
       ? 'PROTOCOLO_FINANCEIRO_MODELO'
       : `PROTOCOLO_FINANCEIRO_${dateStamp}`);
 
-    XLSX.writeFile(wb, `${filenameBase}.xlsx`, { bookType: 'xlsx', cellStyles: true });
+    const filename = `${filenameBase}.xlsx`;
+    if (format === 'xlsx' && overrides?.captureAttachment) {
+      const content = XLSX.write(wb, {
+        bookType: 'xlsx',
+        type: 'base64',
+        cellStyles: true,
+      });
+      overrides.captureAttachment({ filename, content });
+    } else {
+      XLSX.writeFile(wb, filename, { bookType: 'xlsx', cellStyles: true });
+    }
     return true;
   } catch (error) {
       console.error('Erro ao exportar contas a pagar:', error);
@@ -2300,12 +2440,19 @@ const ContasAPagar: React.FC = () => {
   }, [exportData]);
 
   const handleExportEntryChange = (conta: ContaAPagar, field: ExportEntryField, value: string) => {
+    const normalizedValue = field === 'empresa'
+      ? normalizeCentroCusto(value)
+      : field === 'setorResponsavel'
+        ? normalizeDespesa(value)
+        : field === 'vencimento'
+          ? formatDateInputText(value)
+          : value;
     setExportEntries((prev) => {
       const next = { ...prev };
       const current = mergeExportEntryWithDefaults(conta, prev[conta.id]);
       const patch: ExportEntry = {
         ...prev[conta.id],
-        [field]: value,
+        [field]: normalizedValue,
       };
 
       if (field === 'pagamento' && requiresBankDetails(value)) {
@@ -2332,11 +2479,7 @@ const ContasAPagar: React.FC = () => {
 
   const handleSendXlsxEmail = useCallback(async (
     recipients: string[] = [],
-    context: {
-      columns?: string[];
-      rows?: Array<Array<string | number | Date | null>>;
-      loteId?: string;
-    } | undefined
+    context: EmailSendContext | undefined
   ) => {
     if (!canSendContasEmail || sendingEmailRef.current) return null;
 
@@ -2352,9 +2495,11 @@ const ContasAPagar: React.FC = () => {
         )
       );
 
-      const dataRows = context?.rows ?? buildXlsxDataRows(exportEntries);
+      const dataRows = context?.attachment
+        ? undefined
+        : context?.rows ?? buildXlsxDataRows(exportEntries);
       const columns = context?.columns ?? XLSX_EXPORT_HEADERS;
-      const rows = dataRows.map((row) =>
+      const rows = dataRows?.map((row) =>
         row.map((value) => {
           if (value instanceof Date) {
             const year = value.getFullYear();
@@ -2407,8 +2552,9 @@ const ContasAPagar: React.FC = () => {
             apikey: `${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            columns,
-            rows,
+            ...(context?.attachment
+              ? { attachment: context.attachment }
+              : { columns, rows }),
             recipients: normalizedRecipients,
             meta: context?.loteId ? { loteId: context.loteId } : undefined,
             subject,
@@ -2460,17 +2606,37 @@ const ContasAPagar: React.FC = () => {
     setEmailContext(null);
   }, []);
 
-  const handleOpenEmailRecipientsModal = useCallback((context?: {
-    columns?: string[];
-    rows?: Array<Array<string | number | Date | null>>;
-    loteId?: string;
-  }) => {
+  const handleOpenEmailRecipientsModal = useCallback((context?: EmailSendContext) => {
     if (!canSendContasEmail || sendingEmailRef.current) return;
     setEmailRecipientInput('');
     setEmailRecipientsError(null);
     setEmailContext(context ?? null);
     setShowEmailRecipientsModal(true);
   }, [canSendContasEmail]);
+
+  const handlePrepareDetailedEmail = useCallback(async (
+    rows: LoteRowDetalhado[],
+    filenameBase: string,
+    loteId?: string,
+  ) => {
+    if (!canSendContasEmail || sendingEmailRef.current || preparingEmailAttachment) return;
+
+    setPreparingEmailAttachment(true);
+    try {
+      const capturedAttachments: XlsxEmailAttachment[] = [];
+      const exported = await exportData('xlsx', {}, {
+        filenameBase,
+        detalhadoRows: rows,
+        captureAttachment: (file) => { capturedAttachments.push(file); },
+      });
+      const attachment = capturedAttachments[0];
+      if (!exported || !attachment) return;
+
+      handleOpenEmailRecipientsModal({ attachment, loteId });
+    } finally {
+      setPreparingEmailAttachment(false);
+    }
+  }, [canSendContasEmail, exportData, handleOpenEmailRecipientsModal, preparingEmailAttachment]);
 
   const handleAddEmailRecipient = useCallback(() => {
     const normalized = normalizeEmail(emailRecipientInput);
@@ -2666,6 +2832,11 @@ const ContasAPagar: React.FC = () => {
     prepareLoteDraftEntries,
     selectedExistingLoteId,
   ]);
+
+  useEffect(() => {
+    if (!showExportNfModal || loteCreationMode !== 'novo') return;
+    setLoteNome((current) => current.trim() ? current : buildDefaultLoteNome());
+  }, [buildDefaultLoteNome, loteCreationMode, showExportNfModal]);
 
   const handleSaveLoteDetalhado = useCallback(() => {
     if (!requireEditPermission()) return;
@@ -3191,8 +3362,7 @@ const ContasAPagar: React.FC = () => {
       };
 
       const ids = contasParaFechar.map((conta) => conta.id);
-      const { error } = await supabase.from('contas_a_pagar').delete().in('id', ids);
-      if (error) throw error;
+      await deleteRecordsByIds('contas_a_pagar', ids);
 
       setLotes((prev) => [novoLote, ...prev]);
       await persistLoteToDb(novoLote, { silent: true });
@@ -3374,13 +3544,12 @@ const ContasAPagar: React.FC = () => {
       setToast({ type: 'error', message: 'Lote sem linhas detalhadas para envio.' });
       return;
     }
-    const rows = buildDetalhadoEmailRows(detalhadoRows);
-    handleOpenEmailRecipientsModal({
-      columns: XLSX_EXPORT_HEADERS,
-      rows,
-      loteId: lote.id,
-    });
-  }, [buildDetalhadoEmailRows, getClosedLoteDetalhadoRows, handleOpenEmailRecipientsModal]);
+    void handlePrepareDetailedEmail(
+      detalhadoRows,
+      buildLoteFilenameBase(lote.nome, 'DETALHADO'),
+      lote.id,
+    );
+  }, [buildLoteFilenameBase, getClosedLoteDetalhadoRows, handlePrepareDetailedEmail]);
 
 
   const handleNewContaClick = useCallback(() => {
@@ -4642,19 +4811,19 @@ const ContasAPagar: React.FC = () => {
             <div className="mt-3 flex flex-wrap gap-2">
               {canSendContasEmail && (
                 <button
-                  onClick={() =>
-                    handleOpenEmailRecipientsModal(
-                      currentLoteId ? { loteId: currentLoteId } : undefined
-                    )
-                  }
-                  disabled={sendingEmail}
+                  onClick={() => void handlePrepareDetailedEmail(
+                    buildDetalhadoRows(),
+                    buildLoteFilenameBase(loteNome || 'LOTE', 'DETALHADO'),
+                    currentLoteId ?? undefined,
+                  )}
+                  disabled={sendingEmail || preparingEmailAttachment}
                   className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold uppercase border border-primary-200 rounded-full text-primary-600 transition-colors ${
-                    sendingEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
+                    sendingEmail || preparingEmailAttachment ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
                   }`}
-                  aria-busy={sendingEmail}
+                  aria-busy={sendingEmail || preparingEmailAttachment}
                 >
                   <Mail className="h-3 w-3" />
-                  {sendingEmail ? 'ENVIANDO...' : 'ENVIAR EMAIL'}
+                  {preparingEmailAttachment ? 'PREPARANDO...' : sendingEmail ? 'ENVIANDO...' : 'ENVIAR EMAIL'}
                 </button>
               )}
             </div>
@@ -4676,11 +4845,11 @@ const ContasAPagar: React.FC = () => {
                                 : null;
                             const sortIndicator = sortField && loteSortConfig.key === sortField
                               ? loteSortConfig.direction === 'asc'
-                                ? 'â†‘'
-                                : 'â†“'
+                                ? <ArrowUp className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                : <ArrowDown className="h-3 w-3 shrink-0" aria-hidden="true" />
                               : sortField
-                                ? 'â†•'
-                                : '';
+                                ? <ArrowUpDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />
+                                : null;
                             const headerAlignClass =
                               column.align === 'center'
                                 ? 'text-center'
@@ -4699,7 +4868,7 @@ const ContasAPagar: React.FC = () => {
                                     className={`inline-flex w-full items-center gap-1 ${headerAlignClass === 'text-right' ? 'justify-end' : headerAlignClass === 'text-center' ? 'justify-center' : 'justify-start'}`}
                                   >
                                     <span>{column.label}</span>
-                                    <span>{sortIndicator}</span>
+                                    {sortIndicator}
                                   </button>
                                 ) : (
                                   column.label
@@ -4741,13 +4910,46 @@ const ContasAPagar: React.FC = () => {
                                 const field = column.field as ExportEntryField;
                                 const rawValue = entry[field] ?? '';
                                 const value = decodeLatin1IfNeeded(rawValue) ?? rawValue;
-                                const inputType = column.type === 'date' ? 'date' : 'text';
+                                const inputType = 'text';
                                 const inputAlignClass =
                                   column.align === 'center'
                                     ? 'text-center'
                                     : column.align === 'right'
                                       ? 'text-right'
                                       : 'text-left';
+                                if (field === 'empresa') {
+                                  return (
+                                    <td
+                                      key={`${conta.id}-${column.label}`}
+                                      className={`relative px-3 py-2 lg:px-4 lg:py-3 break-words whitespace-normal ${bodyAlignClass}`}
+                                    >
+                                      <CentroCustoMultiSelect
+                                        value={value}
+                                        onChange={(nextValue) => handleExportEntryChange(conta, field, nextValue)}
+                                      />
+                                    </td>
+                                  );
+                                }
+
+                                if (field === 'setorResponsavel') {
+                                  return (
+                                    <td
+                                      key={`${conta.id}-${column.label}`}
+                                      className={`px-3 py-2 lg:px-4 lg:py-3 break-words whitespace-normal ${bodyAlignClass}`}
+                                    >
+                                      <select
+                                        value={normalizeDespesa(value)}
+                                        onChange={(event) => handleExportEntryChange(conta, field, event.target.value)}
+                                        className={`w-full min-w-24 rounded-lg border border-neutral-200 bg-neutral-200 px-2 py-1 text-[10px] sm:text-[11px] lg:text-xs uppercase shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 ${inputAlignClass}`}
+                                      >
+                                        <option value="">SELECIONE</option>
+                                        <option value="fixo">FIXO</option>
+                                        <option value="variavel">VARIAVEL</option>
+                                      </select>
+                                    </td>
+                                  );
+                                }
+
                                 return (
                                   <td
                                     key={`${conta.id}-${column.label}`}
@@ -4755,7 +4957,10 @@ const ContasAPagar: React.FC = () => {
                                   >
                                     <input
                                       type={inputType}
-                                      value={value}
+                                      inputMode={column.type === 'date' ? 'numeric' : undefined}
+                                      maxLength={column.type === 'date' ? 10 : undefined}
+                                      placeholder={column.type === 'date' ? 'dd/mm/aaaa' : undefined}
+                                      value={column.type === 'date' ? formatDateInputText(value) : value}
                                       onChange={(event) => handleExportEntryChange(conta, field, event.target.value)}
                                       className={`w-full min-w-0 rounded-lg border border-neutral-200 bg-neutral-200 px-2 py-1 text-[10px] sm:text-[11px] lg:text-xs uppercase shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 ${inputAlignClass}`}
                                     />
@@ -4958,9 +5163,9 @@ const ContasAPagar: React.FC = () => {
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-neutral-500">
                           <span>Itens: <strong className="font-semibold text-neutral-700">{lote.total}</strong></span>
-                          <span className="text-neutral-300">â€¢</span>
+                          <span className="text-neutral-300">&bull;</span>
                           <span>Criado em: <strong className="font-semibold text-neutral-700">{formatDateTime(lote.criado_em)}</strong></span>
-                          <span className="text-neutral-300">â€¢</span>
+                          <span className="text-neutral-300">&bull;</span>
                           <span className="inline-flex items-center gap-2">
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
                               hasResumido ? 'bg-primary-50 text-primary-700' : 'bg-neutral-200 text-neutral-400'
@@ -4977,7 +5182,7 @@ const ContasAPagar: React.FC = () => {
                             const counts = getLoteCounts(lote);
                             return (
                               <>
-                                <span className="text-neutral-300">â€¢</span>
+                                <span className="text-neutral-300">&bull;</span>
                                 <span>Fixas: <strong className="font-semibold text-neutral-700">{counts.fixas}</strong></span>
                                 <span>Avulsas: <strong className="font-semibold text-neutral-700">{counts.avulsas}</strong></span>
                                 <span>Ressarcimento: <strong className="font-semibold text-neutral-700">{counts.ressarcimentos}</strong></span>
@@ -5209,22 +5414,19 @@ const ContasAPagar: React.FC = () => {
               </button>
               {editingLoteType === 'detalhado' && editingLoteReadOnly && canSendContasEmail && (
                 <button
-                  onClick={() => {
-                    const rows = buildDetalhadoEmailRows(editingLoteRows as LoteRowDetalhado[]);
-                    handleOpenEmailRecipientsModal({
-                      columns: XLSX_EXPORT_HEADERS,
-                      rows,
-                      loteId: editingLoteId ?? undefined,
-                    });
-                  }}
-                  disabled={sendingEmail}
+                  onClick={() => void handlePrepareDetailedEmail(
+                    editingLoteRows as LoteRowDetalhado[],
+                    buildLoteFilenameBase(editingLoteNome || 'LOTE', 'DETALHADO'),
+                    editingLoteId ?? undefined,
+                  )}
+                  disabled={sendingEmail || preparingEmailAttachment}
                   className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-primary-200 text-sm font-medium text-primary-700 transition-colors ${
-                    sendingEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
+                    sendingEmail || preparingEmailAttachment ? 'cursor-not-allowed opacity-60' : 'hover:bg-primary-50'
                   }`}
-                  aria-busy={sendingEmail}
+                  aria-busy={sendingEmail || preparingEmailAttachment}
                 >
                   <Mail className="h-4 w-4" />
-                  {sendingEmail ? 'Enviando...' : 'Enviar Email'}
+                  {preparingEmailAttachment ? 'Preparando...' : sendingEmail ? 'Enviando...' : 'Enviar Email'}
                 </button>
               )}
               <button

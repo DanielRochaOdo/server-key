@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { updateRecordById } from '../lib/supabaseMutations';
 
 interface RateioGoogle {
   id: string;
@@ -187,15 +188,7 @@ const RateioGoogleForm: React.FC<RateioGoogleFormProps> = ({ rateio, onSuccess, 
 
       if (rateio) {
         // Atualizar registro existente
-        const { error } = await supabase
-          .from('rateio_google')
-          .update(dataToSave)
-          .eq('id', rateio.id);
-        
-        if (error) {
-          console.error('Error updating rateio google:', error);
-          throw error;
-        }
+        await updateRecordById('rateio_google', rateio.id, dataToSave);
       } else {
         // Criar novo registro
         const { error } = await supabase

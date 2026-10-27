@@ -3,6 +3,7 @@ import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { encryptPassword } from '../utils/encryption';
 import { decryptPassword } from '../utils/encryption';
+import { updateRecordById } from '../lib/supabaseMutations';
 
 interface WinUserFormProps {
   user: { id: string; login: string; senha: string; usuario: string } | null;
@@ -77,11 +78,7 @@ const WinUserForm: React.FC<WinUserFormProps> = ({ user, onSuccess, onCancel }) 
 
       if (user) {
         // Atualizar
-        const { error } = await supabase
-          .from('win_users')
-          .update(dataToSave)
-          .eq('id', user.id);
-        if (error) throw error;
+        await updateRecordById('win_users', user.id, dataToSave);
       } else {
         // Criar novo
         const { error } = await supabase.from('win_users').insert([dataToSave]);

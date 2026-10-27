@@ -43,6 +43,7 @@ type SendEmailInput = {
   subject: string;
   html?: string;
   text?: string;
+  attachments?: Array<{ filename: string; content: string }>;
   timeoutMs?: number;
 };
 
@@ -110,7 +111,18 @@ export const sendEmailWithResend = async (
     to.length > RESEND_MAX_RECIPIENTS ||
     to.some((recipient) => !isValidEmail(recipient)) ||
     !subject ||
-    (!html && !text)
+    (!html && !text) ||
+    (input.attachments !== undefined && (
+      !Array.isArray(input.attachments) ||
+      input.attachments.length === 0 ||
+      input.attachments.some((attachment) =>
+        !attachment ||
+        typeof attachment.filename !== "string" ||
+        !attachment.filename.trim() ||
+        typeof attachment.content !== "string" ||
+        !attachment.content.trim()
+      )
+    ))
   ) {
     return {
       success: false,
@@ -134,6 +146,7 @@ export const sendEmailWithResend = async (
 
     if (html) payload.html = html;
     if (text) payload.text = text;
+    if (input.attachments?.length) payload.attachments = input.attachments;
     if (replyTo) payload.reply_to = replyTo;
 
     const response = await fetch(RESEND_ENDPOINT, {

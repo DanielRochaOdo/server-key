@@ -6,6 +6,7 @@ import DashboardStats from '../components/DashboardStats';
 import PasswordVerificationModal from '../components/PasswordVerificationModal';
 import ModuleHeader from '../components/ModuleHeader';
 import { supabase } from '../lib/supabase';
+import { deleteRecordById } from '../lib/supabaseMutations';
 import { usePersistence } from '../contexts/PersistenceContext';
 import { useClipboardCopy } from '../hooks/useClipboardCopy';
 import { useProtectedVisibility } from '../hooks/useProtectedVisibility';
@@ -101,8 +102,7 @@ const Teams: React.FC = () => {
     if (!confirm('Tem certeza que deseja excluir este team?')) return;
 
     try {
-      const { error } = await supabase.from('teams').delete().eq('id', id);
-      if (error) throw error;
+      await deleteRecordById('teams', id);
       setTeams((prev) => prev.filter((team) => team.id !== id));
     } catch (error) {
       console.error('Error deleting team:', error);

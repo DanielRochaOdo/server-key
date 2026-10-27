@@ -201,8 +201,14 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'valor') {
+      const form = e.currentTarget.form;
+      const fornecedorElement = form?.elements.namedItem('fornecedor') as HTMLInputElement | null;
+      const descricaoElement = form?.elements.namedItem('descricao') as HTMLInputElement | null;
+
       setFormData(prev => ({
         ...prev,
+        fornecedor: prev.fornecedor || fornecedorElement?.value || '',
+        descricao: prev.descricao || descricaoElement?.value || '',
         valor: formatCurrencyFromInput(value, isUsd ? 'USD' : 'BRL')
       }));
       return;
@@ -502,7 +508,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
+        <form onSubmit={handleSubmit} className="flex flex-col min-h-0" autoComplete="off">
           <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto p-6">
             {error && (
               <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center space-x-2">
@@ -654,6 +660,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   type="text"
                   id="fornecedor"
                   name="fornecedor"
+                  autoComplete="off"
                   required
                   value={formData.fornecedor}
                   onChange={handleChange}
@@ -671,6 +678,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                     type="text"
                     id="valor"
                     name="valor"
+                    autoComplete="off"
                     required
                     value={formData.valor}
                     onChange={handleChange}
@@ -718,6 +726,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   type="text"
                   id="descricao"
                   name="descricao"
+                  autoComplete="off"
                   required
                   value={formData.descricao}
                   onChange={handleChange}

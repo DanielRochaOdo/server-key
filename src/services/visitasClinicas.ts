@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { deleteRecordById } from '../lib/supabaseMutations';
 
 export type VisitaClinicaRow = {
   id: string;
@@ -89,6 +90,5 @@ export const updateVisitaClinica = async (
 };
 
 export const deleteVisitaClinica = async (id: string) => {
-  const { error } = await supabase.from('visitas_clinicas').delete().eq('id', id);
-  if (error) throw error;
+  await deleteRecordById('visitas_clinicas', id);
 };
