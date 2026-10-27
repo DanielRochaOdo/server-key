@@ -69,7 +69,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-neutral-900 mb-2">Perfil não encontrado</h2>
           <p className="text-neutral-600 mb-4">
-            Não foi possível carregar seu perfil. Você será redirecionado para o login.
+            Não foi possível carregar seu perfil agora. Sua sessão foi mantida; recarregue a página após concluir as migrations.
           </p>
           <div className="text-sm text-neutral-500">
             <p>Usuário autenticado: {user.email}</p>

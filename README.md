@@ -2,10 +2,12 @@
 
 Este repositório inclui um wrapper para reutilizar token/perfil do Supabase por projeto:
 
-1. Faça login uma vez por conta/perfil:
+1. Faça login no Supabase CLI:
 ```powershell
-supabase login --name conta_empresa_a --token <SEU_TOKEN_AQUI>
+supabase login
 ```
+
+> No CLI atual, `--name` em `supabase login` apenas nomeia o token no Dashboard; ele não cria um profile local para reutilizar com `--profile`. O wrapper usa o profile padrão `supabase`, salvo quando você informa explicitamente um arquivo YAML de profile válido.
 
 2. Crie o contexto local deste projeto:
 ```powershell
@@ -13,7 +15,7 @@ Copy-Item .supabase-context.example.json .supabase-context.json
 ```
 
 3. Edite `.supabase-context.json` com:
-- `profile`: nome do perfil usado no `supabase login --name ...`
+- `profile`: use `supabase` (padrão). Também pode apontar para um arquivo YAML de profile avançado suportado pelo CLI
 - `project_ref`: project ref do Supabase deste projeto
 - `db_password_env`: nome da variável de ambiente com senha do banco (opcional, recomendado)
 
@@ -31,7 +33,7 @@ Copy-Item .supabase-context.example.json .supabase-context.json
 ```
 
 Observações:
-- O wrapper aplica `--profile` automaticamente e usa a raiz do repo como `--workdir`.
+- O wrapper usa o profile padrão `supabase`. Valores legados de `profile` (por exemplo, antigos nomes passados em `supabase login --name`) são ignorados com aviso para evitar `Unsupported Config Type`.
 - Para comandos de `db`/`migration` que exigem link, ele roda `supabase link` automaticamente com o `project_ref` do contexto.
 - `.supabase-context.json` está no `.gitignore`.
 # Odontoart Hub - Sistema de Gerenciamento de SeguranÃ§a

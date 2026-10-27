@@ -42,9 +42,6 @@ $projectRef = [string]$ctx.project_ref
 $dbPasswordEnv = [string]$ctx.db_password_env
 $autoLinkDbCommands = if ($null -eq $ctx.auto_link_db_commands) { $true } else { [bool]$ctx.auto_link_db_commands }
 
-if ([string]::IsNullOrWhiteSpace($profile)) {
-  Write-Error "Campo 'profile' obrigatorio em .supabase-context.json"
-}
 if ([string]::IsNullOrWhiteSpace($projectRef)) {
   Write-Error "Campo 'project_ref' obrigatorio em .supabase-context.json"
 }
@@ -61,8 +58,30 @@ $needsLink = (
 $hasProfileFlag = $CommandArgs -contains "--profile"
 $hasWorkdirFlag = $CommandArgs -contains "--workdir"
 
+# Newer Supabase CLI versions treat --profile as a platform/profile selector.
+# Older project setup instructions used "supabase login --name <value>" and then
+# reused that token label as --profile, which now fails with
+# "Unsupported Config Type". Only pass the context profile when it is the
+# built-in "supabase" profile or an explicit YAML profile file.
+$profileArgs = @()
+if (-not $hasProfileFlag -and -not [string]::IsNullOrWhiteSpace($profile)) {
+  $profilePath = $null
+  try {
+    $profilePath = Resolve-Path $profile -ErrorAction SilentlyContinue
+  } catch {
+    $profilePath = $null
+  }
+
+  $isYamlProfile = $null -ne $profilePath -and @(".yml", ".yaml") -contains [IO.Path]::GetExtension($profilePath.Path).ToLowerInvariant()
+  if ($profile -eq "supabase" -or $isYamlProfile) {
+    $profileArgs = @("--profile", $profile)
+  } else {
+    Write-Warning "Profile legado '$profile' ignorado. O Supabase CLI usara o profile padrao 'supabase'."
+  }
+}
+
 if ($autoLinkDbCommands -and $needsLink) {
-  $linkArgs = @("link", "--project-ref", $projectRef, "--profile", $profile, "--workdir", $repoRoot)
+  $linkArgs = @("link", "--project-ref", $projectRef) + $profileArgs + @("--workdir", $repoRoot)
   if (-not [string]::IsNullOrWhiteSpace($dbPassword)) {
     $linkArgs += @("--password", $dbPassword)
   }
@@ -72,7 +91,7 @@ if ($autoLinkDbCommands -and $needsLink) {
 
 $baseArgs = @()
 if (-not $hasProfileFlag) {
-  $baseArgs += @("--profile", $profile)
+  $baseArgs += $profileArgs
 }
 if (-not $hasWorkdirFlag) {
   $baseArgs += @("--workdir", $repoRoot)
