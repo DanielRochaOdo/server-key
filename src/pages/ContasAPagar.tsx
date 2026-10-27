@@ -129,6 +129,7 @@ interface ContaAPagar {
   conta?: string | null;
   tipo_de_conta?: string | null;
   cpf_cnpj?: string | null;
+  centro_custo?: string | null;
   tipo_conta?: ContaTipo | null;
   data_envio_financeiro?: string | null;
   updated_at?: string | null;
@@ -890,6 +891,7 @@ const ContasAPagar: React.FC = () => {
   const nextWeekModalRef = useRef<HTMLDivElement | null>(null);
   const [showExportNfModal, setShowExportNfModal] = useState(savedExportState.showExportNfModal);
   const [exportEntries, setExportEntries] = useState<Record<string, ExportEntry>>(savedExportState.exportEntries);
+  const centroCustoPersistQueueRef = useRef<Record<string, Promise<void>>>({});
   const [sendingEmail, setSendingEmail] = useState(false);
   const [preparingEmailAttachment, setPreparingEmailAttachment] = useState(false);
   const sendingEmailRef = useRef(false);
@@ -1923,7 +1925,7 @@ const ContasAPagar: React.FC = () => {
       fornecedor: decodeLatin1IfNeeded(conta.fornecedor) ?? '',
       vencimento: vencDate ? formatDateToIsoLocal(vencDate) : '',
       pagamento,
-      empresa: 'adm',
+      empresa: normalizeCentroCusto(conta.centro_custo),
       descricao: decodeLatin1IfNeeded(conta.descricao) ?? '',
       notaFiscal: '*',
       setorResponsavel: getDefaultDespesaForTipoConta(conta.tipo_conta),
@@ -1950,7 +1952,8 @@ const ContasAPagar: React.FC = () => {
       if (textValue.trim() === '') return;
       merged[field] = textValue;
     });
-    merged.empresa = normalizeCentroCusto(merged.empresa);
+    // O centro de custo da conta no banco prevalece sobre valores antigos do localStorage.
+    merged.empresa = normalizeCentroCusto(conta.centro_custo ?? merged.empresa);
     merged.setorResponsavel = normalizeDespesa(merged.setorResponsavel)
       || getDefaultDespesaForTipoConta(conta.tipo_conta);
     return merged;
@@ -2475,6 +2478,36 @@ const ContasAPagar: React.FC = () => {
       next[conta.id] = updated;
       return next;
     });
+
+    if (field === 'empresa') {
+      const centroCusto = normalizeCentroCusto(normalizedValue);
+      setContas((prev) => prev.map((item) => (
+        item.id === conta.id ? { ...item, centro_custo: centroCusto } : item
+      )));
+
+      const previousUpdate = centroCustoPersistQueueRef.current[conta.id] ?? Promise.resolve();
+      const nextUpdate = previousUpdate.catch(() => undefined).then(async () => {
+        const { data, error } = await supabase
+          .from('contas_a_pagar')
+          .update({ centro_custo: centroCusto, updated_at: new Date().toISOString() })
+          .eq('id', conta.id)
+          .select('id')
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error('A conta não foi atualizada; verifique a permissão de edição.');
+      });
+      centroCustoPersistQueueRef.current[conta.id] = nextUpdate;
+      void nextUpdate.catch((error) => {
+        if (centroCustoPersistQueueRef.current[conta.id] !== nextUpdate) return;
+        console.error('Erro ao persistir centro de custo da conta:', error);
+        setToast({ type: 'error', message: 'Falha ao salvar o centro de custo da conta.' });
+        void fetchContas();
+      }).finally(() => {
+        if (centroCustoPersistQueueRef.current[conta.id] === nextUpdate) {
+          delete centroCustoPersistQueueRef.current[conta.id];
+        }
+      });
+    }
   };
 
   const handleSendXlsxEmail = useCallback(async (
