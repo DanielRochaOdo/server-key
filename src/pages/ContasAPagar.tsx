@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail } from 'lucide-react';
+import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
@@ -412,6 +412,65 @@ const formatDateToIsoLocal = (date: Date) => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const formatMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+const addMonthsToMonthKey = (monthKey: string, amount: number) => {
+  const [year, month] = monthKey.split('-').map(Number);
+  if (!year || !month) return monthKey;
+  const date = new Date(year, month - 1 + amount, 1);
+  return formatMonthKey(date);
+};
+
+const MonthYearPicker: React.FC<{
+  value: string;
+  year: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onYearChange: (year: number) => void;
+  onChange: (monthKey: string) => void;
+}> = ({ value, year, open, onOpenChange, onYearChange, onChange }) => {
+  const selectedMonth = Number(value.split('-')[1]) - 1;
+  const selectedYear = Number(value.split('-')[0]);
+  const label = new Date(selectedYear, selectedMonth, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        className="flex items-center gap-2 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-800 hover:bg-white"
+      >
+        <Calendar className="h-4 w-4 text-primary-600" />
+        <span className="capitalize">{label}</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-[100] mt-2 w-64 rounded-xl border border-neutral-200 bg-white p-2 shadow-xl">
+          <div className="mb-2 flex items-center justify-between px-1">
+            <button type="button" onClick={() => onYearChange(year - 1)} aria-label="Ano anterior" className="rounded p-1.5 hover:bg-neutral-100"><ChevronLeft className="h-4 w-4" /></button>
+            <span className="text-sm font-semibold text-neutral-800">{year}</span>
+            <button type="button" onClick={() => onYearChange(year + 1)} aria-label="Próximo ano" className="rounded p-1.5 hover:bg-neutral-100"><ChevronRight className="h-4 w-4" /></button>
+          </div>
+          <div className="grid grid-cols-3 gap-1">
+            {Array.from({ length: 12 }, (_, month) => {
+              const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+              const selected = monthKey === value;
+              return (
+                <button
+                  key={monthKey}
+                  type="button"
+                  onClick={() => { onChange(monthKey); onOpenChange(false); }}
+                  className={`rounded-lg border px-2 py-2 text-xs capitalize ${selected ? 'border-primary-500 bg-primary-50 font-semibold text-primary-700' : 'border-transparent text-neutral-700 hover:bg-neutral-100'}`}
+                >
+                  {new Date(year, month, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const sortLoteRows = <T extends { id: string; contaId?: string; fornecedor?: string; vencimento?: string }>(rows: T[]) => {
@@ -905,6 +964,12 @@ const ContasAPagar: React.FC = () => {
   const [closeSingleLoteTarget, setCloseSingleLoteTarget] = useState<LoteRegistro | null>(null);
   const [consolidateSelection, setConsolidateSelection] = useState<Set<string>>(new Set());
   const [consolidateError, setConsolidateError] = useState<string | null>(null);
+  const [competenciasByConta, setCompetenciasByConta] = useState<Record<string, string>>({});
+  const [loteCompetenciaAccountSelection, setLoteCompetenciaAccountSelection] = useState<Set<string>>(new Set());
+  const [loteCompetenciaMonth, setLoteCompetenciaMonth] = useState(() => formatMonthKey(new Date()));
+  const [loteCompetenciaPickerOpen, setLoteCompetenciaPickerOpen] = useState(false);
+  const [loteCompetenciaPickerYear, setLoteCompetenciaPickerYear] = useState(() => new Date().getFullYear());
+  const [loteCompetenciaBaseDueDates, setLoteCompetenciaBaseDueDates] = useState<Record<string, string>>({});
   const [lotes, setLotes] = useState<LoteRegistro[]>(() => loadLotes());
   const [closedLoteOps, setClosedLoteOps] = useState<Record<string, ClosedLoteOpsMeta>>(() => loadClosedLoteOps());
   const [lotesLoaded, setLotesLoaded] = useState(false);
@@ -1068,6 +1133,32 @@ const ContasAPagar: React.FC = () => {
   useEffect(() => {
     fetchContas();
   }, [fetchContas]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchCompetencias = async () => {
+      if (!user?.id) {
+        setCompetenciasByConta({});
+        return;
+      }
+      const { data, error } = await supabase
+        .from('contas_a_pagar_competencias')
+        .select('conta_id, competencia')
+        .order('updated_at', { ascending: false });
+      if (error) {
+        console.error('Erro ao carregar competências das contas:', error);
+        return;
+      }
+      if (!active) return;
+      const mapped: Record<string, string> = {};
+      (data || []).forEach((row) => {
+        if (row.conta_id && row.competencia) mapped[row.conta_id] = String(row.competencia).slice(0, 7);
+      });
+      setCompetenciasByConta(mapped);
+    };
+    void fetchCompetencias();
+    return () => { active = false; };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!contas.length) return;
@@ -1973,6 +2064,26 @@ const ContasAPagar: React.FC = () => {
     });
   }, []);
 
+  const getVencimentoWithCompetencia = useCallback((conta: ContaAPagar, fallback: string) => {
+    const anchorMonth = competenciasByConta[conta.id];
+    const day = getDayValue(conta.vencimento ?? null);
+    if (!anchorMonth || !day) return fallback;
+    const currentMonth = formatMonthKey(new Date());
+    const [anchorYear, anchorMonthNumber] = anchorMonth.split('-').map(Number);
+    const [currentYear, currentMonthNumber] = currentMonth.split('-').map(Number);
+    const monthsAfterAnchor = (currentYear - anchorYear) * 12 + currentMonthNumber - anchorMonthNumber;
+    const dueMonth = addMonthsToMonthKey(anchorMonth, Math.max(0, monthsAfterAnchor + 1));
+    const [year, month] = dueMonth.split('-').map(Number);
+    const date = getDueDateForReferenceMonth(day, new Date(year, month - 1, 1));
+    return date ? formatDateToIsoLocal(date) : fallback;
+  }, [competenciasByConta, getDayValue, getDueDateForReferenceMonth]);
+
+  const getDraftVencimento = useCallback((conta: ContaAPagar, fallback: string) => (
+    loteCompetenciaAccountSelection.has(conta.id)
+      ? fallback
+      : getVencimentoWithCompetencia(conta, fallback)
+  ), [getVencimentoWithCompetencia, loteCompetenciaAccountSelection]);
+
   const buildDetalhadoRows = useCallback((): LoteRowDetalhado[] => {
     const byContaId = new Map<string, LoteRowDetalhado>();
     sortedLoteContas.forEach((conta) => {
@@ -1982,7 +2093,7 @@ const ContasAPagar: React.FC = () => {
         contaId: conta.id,
         fornecedor: entry.fornecedor ?? '',
         valor: getContaValorAsText(conta.valor),
-        vencimento: entry.vencimento ?? '',
+        vencimento: getDraftVencimento(conta, entry.vencimento ?? ''),
         pagamento: entry.pagamento ?? '',
         empresa: entry.empresa ?? '',
         descricao: entry.descricao ?? '',
@@ -1997,7 +2108,7 @@ const ContasAPagar: React.FC = () => {
       });
     });
     return Array.from(byContaId.values());
-  }, [exportEntries, getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
+  }, [exportEntries, getContaValorAsText, getDraftVencimento, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
 
   const buildResumidoRows = useCallback((): LoteRowResumido[] => {
     const byContaId = new Map<string, LoteRowResumido>();
@@ -2008,13 +2119,13 @@ const ContasAPagar: React.FC = () => {
         contaId: conta.id,
         fornecedor: entry.fornecedor ?? '',
         valor: getContaValorAsText(conta.valor),
-        vencimento: entry.vencimento ?? '',
+        vencimento: getDraftVencimento(conta, entry.vencimento ?? ''),
         descricao: entry.descricao ?? '',
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       });
     });
     return Array.from(byContaId.values());
-  }, [exportEntries, getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
+  }, [exportEntries, getContaValorAsText, getDraftVencimento, mergeExportEntryWithDefaults, normalizeContaTipo, sortedLoteContas]);
 
   const mapDetalhadoToResumido = useCallback((rows: LoteRowDetalhado[]): LoteRowResumido[] => {
     return rows.map((row) => ({
@@ -2787,14 +2898,25 @@ const ContasAPagar: React.FC = () => {
   }, [activeTab, currentLoteId, getRowsCounts, persistLoteToDb, sortLoteRows]);
 
   const prepareLoteDraftEntries = useCallback(() => {
-    setExportEntries((prev) => {
-      const next = { ...prev };
-      filteredContasSorted.forEach((conta) => {
-        next[conta.id] = mergeExportEntryWithDefaults(conta, prev[conta.id]);
-      });
-      return next;
+    const baseDueDates: Record<string, string> = {};
+    const next = { ...exportEntries };
+    filteredContasSorted.forEach((conta) => {
+      const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
+      const dueDate = getVencimentoWithCompetencia(conta, entry.vencimento ?? '');
+      baseDueDates[conta.id] = dueDate;
+      next[conta.id] = {
+        ...entry,
+        vencimento: dueDate,
+      };
     });
-  }, [filteredContasSorted, mergeExportEntryWithDefaults]);
+    setExportEntries(next);
+    setLoteCompetenciaBaseDueDates(baseDueDates);
+    setLoteCompetenciaAccountSelection(new Set());
+    const currentMonth = formatMonthKey(new Date());
+    setLoteCompetenciaMonth(currentMonth);
+    setLoteCompetenciaPickerYear(Number(currentMonth.slice(0, 4)));
+    setLoteCompetenciaPickerOpen(false);
+  }, [exportEntries, filteredContasSorted, getVencimentoWithCompetencia, mergeExportEntryWithDefaults]);
 
   const handleOpenNovoLoteModal = useCallback(() => {
     if (!requireEditPermission()) return;
@@ -2839,7 +2961,85 @@ const ContasAPagar: React.FC = () => {
     setLoteNome((current) => current.trim() ? current : buildDefaultLoteNome());
   }, [buildDefaultLoteNome, loteCreationMode, showExportNfModal]);
 
-  const handleSaveLoteDetalhado = useCallback(() => {
+  const saveCompetenciasForAccounts = useCallback(async (accountIds: Set<string>, monthKey: string) => {
+    const eligibleIds = Array.from(accountIds).filter((id) => {
+      const account = contas.find((item) => item.id === id);
+      const day = account ? Number(account.vencimento) : NaN;
+      return Number.isInteger(day) && day >= 1 && day <= 31;
+    });
+    if (eligibleIds.length === 0) return true;
+    if (!user?.id) {
+      setToast({ type: 'error', message: 'Não foi possível identificar o usuário para salvar as competências.' });
+      return false;
+    }
+    const records = eligibleIds.map((contaId) => ({
+      conta_id: contaId,
+      competencia: `${monthKey}-01`,
+      user_id: user.id,
+    }));
+    const { error } = await supabase
+      .from('contas_a_pagar_competencias')
+      .upsert(records, { onConflict: 'conta_id' });
+    if (error) {
+      console.error('Erro ao salvar competências das contas:', error);
+      setToast({ type: 'error', message: 'Falha ao salvar as competências das contas.' });
+      return false;
+    }
+    setCompetenciasByConta((prev) => ({
+      ...prev,
+      ...Object.fromEntries(eligibleIds.map((id) => [id, monthKey])),
+    }));
+    return true;
+  }, [contas, user?.id]);
+
+  const updateDraftCompetenciaDates = useCallback((accountIds: Set<string>, monthKey: string) => {
+    const [year, month] = monthKey.split('-').map(Number);
+    setExportEntries((prev) => {
+      const next = { ...prev };
+      accountIds.forEach((id) => {
+        const account = contas.find((item) => item.id === id);
+        if (!account) return;
+        const day = getDayValue(account.vencimento ?? null);
+        const dueDate = day ? getDueDateForReferenceMonth(day, new Date(year, month - 1, 1)) : null;
+        next[id] = {
+          ...mergeExportEntryWithDefaults(account, prev[id]),
+          vencimento: dueDate ? formatDateToIsoLocal(dueDate) : loteCompetenciaBaseDueDates[id] ?? '',
+        };
+      });
+      return next;
+    });
+  }, [contas, getDayValue, getDueDateForReferenceMonth, loteCompetenciaBaseDueDates, mergeExportEntryWithDefaults]);
+
+  const handleToggleLoteCompetenciaAccount = useCallback((accountId: string) => {
+    const next = new Set(loteCompetenciaAccountSelection);
+    if (next.has(accountId)) {
+      next.delete(accountId);
+      setExportEntries((prev) => ({
+        ...prev,
+        [accountId]: {
+          ...prev[accountId],
+          vencimento: loteCompetenciaBaseDueDates[accountId] ?? prev[accountId]?.vencimento ?? '',
+        },
+      }));
+    } else {
+      next.add(accountId);
+      const savedMonth = competenciasByConta[accountId];
+      if (savedMonth) {
+        setLoteCompetenciaMonth(savedMonth);
+        setLoteCompetenciaPickerYear(Number(savedMonth.slice(0, 4)));
+      } else {
+        updateDraftCompetenciaDates(next, loteCompetenciaMonth);
+      }
+    }
+    setLoteCompetenciaAccountSelection(next);
+  }, [competenciasByConta, loteCompetenciaAccountSelection, loteCompetenciaBaseDueDates, loteCompetenciaMonth, updateDraftCompetenciaDates]);
+
+  const handleLoteCompetenciaMonthChange = useCallback((monthKey: string) => {
+    setLoteCompetenciaMonth(monthKey);
+    updateDraftCompetenciaDates(loteCompetenciaAccountSelection, monthKey);
+  }, [loteCompetenciaAccountSelection, updateDraftCompetenciaDates]);
+
+  const handleSaveLoteDetalhado = useCallback(async () => {
     if (!requireEditPermission()) return;
     const trimmed = loteNome.trim();
     if (!trimmed) {
@@ -2897,6 +3097,7 @@ const ContasAPagar: React.FC = () => {
     const saved = upsertLote('detalhado', targetNome, detalhadoRows, { silentToast: true, loteId, origemOverride });
     if (!saved) return;
     upsertLote('resumido', targetNome, resumidoRows, { silentToast: true, loteId, origemOverride });
+    if (!await saveCompetenciasForAccounts(loteCompetenciaAccountSelection, loteCompetenciaMonth)) return;
     setToast({
       type: 'success',
       message: existingLote
@@ -2909,8 +3110,9 @@ const ContasAPagar: React.FC = () => {
       setCurrentLoteId(null);
       setSelectedExistingLoteId('');
       setLoteCreationMode('novo');
+      setLoteCompetenciaAccountSelection(new Set());
     }
-  }, [activeTab, buildDetalhadoRows, buildResumidoRows, currentLoteId, loteCreationMode, loteNome, lotes, requireEditPermission, selectedExistingLoteId, sortLoteRows, upsertLote]);
+  }, [activeTab, buildDetalhadoRows, buildResumidoRows, currentLoteId, loteCompetenciaAccountSelection, loteCompetenciaMonth, loteCreationMode, loteNome, lotes, requireEditPermission, saveCompetenciasForAccounts, selectedExistingLoteId, sortLoteRows, upsertLote]);
 
   const handleStartEditLote = useCallback((lote: LoteRegistro, tipo: 'resumido' | 'detalhado', readOnly = false) => {
     if (!readOnly && !requireEditPermission()) return;
@@ -3100,10 +3302,7 @@ const ContasAPagar: React.FC = () => {
   const handleConfirmCloseSingleLote = useCallback(async () => {
     if (!requireEditPermission()) return;
     if (!closeSingleLoteTarget) return;
-    const updatedLote: LoteRegistro = {
-      ...closeSingleLoteTarget,
-      fechado: true,
-    };
+    const updatedLote: LoteRegistro = { ...closeSingleLoteTarget, fechado: true };
     setLotes((prev) => prev.map((lote) => (
       lote.id === closeSingleLoteTarget.id ? updatedLote : lote
     )));
@@ -3122,7 +3321,7 @@ const ContasAPagar: React.FC = () => {
         contaId: conta.id,
         fornecedor: entry.fornecedor ?? '',
         valor: getContaValorAsText(conta.valor),
-        vencimento: entry.vencimento ?? '',
+        vencimento: getVencimentoWithCompetencia(conta, entry.vencimento ?? ''),
         pagamento: entry.pagamento ?? '',
         empresa: entry.empresa ?? '',
         descricao: entry.descricao ?? '',
@@ -3137,7 +3336,7 @@ const ContasAPagar: React.FC = () => {
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       };
     });
-  }, [getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo]);
+  }, [getContaValorAsText, getVencimentoWithCompetencia, mergeExportEntryWithDefaults, normalizeContaTipo]);
 
   const buildResumidoRowsFromContas = useCallback((items: ContaAPagar[], entryMap: Record<string, ExportEntry>) => {
     return items.map((conta) => {
@@ -3147,13 +3346,13 @@ const ContasAPagar: React.FC = () => {
         contaId: conta.id,
         fornecedor: entry.fornecedor ?? '',
         valor: getContaValorAsText(conta.valor),
-        vencimento: entry.vencimento ?? '',
+        vencimento: getVencimentoWithCompetencia(conta, entry.vencimento ?? ''),
         descricao: entry.descricao ?? '',
         notaFiscal: entry.notaFiscal ?? '',
         tipoRegistro: normalizeContaTipo(conta.tipo_conta),
       };
     });
-  }, [getContaValorAsText, mergeExportEntryWithDefaults, normalizeContaTipo]);
+  }, [getContaValorAsText, getVencimentoWithCompetencia, mergeExportEntryWithDefaults, normalizeContaTipo]);
 
   const handleOpenManageLoteContasModal = useCallback(() => {
     if (editingLoteReadOnly || !editingLoteId || !editingLoteType) return;
@@ -3278,16 +3477,9 @@ const ContasAPagar: React.FC = () => {
       setConsolidateError('Nenhum lote valido selecionado.');
       return;
     }
-    const closedLotes = selectedLotes.map((lote) => ({
-      ...lote,
-      fechado: true,
-    }));
+    const closedLotes = selectedLotes.map((lote) => ({ ...lote, fechado: true }));
 
-    setLotes((prev) => prev.map((lote) => (
-      selectedIds.includes(lote.id)
-        ? { ...lote, fechado: true }
-        : lote
-    )));
+    setLotes((prev) => prev.map((lote) => closedLotes.find((closed) => closed.id === lote.id) ?? lote));
 
     await Promise.all(closedLotes.map((lote) => persistLoteToDb(lote, { silent: true })));
 
@@ -4745,7 +4937,8 @@ const ContasAPagar: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 grid grid-cols-3 items-center gap-2 border-b border-dashed border-neutral-200 pb-2">
+              <div className="justify-self-start">
               {canSendContasEmail && (
                 <button
                   onClick={() => void handlePrepareDetailedEmail(
@@ -4763,6 +4956,18 @@ const ContasAPagar: React.FC = () => {
                   {preparingEmailAttachment ? 'PREPARANDO...' : sendingEmail ? 'ENVIANDO...' : 'ENVIAR EMAIL'}
                 </button>
               )}
+              </div>
+              <div className="justify-self-center">
+                <MonthYearPicker
+                  value={loteCompetenciaMonth}
+                  year={loteCompetenciaPickerYear}
+                  open={loteCompetenciaPickerOpen}
+                  onOpenChange={setLoteCompetenciaPickerOpen}
+                  onYearChange={setLoteCompetenciaPickerYear}
+                  onChange={handleLoteCompetenciaMonthChange}
+                />
+              </div>
+              <div aria-hidden="true" />
             </div>
             <div className="mt-4 border-t border-dashed border-neutral-200 pt-4 flex-1 min-h-0">
               <div className="h-full max-h-[55vh] overflow-auto pr-2 pb-2">
@@ -4774,6 +4979,7 @@ const ContasAPagar: React.FC = () => {
                     <table className="min-w-[1800px] w-max border border-neutral-200 text-[10px] sm:text-[11px] lg:text-xs rounded-xl bg-neutral-200 uppercase">
                       <thead className="bg-neutral-200 text-[9px] sm:text-[10px] lg:text-[11px] uppercase tracking-wide text-neutral-500">
                         <tr>
+                          <th aria-label="Selecionar conta" className="w-10 px-2 py-2 lg:px-3 lg:py-3" />
                           {EXPORT_TABLE_COLUMNS.map((column) => {
                             const sortField: LoteSortKey | null = column.field
                               ? (column.field as LoteSortKey)
@@ -4820,6 +5026,17 @@ const ContasAPagar: React.FC = () => {
                           const entry = mergeExportEntryWithDefaults(conta, exportEntries[conta.id]);
                           return (
                             <tr key={conta.id} className="even:bg-neutral-200">
+                              <td className="px-2 py-2 lg:px-3 lg:py-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={loteCompetenciaAccountSelection.has(conta.id)}
+                                  onChange={() => handleToggleLoteCompetenciaAccount(conta.id)}
+                                  disabled={!getDayValue(conta.vencimento ?? null)}
+                                  aria-label={`Atualizar competência de ${conta.fornecedor || 'conta'}`}
+                                  title={getDayValue(conta.vencimento ?? null) ? 'Atualizar a competência desta conta' : 'Cadastre o dia de vencimento para selecionar'}
+                                  className="h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
+                                />
+                              </td>
                               {EXPORT_TABLE_COLUMNS.map((column) => {
                                 const bodyAlignClass =
                                   column.align === 'center'
