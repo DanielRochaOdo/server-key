@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Save, AlertCircle } from 'lucide-react';
+import { X, Save, AlertCircle, Copy, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getLocalDateKey, getUsdBrlRate } from '../utils/usdBrlRate';
+import { useClipboardCopy } from '../hooks/useClipboardCopy';
 
 interface ContaAPagar {
   id: string;
@@ -24,6 +25,8 @@ interface ContaAPagar {
   tipo_de_conta?: string | null;
   cpf_cnpj?: string | null;
   tipo_conta?: 'fixa' | 'avulsa' | 'ressarcimento' | null;
+  codigo_integracao?: string | null;
+  codigo_prefixo?: string | null;
   data_envio_financeiro?: string | null;
 }
 type ContaTipo = 'fixa' | 'avulsa' | 'ressarcimento';
@@ -52,7 +55,26 @@ const requiresBankDetails = (value?: string | null) => {
   return normalized === 'TRANSFERENCIA' || normalized === 'PIX';
 };
 
+const suggestCodePrefix = (supplier: string) => {
+  const normalized = supplier
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+  const firstToken = normalized.trim().split(/\s+/)[0]?.replace(/[^A-Z0-9]/g, '') || '';
+  if (/\d/.test(firstToken) && firstToken.length >= 2) return firstToken.slice(0, 3);
+
+  const compact = normalized.replace(/[^A-Z0-9]/g, '');
+  const consonants = compact.replace(/[AEIOU0-9]/g, '');
+  let prefix = consonants.slice(0, 3);
+  if (prefix.length < 3) {
+    const remaining = compact.split('').filter((character) => !prefix.includes(character)).join('');
+    prefix += remaining.slice(0, 3 - prefix.length);
+  }
+  return (prefix + 'XXX').slice(0, 3);
+};
+
 const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, onSuccess, onCancel }) => {
+  const { copiedKey, copyText } = useClipboardCopy();
   const defaultTipoConta: ContaTipo = conta?.tipo_conta === 'avulsa'
     ? 'avulsa'
     : conta?.tipo_conta === 'ressarcimento'
@@ -72,7 +94,8 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
     valor: '',
     vencimento: '',
     observacoes: '',
-    tipo_conta: defaultTipoConta
+    tipo_conta: defaultTipoConta,
+    codigo_prefixo: ''
   });
 
   const [loading, setLoading] = useState(false);
@@ -80,6 +103,7 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const { user, hasModuleEditAccess } = useAuth();
   const [isUsd, setIsUsd] = useState(false);
+  const [codePrefixManuallyEdited, setCodePrefixManuallyEdited] = useState(false);
 
   const persistenceKey = conta ? `contasAPagarForm_edit_${conta.id}` : `contasAPagarForm_new_${defaultTipoConta}`;
 
@@ -145,7 +169,8 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         valor: Number.isFinite(parsedValor) ? formatCurrency(parsedValor, moedaConta) : '',
         vencimento: conta.vencimento !== null && conta.vencimento !== undefined ? String(conta.vencimento) : '',
         observacoes: conta.observacoes || '',
-        tipo_conta: contaTipo
+        tipo_conta: contaTipo,
+        codigo_prefixo: conta.codigo_prefixo || ''
       });
     } else {
       const savedData = localStorage.getItem(persistenceKey);
@@ -180,8 +205,10 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
         valor: '',
         vencimento: '',
         observacoes: '',
-        tipo_conta: defaultTipoConta
+        tipo_conta: defaultTipoConta,
+        codigo_prefixo: ''
       });
+      setCodePrefixManuallyEdited(false);
     }
     setError('');
   }, [conta?.id, defaultTipoConta, persistenceKey]);
@@ -200,6 +227,19 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    if (name === 'fornecedor') {
+      setFormData((prev) => ({
+        ...prev,
+        fornecedor: value,
+        codigo_prefixo: codePrefixManuallyEdited ? prev.codigo_prefixo : suggestCodePrefix(value),
+      }));
+      return;
+    }
+    if (name === 'codigo_prefixo') {
+      setCodePrefixManuallyEdited(true);
+      setFormData((prev) => ({ ...prev, codigo_prefixo: value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) }));
+      return;
+    }
     if (name === 'valor') {
       const form = e.currentTarget.form;
       const fornecedorElement = form?.elements.namedItem('fornecedor') as HTMLInputElement | null;
@@ -402,6 +442,8 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
             cpf_cnpj,
             tipo_conta,
             data_envio_financeiro,
+            codigo_integracao,
+            codigo_prefixo,
             updated_at
           `)
           .eq('id', conta.id)
@@ -464,17 +506,27 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
           cpf_cnpj: persistedConta.cpf_cnpj as any,
           tipo_conta: persistedConta.tipo_conta as any,
           data_envio_financeiro: persistedConta.data_envio_financeiro as any,
+          codigo_integracao: persistedConta.codigo_integracao as any,
+          codigo_prefixo: persistedConta.codigo_prefixo as any,
           updated_at: (persistedConta.updated_at as any) || updateDataToSave.updated_at,
         };
       } else {
-        const { error } = await supabase
+        const { data: createdConta, error } = await supabase
           .from('contas_a_pagar')
           .insert([{
             ...baseDataToSave,
+            codigo_prefixo: formData.codigo_prefixo || null,
             user_id: user.id,
             created_at: new Date().toISOString()
-          }]);
+          }])
+          .select('id, codigo_integracao, codigo_prefixo')
+          .single();
         if (error) throw error;
+        updatedContaForUi = {
+          id: createdConta.id,
+          codigo_integracao: createdConta.codigo_integracao,
+          codigo_prefixo: createdConta.codigo_prefixo,
+        };
       }
 
       localStorage.removeItem(persistenceKey);
@@ -679,6 +731,43 @@ const ContasAPagarForm: React.FC<ContasAPagarFormProps> = ({ conta, tipoConta, o
                   className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
                   disabled={loading}
                 />
+              </div>
+
+              <div>
+                <label htmlFor="codigo_prefixo" className="block text-sm font-medium text-neutral-700 mb-2">
+                  {conta ? 'Código fixo da conta' : 'Prefixo do código'}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    id="codigo_prefixo"
+                    name="codigo_prefixo"
+                    value={conta ? (conta.codigo_integracao || '') : formData.codigo_prefixo}
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-neutral-300 bg-neutral-200 px-3 py-2 uppercase shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500 disabled:opacity-70"
+                    disabled={loading || Boolean(conta)}
+                    maxLength={3}
+                    placeholder="Automático pelo fornecedor"
+                  />
+                  {conta?.codigo_integracao && (
+                    <button
+                      type="button"
+                      onClick={() => void copyText(conta.codigo_integracao, 'form-account-code')}
+                      className={`rounded-lg border border-neutral-300 p-2 text-neutral-500 hover:bg-neutral-100 hover:text-primary-700 ${copiedKey === 'form-account-code' ? 'text-emerald-600' : ''}`}
+                      title={copiedKey === 'form-account-code' ? 'Protocolo copiado' : 'Copiar protocolo'}
+                      aria-label={`Copiar protocolo ${conta.codigo_integracao}`}
+                    >
+                      {copiedKey === 'form-account-code'
+                        ? <CheckCircle className="h-4 w-4" />
+                        : <Copy className="h-4 w-4" />}
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-neutral-500">
+                  {conta
+                    ? 'Código permanente para usar no nome do boleto.'
+                    : `O número sequencial será criado ao salvar: ${formData.codigo_prefixo || 'XXX'}-###`}
+                </p>
               </div>
 
               <div>

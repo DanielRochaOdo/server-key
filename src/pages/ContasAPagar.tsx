@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { FileText, Plus, Upload, Download, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Ban, ExternalLink, Mail, ChevronLeft, ChevronRight, Calendar, Copy } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import ContasAPagarForm from '../components/ContasAPagarForm';
 import ContasAPagarFileUpload from '../components/ContasAPagarFileUpload';
@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase';
 import { deleteRecordById, deleteRecordsByIds } from '../lib/supabaseMutations';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersistence } from '../contexts/PersistenceContext';
+import { useClipboardCopy } from '../hooks/useClipboardCopy';
 import { getLocalDateKey, getUsdBrlRate } from '../utils/usdBrlRate';
 import {
   getEmailErrorMessage,
@@ -131,6 +132,8 @@ interface ContaAPagar {
   cpf_cnpj?: string | null;
   centro_custo?: string | null;
   tipo_conta?: ContaTipo | null;
+  codigo_integracao?: string | null;
+  codigo_prefixo?: string | null;
   data_envio_financeiro?: string | null;
   updated_at?: string | null;
   created_at: string;
@@ -911,6 +914,7 @@ const loadExportModalState = (): ExportModalState => {
 };
 
 const ContasAPagar: React.FC = () => {
+  const { copiedKey, copyText } = useClipboardCopy();
   const [contas, setContas] = useState<ContaAPagar[]>([]);
   const [loading, setLoading] = useState(true);
   const { user, hasModuleEditAccess, isAdmin } = useAuth();
@@ -1877,9 +1881,10 @@ const ContasAPagar: React.FC = () => {
   }, [pendingAction, pendingActionConta, handleDelete, requireEditPermission]);
 
   const filteredContasSorted = useMemo(() => {
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.trim().toLowerCase();
     let filtered = contasByTab.filter((conta) =>
       (conta.fornecedor || '').toLowerCase().includes(term) ||
+      (conta.codigo_integracao || '').toLowerCase().includes(term) ||
       (conta.tipo_pagto || '').toLowerCase().includes(term) ||
       (conta.link || '').toLowerCase().includes(term) ||
       (conta.descricao || '').toLowerCase().includes(term) ||
@@ -4414,12 +4419,13 @@ const ContasAPagar: React.FC = () => {
               <div className="hidden sm:block overflow-x-hidden">
                 <table className="min-w-full table-fixed divide-y divide-neutral-200 text-[10px] sm:text-[11px] lg:text-xs">
                   <colgroup>
-                    <col style={{ width: '22%' }} />
+                    <col style={{ width: '19%' }} />
+                    <col style={{ width: '9%' }} />
                     <col style={{ width: '9%' }} />
                     <col style={{ width: '4%' }} />
-                    <col style={{ width: '16%' }} />
-                    <col style={{ width: '25%' }} />
-                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '22%' }} />
+                    <col style={{ width: '9%' }} />
                     <col style={{ width: '6%' }} />
                     <col style={{ width: '8%' }} />
                   </colgroup>
@@ -4433,6 +4439,9 @@ const ContasAPagar: React.FC = () => {
                           Fornecedor
                           {getSortIcon('fornecedor')}
                         </div>
+                      </th>
+                      <th className="px-2 py-2 text-center font-semibold">
+                        Protocolo
                       </th>
                       <th className="px-2 py-2 text-center font-semibold">
                         Pagamento
@@ -4479,6 +4488,24 @@ const ContasAPagar: React.FC = () => {
                         <td className="px-2 py-2 align-top">
                           <div className="font-semibold text-neutral-900 break-words whitespace-normal leading-snug">
                             {decodeLatin1IfNeeded(conta.fornecedor) || '-'}
+                          </div>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-neutral-600 text-center font-mono font-semibold">
+                          <div className="inline-flex items-center gap-1.5">
+                            <span>{conta.codigo_integracao || '—'}</span>
+                            {conta.codigo_integracao && (
+                              <button
+                                type="button"
+                                onClick={() => void copyText(conta.codigo_integracao, `conta-code-${conta.id}`)}
+                                className={`rounded p-0.5 text-neutral-400 hover:text-primary-700 transition-colors ${copiedKey === `conta-code-${conta.id}` ? 'text-emerald-600' : ''}`}
+                                title={copiedKey === `conta-code-${conta.id}` ? 'Protocolo copiado' : 'Copiar protocolo'}
+                                aria-label={`Copiar protocolo ${conta.codigo_integracao}`}
+                              >
+                                {copiedKey === `conta-code-${conta.id}`
+                                  ? <CheckCircle className="h-3.5 w-3.5" />
+                                  : <Copy className="h-3.5 w-3.5" />}
+                              </button>
+                            )}
                           </div>
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap text-neutral-600 text-center">
@@ -4585,6 +4612,20 @@ const ContasAPagar: React.FC = () => {
                         <div className="text-sm font-semibold text-neutral-900">{formatCurrency(conta.valor)}</div>
                         <div className="text-xs text-neutral-500">Venc. {formatDay(conta.vencimento)}</div>
                       </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-primary-700">
+                      <span>Protocolo: {conta.codigo_integracao || '—'}</span>
+                      {conta.codigo_integracao && (
+                        <button
+                          type="button"
+                          onClick={() => void copyText(conta.codigo_integracao, `conta-code-mobile-${conta.id}`)}
+                          className="rounded p-0.5 text-neutral-400 hover:text-primary-700"
+                          title="Copiar protocolo"
+                          aria-label={`Copiar protocolo ${conta.codigo_integracao}`}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-500">
                       <span className="inline-flex items-center rounded-full bg-neutral-200 px-2 py-0.5 font-semibold uppercase tracking-wide text-neutral-600">
